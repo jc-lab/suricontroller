@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"net/netip"
-	"time"
 
 	plugin "github.com/jc-lab/suricontroller/adapters/traefik-plugin"
 	"github.com/jc-lab/suricontroller/pkg/suritap"
@@ -66,15 +65,11 @@ type shmConn struct{ c *suritap.Conn }
 
 func (c shmConn) CID() uint64 { return c.c.CID() }
 
-func (c shmConn) Send(deadline time.Time, dir plugin.Dir, data []byte) error {
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	defer cancel()
+func (c shmConn) Send(ctx context.Context, dir plugin.Dir, data []byte) error {
 	return c.c.Send(ctx, suritap.Dir(dir), data)
 }
 
-func (c shmConn) Inspect(deadline time.Time, dir plugin.Dir, data []byte) (plugin.Verdict, error) {
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	defer cancel()
+func (c shmConn) Inspect(ctx context.Context, dir plugin.Dir, data []byte) (plugin.Verdict, error) {
 	v, err := c.c.Inspect(ctx, suritap.Dir(dir), data)
 	if err != nil {
 		return plugin.Verdict{}, err

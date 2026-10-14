@@ -142,7 +142,7 @@ HELLO 타임아웃, 대기 연결 상한, 세션 수 상한은 공유메모리�
 - **데이터**: DATA는 `max-segment`(기본 32 KiB) 이하의 PSH|ACK 세그먼트로 나눈다. seq는 ISN과 오프셋으로, ack는 상대 방향 누적값으로 계산한다.
 - **ACK 보충**: 한 방향의 미확인 바이트가 `ack-threshold`를 넘으면 상대 쪽에서 pure ACK를 넣는다.
 - **종료와 GAP**: EOF는 FIN과 상대 ACK로, CLOSE는 FIN 양방향 또는 RST로 바꾼다. GAP은 seq를 건너뛰고 상대 ACK를 넣어 엔진이 gap으로 인식하게 한다.
-- **연결 구분자**: 연결마다 (session, cid)에서 파생한 VLAN id 2개(각 1..4094, 약 24비트)를 붙인다. 자세한 이유는 §7.1을 본다. 필요 조건은 `vlan.use-for-tracking: true`(기본값)이고, EVE에 `vlan`이 표시된다.
+- **연결 구분자**: 연결마다 (session, cid)에서 파생한 VLAN id 2개(각 1..4094, 약 24비트)를 붙인다. 자세한 이유는 §7.1을 본다. 값은 해시가 아니라 `(cid + 세션별 오프셋) mod 4094²`이다. 클라이언트는 cid를 카운터로 매기므로, 한 세션에서 4094²(약 1677만) 연결 안에서는 겹치지 않는다. HTTP/2 연결 하나는 같은 주소 쌍 위에 수천 개의 합성 flow를 만든다. 무작위 24비트 값을 쓰면 벤치마크 한 번에 수십 건이 겹쳤다. 대부분은 Suricata가 `tcp_reuse`로 처리하지만, 아직 살아 있는 flow와 겹치면 오탐 drop이 날 수 있다. 필요 조건은 `vlan.use-for-tracking: true`(기본값)이고, EVE에 `vlan`이 표시된다.
 - **keepalive**: `keepalive` 이상 유휴인 연결에는 pure ACK를 넣는다. 기본값은 `flow-timeouts.tcp.established / 3`이다. 오래 유휴인 연결(풀링된 DB 클라이언트, websocket)을 엔진이 timeout시킨 뒤 midstream으로 오탐 drop하는 것을 막는다.
 - **메모리**: 패킷 버퍼는 워커당 하나를 재사용한다(256B headroom + 최대 패킷). 페이로드는 링에서 이 버퍼로 한 번만 복사하고, Suricata에는 `PacketSetData`로 zero-copy로 넘긴다. 그 뒤 링 공간은 즉시 반환되므로 링은 처리 중인 버스트만큼만 있으면 된다. flow 상태는 연결당 약 150B이고, alert 누적 버퍼는 alert가 생길 때만 할당한다.
 - **체크섬**: TCP 체크섬은 계산하지 않고(`PKT_IGNORE_CHECKSUM`), IPv4 헤더 체크섬만 계산한다. `suritap-mockd --pcap`은 체크섬을 채운 pcap을 쓰므로 일반 Suricata로 재생할 수 있다.
@@ -339,7 +339,7 @@ http:
 |---|---|---|
 | `mode` | `prevent` | `prevent`: drop 판정이면 차단한다. `detect`: 판정을 기다리지 않는다 |
 | `response` | `detect` | 응답 검사 방식. `prevent`면 `maxResponseBuffer`까지 버퍼링한 뒤 응답 전체를 판정한다 |
-| `failPolicy` | `open` | Suricata가 없거나 timeout일 때 통과(`open`)할지 503(`closed`)을 줄지 |
+| `failPolicy` | `open` | 판정을 받지 못했을 때(Suricata 없음, timeout, `error` 판정) 통과(`open`)할지 503(`closed`)을 줄지. drop 판정은 403이다 |
 | `timeout` | `100ms` | 판정 대기 시간 |
 | `maxRequestBody` | 1 MiB | 이 크기 이하의 요청 바디는 버퍼링하고 판정한 뒤 업스트림으로 보낸다. 큰 바디는 업스트림이 읽는 동안 청크마다 판정한다 |
 | `maxResponseBuffer` | 64 KiB | prevent 응답을 버퍼링할 최대 크기 |
@@ -404,7 +404,7 @@ SURICATA_PREFIX=... SURICATA_SRC=... test/tap/traefik.sh --patch    # 패치 빌
 
 HTTP/3는 같은 핸들러를 거친다. 다만 이 환경의 curl이 h3를 지원하지 않아 E2E에서는 빠졌다.
 
-Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그인 로더와 같은 방식(GOPATH 레이아웃, `CreateConfig` 후 reflection으로 필드 설정, `New` 호출)으로 플러그인을 실행하고, suritap-mockd 또는 실제 Suricata를 상대로 기능 시나리오와 부하(16 클라이언트 × 300 요청, 판정 timeout 0건)를 검사한다. Yaegi 자체의 내부 data race 때문에 이 하네스는 `-race` 없이 돌린다(플러그인의 네이티브 테스트는 `-race`).
+Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그인 로더와 같은 방식(GOPATH 레이아웃, `CreateConfig` 후 reflection으로 필드 설정, `New` 호출)으로 플러그인을 실행하고, suritap-mockd 또는 실제 Suricata를 상대로 기능 시나리오, 부하(16 클라이언트 × 300 요청, 판정 timeout 0건), 판정을 보내지 않는 서버를 상대로 한 timeout(동시 요청 모두 timeout 시각에 503)을 검사한다. Yaegi 자체의 내부 data race 때문에 이 하네스는 `-race` 없이 돌린다(플러그인의 네이티브 테스트는 `-race`).
 
 ### 8.6 오버헤드 (`--bench`, GET 요청과 짧은 응답, 16 클라이언트, 소규모 룰, 워커 2개)
 
@@ -426,14 +426,14 @@ Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그
 
 | 구문 | 증상 |
 |---|---|
-| 여러 goroutine이 동시에 실행하는 `select` 문 | 한 `select` 문의 case 목록(`reflect.SelectCase` 슬라이스)을 모든 goroutine이 공유한다. 다른 요청의 채널을 기다리게 되어 판정 timeout과 멈춤이 생긴다. `context.WithTimeout` + `select <-ctx.Done()`도 같은 원인으로 오동작한다. 단일 채널 송수신은 안전하다 |
+| 여러 goroutine이 동시에 실행하는 `select` 문 | 한 `select` 문의 case 목록(`reflect.SelectCase` 슬라이스)을 모든 goroutine이 공유한다. 다른 요청의 채널을 기다리게 되어 판정 timeout과 멈춤이 생긴다. `select <-ctx.Done()`도 같은 원인으로 오동작한다. `context` 자체와 단일 채널 송수신은 안전하다 |
 | 인터프리트된 타입의 채널을 담은 map·slice(`map[uint32]chan reply`) | 인터프리터 크래시 |
 | `sync.Once.Do` 안의 클로저, range 중 map 삭제 | 인터프리터 크래시 |
 | 구조체 필드에 대한 `sync/atomic`(여러 goroutine) | 인터프리터 크래시 |
 | nil 인터페이스에 대한 comma-ok 타입 단언 | panic |
 | 플러그인 goroutine의 panic | Traefik 프로세스 전체가 종료된다. 백그라운드 goroutine은 `recover`로 감싼다 |
 
-그래서 소켓 클라이언트는 판정 대기를 고정 슬롯(`[]chan []byte`)에 두고, 판정 대기 timeout은 `select` 대신 `time.AfterFunc`가 대기 채널에 표시값을 넣는 방식으로 처리한다. 동시 판정 수는 슬롯 free list로 제한한다.
+그래서 소켓 클라이언트는 판정 대기를 고정 슬롯(`[]chan []byte`)에 두고, ctx 취소·timeout은 `select` 대신 `context.AfterFunc`가 대기 채널에 표시값을 넣는 방식으로 받는다. 인터페이스는 Go 관례대로 ctx를 받고(`Inspect(ctx, …)`), 요청 ctx를 부모로 쓰므로 클라이언트가 끊기면 대기도 바로 끝난다. 동시 판정 수는 슬롯 free list로 제한한다.
 
 ## 9. 알려진 제약과 다음 단계
 

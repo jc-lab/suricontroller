@@ -24,7 +24,10 @@
 //!   new connection never lands in a stale flow of an earlier connection
 //!   with the same addresses and ports (dropped or bypassed flows never see
 //!   their FIN/RST and linger until they time out; reusing one would
-//!   silently skip inspection or drop the new connection).
+//!   silently skip inspection or drop the new connection). Clients number
+//!   connections sequentially, so the ids follow the cid instead of a hash:
+//!   one HTTP/2 connection carries thousands of synthetic flows on a single
+//!   address pair, and random 24-bit ids would collide among them.
 //! * Keepalive: a pure ACK is injected for connections idle longer than
 //!   `keepalive`, so long-lived idle connections (pooled database clients,
 //!   websockets) are not timed out by the engine and picked up mid-stream.
@@ -464,10 +467,13 @@ fn mix(mut x: u64) -> u64 {
     x ^ (x >> 31)
 }
 
-/// Two VLAN ids (1..=4094 each, ~24 bits) identifying a connection.
+/// Two VLAN ids (1..=4094 each, ~24 bits) identifying a connection. Cids
+/// of one session that are less than 4094² apart never share them (clients
+/// allocate cids from a counter); the per-session offset separates sessions.
 pub fn discriminator(session: u32, cid: u64) -> [u16; 2] {
-    let h = mix(cid ^ ((session as u64) << 40) ^ 0x5354_4150);
-    [1 + (h % 4094) as u16, 1 + ((h >> 32) % 4094) as u16]
+    const SPACE: u64 = 4094 * 4094;
+    let n = (cid % SPACE + mix(session as u64 ^ 0x5354_4150) % SPACE) % SPACE;
+    [1 + (n / 4094) as u16, 1 + (n % 4094) as u16]
 }
 
 impl Engine {
@@ -1374,6 +1380,17 @@ mod tests {
         assert_ne!(discriminator(1, 1), discriminator(2, 1));
         let d = discriminator(7, 99);
         assert!((1..=4094).contains(&d[0]) && (1..=4094).contains(&d[1]));
+        // Sequential cids (one connection's requests) never collide, also
+        // across the u64 wrap.
+        let mut seen = std::collections::HashSet::new();
+        for cid in (u64::MAX - 100_000)..=u64::MAX {
+            let d = discriminator(3, cid);
+            assert!((1..=4094).contains(&d[0]) && (1..=4094).contains(&d[1]));
+            assert!(seen.insert(d), "collision at cid {cid}");
+        }
+        for cid in 0..100_000u64 {
+            assert!(seen.insert(discriminator(3, cid)), "collision at cid {cid}");
+        }
     }
 
     #[test]
