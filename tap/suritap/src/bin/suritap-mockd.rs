@@ -90,6 +90,7 @@ fn main() {
     for i in 0..workers {
         let mut cfg = WorkerConfig::new(socket_path(&dir, i as usize), i, workers);
         cfg.spin = Duration::from_micros(spin);
+        cfg.stream_path = Some(dir.join(format!("worker-{i}.stream.sock")));
         cfg.engine.max_segment = max_segment;
         let mut w = Worker::new(cfg).expect("listen");
         let mut insp = Marker {

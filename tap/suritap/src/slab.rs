@@ -39,6 +39,11 @@ impl<T> Slab<T> {
         }
     }
 
+    /// Generation of slot `idx` (0 for a slot never used).
+    pub fn generation(&self, idx: usize) -> u32 {
+        self.slots.get(idx).map_or(0, |s| s.0)
+    }
+
     pub fn by_index(&mut self, idx: usize) -> Option<&mut T> {
         self.slots.get_mut(idx).and_then(|s| s.1.as_mut())
     }

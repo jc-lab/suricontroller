@@ -251,6 +251,9 @@ extern "C" fn thread_init(tv: *mut ThreadVars, initdata: *const c_void, data: *m
         cfg.threads,
     );
     wc.socket_mode = cfg.socket_mode;
+    if cfg.stream {
+        wc.stream_path = Some(cfg.socket_dir.join(format!("worker-{}.stream.sock", init.index)));
+    }
     wc.max_sessions = cfg.max_sessions;
     wc.limits = RegionLimits {
         max_region: cfg.max_region,

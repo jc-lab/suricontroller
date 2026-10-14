@@ -220,6 +220,18 @@ pub struct Record {
 }
 
 impl Record {
+    /// A record whose body lives in a local buffer (socket transport). The
+    /// record must not outlive `body`.
+    pub fn from_slice(kind: u16, flags: u16, body: &[u8]) -> Record {
+        Record {
+            kind,
+            flags,
+            body: body.as_ptr(),
+            len: body.len(),
+            size: 0,
+        }
+    }
+
     /// Body length in bytes.
     pub fn len(&self) -> usize {
         self.len

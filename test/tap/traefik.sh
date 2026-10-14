@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# suritap phase-2 validation: Traefik (with the suritap patch) in front of a
-# real Suricata 8.0.x.
+# suritap phase-2 validation: Traefik in front of a real Suricata 8.0.x.
 #
-#   SURICATA_PREFIX=/opt/suricata SURICATA_SRC=~/src/suricata-8.0.7 test/tap/traefik.sh [--bench]
+#   SURICATA_PREFIX=/opt/suricata SURICATA_SRC=~/src/suricata-8.0.7 test/tap/traefik.sh [--patch] [--bench]
 #
-# TRAEFIK  Traefik built by deploy/traefik/build.sh (default bin/traefik-suritap,
-#          built when missing)
+# Default: the official Traefik binary with the Yaegi plugin
+# (adapters/traefik-plugin, socket transport) as a local plugin.
+# --patch: Traefik built with deploy/traefik (shared memory, TCP routers).
+#
+# TRAEFIK  Traefik binary (default: official v3.7.14 downloaded into WORK, or
+#          bin/traefik-suritap with --patch, built when missing)
 # WORK     scratch directory (default /tmp/suritap-traefik)
 # PORT_BASE  local ports PORT_BASE+43..45 (Traefik), +80/+81 (backend); default 38400
 set -euo pipefail
@@ -14,9 +17,21 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 : "${SURICATA_PREFIX:?set SURICATA_PREFIX}"
 : "${SURICATA_SRC:?set SURICATA_SRC}"
 WORK="${WORK:-/tmp/suritap-traefik}"
-TRAEFIK="${TRAEFIK:-$ROOT/bin/traefik-suritap}"
-BENCH=0
-[[ "${1:-}" == "--bench" ]] && BENCH=1
+BENCH=0 VARIANT=plugin
+for a in "$@"; do
+    case "$a" in
+    --bench) BENCH=1 ;;
+    --patch) VARIANT=patch ;;
+    *) echo "unknown argument $a" >&2; exit 2 ;;
+    esac
+done
+TRAEFIK_VERSION=v3.7.14
+if [[ "$VARIANT" == patch ]]; then
+    TRAEFIK="${TRAEFIK:-$ROOT/bin/traefik-suritap}"
+else
+    TRAEFIK="${TRAEFIK:-$WORK/traefik-official}"
+fi
+PLUGIN_MODULE=github.com/jc-lab/suricontroller/adapters/traefik-plugin
 PORT_BASE="${PORT_BASE:-38400}"
 P_HTTP=$((PORT_BASE + 80)) P_TCP=$((PORT_BASE + 81))
 P_SECURE=$((PORT_BASE + 43)) P_STRICT=$((PORT_BASE + 44)) P_PLAIN=$((PORT_BASE + 45))
@@ -24,9 +39,21 @@ P_SECURE=$((PORT_BASE + 43)) P_STRICT=$((PORT_BASE + 44)) P_PLAIN=$((PORT_BASE +
 # shellcheck source=test/tap/lib.sh
 source "$ROOT/test/tap/lib.sh"
 
-log "build"
+log "build ($VARIANT)"
 build_all
-[[ -x "$TRAEFIK" ]] || "$ROOT/deploy/traefik/build.sh" "$TRAEFIK"
+if [[ ! -x "$TRAEFIK" ]]; then
+    if [[ "$VARIANT" == patch ]]; then
+        "$ROOT/deploy/traefik/build.sh" "$TRAEFIK"
+    else
+        mkdir -p "$WORK"
+        tgz="traefik_${TRAEFIK_VERSION}_linux_amd64.tar.gz"
+        base="https://github.com/traefik/traefik/releases/download/$TRAEFIK_VERSION"
+        curl -sSfL -o "$WORK/$tgz" "$base/$tgz"
+        (cd "$WORK" && curl -sSfL "$base/traefik_${TRAEFIK_VERSION}_checksums.txt" | grep " $tgz\$" | sha256sum -c -)
+        tar -xzf "$WORK/$tgz" -C "$WORK" traefik
+        mv "$WORK/traefik" "$TRAEFIK"
+    fi
+fi
 "$TRAEFIK" version | head -1
 
 log "start Suricata, backend and Traefik"
@@ -47,6 +74,82 @@ T="$WORK/traefik"
 mkdir -p "$T"
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$T/key.pem" -out "$T/cert.pem" -days 2 -subj "/CN=app.example" \
     -addext "subjectAltName=DNS:app.example,DNS:strict.example,DNS:tcp.example" 2>/dev/null
+if [[ "$VARIANT" == plugin ]]; then
+    # Local plugin: sources under <working dir>/plugins-local/src/<module>.
+    PLUGIN_DIR="$T/plugins-local/src/$PLUGIN_MODULE"
+    rm -rf "${T:?}/plugins-local"
+    mkdir -p "$PLUGIN_DIR"
+    cp "$ROOT/adapters/traefik-plugin/go.mod" "$ROOT/adapters/traefik-plugin/.traefik.yml" "$PLUGIN_DIR/"
+    find "$ROOT/adapters/traefik-plugin" -maxdepth 1 -name '*.go' ! -name '*_test.go' -exec cp {} "$PLUGIN_DIR/" \;
+    cat >"$T/traefik.yml" <<EOF
+experimental:
+  localPlugins:
+    suritap:
+      moduleName: $PLUGIN_MODULE
+entryPoints:
+  websecure:
+    address: "$LISTEN:$P_SECURE"
+  strict:
+    address: "$LISTEN:$P_STRICT"
+  plain:
+    address: "$LISTEN:$P_PLAIN"
+providers:
+  file:
+    filename: $T/dynamic.yml
+log:
+  level: INFO
+EOF
+    cat >"$T/dynamic.yml" <<EOF
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: $T/cert.pem
+        keyFile: $T/key.pem
+http:
+  middlewares:
+    tap:
+      plugin:
+        suritap:
+          socketDir: $SOCK
+          endpoint: websecure
+          mode: prevent
+          timeout: 1s
+          maxRequestBody: 65536
+    tap-strict:
+      plugin:
+        suritap:
+          socketDir: $SOCK
+          endpoint: strict
+          mode: prevent
+          response: prevent
+          failPolicy: closed
+          timeout: 1s
+  routers:
+    app:
+      rule: "Host(\`app.example\`)"
+      entryPoints: [websecure]
+      middlewares: [tap]
+      service: backend
+      tls: {}
+    app-strict:
+      rule: "Host(\`strict.example\`)"
+      entryPoints: [strict]
+      middlewares: [tap-strict]
+      service: backend
+      tls: {}
+    app-plain:
+      rule: "Host(\`app.example\`)"
+      entryPoints: [plain]
+      service: backend
+      tls: {}
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:$P_HTTP"
+EOF
+else
 cat >"$T/traefik.yml" <<EOF
 entryPoints:
   websecure:
@@ -104,7 +207,8 @@ tcp:
         servers:
           - address: "127.0.0.1:$P_TCP"
 EOF
-"$TRAEFIK" --configFile="$T/traefik.yml" >"$T/traefik.log" 2>&1 &
+fi
+(cd "$T" && exec "$TRAEFIK" --configFile="$T/traefik.yml") >"$T/traefik.log" 2>&1 &
 TRAEFIK_PID=$!
 PIDS+=($TRAEFIK_PID)
 CURL=(curl -sk --max-time 10 -o "$T/body" -w '%{http_code} %{http_version}'
@@ -158,6 +262,7 @@ assert hits.get("/upload") == 2, hits
 print("PASS blocked requests did not reach the backend")
 EOF
 
+if [[ "$VARIANT" == patch ]]; then
 log "TCP router terminating TLS"
 python3 - "$LISTEN" "$P_SECURE" <<'EOF' || fail "TCP stream tap"
 import socket, ssl, sys
@@ -177,10 +282,11 @@ except (ConnectionError, ssl.SSLError, socket.timeout) as e:
 assert data == b"", data
 print("PASS tcp-attack connection closed")
 EOF
+fi
 
 sleep 1
 log "EVE"
-python3 - "$EVE" <<'EOF' || fail "EVE checks"
+python3 - "$EVE" "$VARIANT" <<'EOF' || fail "EVE checks"
 import json, sys
 alerts = [json.loads(l) for l in open(sys.argv[1]) if '"event_type":"alert"' in l]
 def find(sid, **kw):
@@ -197,17 +303,18 @@ assert find(9000001, proto="HTTP/1.1"), "h1 alert"
 assert find(9000002), "body alert"
 assert find(9000006, endpoint="websecure"), "response alert in detect mode"
 assert find(9000006, endpoint="strict"), "response alert in prevent mode"
-assert find(9000007, route="echo@file", proto="tcp"), "tcp stream alert"
-print("PASS alerts for URI, body, response (detect+prevent) and TCP stream")
+if sys.argv[2] == "patch":
+    assert find(9000007, route="echo@file", proto="tcp"), "tcp stream alert"
+print("PASS alerts for URI, body, response (detect+prevent)" + (" and TCP stream" if sys.argv[2] == "patch" else ""))
 EOF
 
 if [[ "$BENCH" == 1 ]]; then
     log "benchmark: Traefik without suritap vs prevent mode (GET, 16 clients)"
     for proto in "" -http1; do
-        for ep in plain:$P_PLAIN websecure:$P_SECURE strict:$P_STRICT; do
-            name="${ep%%:*}" port="${ep##*:}"
+        for ep in plain:app:$P_PLAIN websecure:app:$P_SECURE strict:strict:$P_STRICT; do
+            IFS=: read -r name host port <<<"$ep"
             echo "-- $name ${proto:--http2}"
-            "$PROBE" httpbench -url "https://app.example:$port/hello" -connect "$LISTEN:$port" -c 16 -n 20000 $proto
+            "$PROBE" httpbench -url "https://$host.example:$port/hello" -connect "$LISTEN:$port" -c 16 -n 20000 $proto
         done
     done
 fi
@@ -220,6 +327,10 @@ req fail-closed-entrypoint 503 --http2 https://strict.example:$P_STRICT/hello
 
 log "summary"
 grep -c "suritap: blocked" "$T/traefik.log" | xargs echo "Traefik block log lines:"
+if grep -qE "panic|reader crashed" "$T/traefik.log"; then
+    grep -E "panic|reader crashed" "$T/traefik.log" | head -5
+    fail "panics in the Traefik log"
+fi
 if [[ "$FAILED" -gt 0 ]]; then
     echo "$FAILED failure(s)"
     exit 1

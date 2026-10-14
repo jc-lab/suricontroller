@@ -66,7 +66,10 @@ reload() {
 
 # build_all builds the plugin, the Rust tools and the probe.
 build_all() {
-    (cd "$ROOT/tap" && SURICATA_SRC="$SURICATA_SRC" cargo build --release -p suritap-plugin -p suritap --bins -q)
+    # Separate invocations: --bins would also apply to (and skip) the plugin cdylib.
+    (cd "$ROOT/tap" && SURICATA_SRC="$SURICATA_SRC" cargo build --release -q -p suritap-plugin)
+    (cd "$ROOT/tap" && cargo build --release -q -p suritap --bins)
+    ls -l --time-style=+%FT%T "$PLUGIN" | awk '{print "plugin:", $6, $7}'
     (cd "$ROOT" && go build -o "$PROBE" ./cmd/suritap-probe)
     "$SURICATA" -V
 }

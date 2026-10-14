@@ -4,7 +4,7 @@ package suritaptraefik
 
 import (
 	"bytes"
-	"crypto/tls"
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -79,8 +78,8 @@ func (b *backend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, b.reply)
 }
 
-func newServer(t *testing.T, tap *Tap, b *backend) *httptest.Server {
-	srv := httptest.NewUnstartedServer(tap.HTTP(b))
+func newServer(t *testing.T, h http.Handler) *httptest.Server {
+	srv := httptest.NewUnstartedServer(h)
 	srv.EnableHTTP2 = true
 	srv.StartTLS()
 	t.Cleanup(srv.Close)
@@ -99,8 +98,17 @@ func do(t *testing.T, c *http.Client, method, url string, body io.Reader) (*http
 	return resp, string(b)
 }
 
+func middleware(t *testing.T, entryPoint string, cfg Config, next http.Handler) http.Handler {
+	h, err := Middleware(WithEntryPoint(context.Background(), entryPoint), &cfg, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = Lookup(entryPoint).Close() })
+	return h
+}
+
 func newTap(t *testing.T, cfg Config) *Tap {
-	tap, err := New("websecure", &cfg)
+	tap, err := New("tcp", &cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,82 +116,39 @@ func newTap(t *testing.T, cfg Config) *Tap {
 	return tap
 }
 
-func TestHTTPPrevent(t *testing.T) {
+// The patch build runs the plugin's HTTP logic over shared memory.
+func TestMiddlewareSharedMemory(t *testing.T) {
 	dir := startMockd(t)
-	tap := newTap(t, Config{SocketDir: dir, MaxRequestBody: 64 << 10, Timeout: "2s"})
 	b := &backend{reply: "hello"}
-	srv := newServer(t, tap, b)
-
-	h2 := srv.Client()
-	h1 := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test server
-		TLSNextProto:    map[string]func(string, *tls.Conn) http.RoundTripper{},
-	}}
-	for name, c := range map[string]*http.Client{"h2": h2, "h1": h1} {
-		t.Run(name, func(t *testing.T) {
-			before := b.calls.Load()
-			resp, body := do(t, c, "GET", srv.URL+"/index.html", nil)
-			if resp.StatusCode != 200 || body != "hello" {
-				t.Fatalf("benign: %d %q", resp.StatusCode, body)
-			}
-			if want := map[string]int{"h2": 2, "h1": 1}[name]; resp.ProtoMajor != want {
-				t.Fatalf("protocol %s", resp.Proto)
-			}
-			resp, _ = do(t, c, "GET", srv.URL+"/"+marker, nil)
-			if resp.StatusCode != 403 || resp.Header.Get("X-Suritap-Cid") == "" {
-				t.Fatalf("attack in URI: %d %v", resp.StatusCode, resp.Header)
-			}
-			resp, _ = do(t, c, "POST", srv.URL+"/upload", strings.NewReader("a="+marker))
-			if resp.StatusCode != 403 {
-				t.Fatalf("attack in small body: %d", resp.StatusCode)
-			}
-			if got := b.calls.Load() - before; got != 1 {
-				t.Fatalf("backend called %d times, want 1 (blocked requests must not reach it)", got)
-			}
-		})
+	srv := newServer(t, middleware(t, "shm-websecure", Config{SocketDir: dir, MaxRequestBody: 64 << 10, Timeout: "2s"}, b))
+	c := srv.Client()
+	if resp, body := do(t, c, "GET", srv.URL+"/index.html", nil); resp.StatusCode != 200 || body != "hello" || resp.ProtoMajor != 2 {
+		t.Fatalf("benign: %d %q %s", resp.StatusCode, body, resp.Proto)
 	}
-
-	// A large body is streamed and blocked when the marker arrives.
+	if resp, _ := do(t, c, "GET", srv.URL+"/"+marker, nil); resp.StatusCode != 403 || resp.Header.Get("X-Suritap-Cid") == "" {
+		t.Fatalf("attack: %d", resp.StatusCode)
+	}
 	big := bytes.Repeat([]byte("x"), 512<<10)
 	copy(big[300<<10:], marker)
-	resp, _ := do(t, h2, "POST", srv.URL+"/upload", bytes.NewReader(big))
-	if resp.StatusCode != 403 {
-		t.Fatalf("attack in streamed body: %d", resp.StatusCode)
+	if resp, _ := do(t, c, "POST", srv.URL+"/upload", bytes.NewReader(big)); resp.StatusCode != 403 {
+		t.Fatalf("streamed body attack: %d", resp.StatusCode)
 	}
-	resp, body := do(t, h2, "POST", srv.URL+"/upload", bytes.NewReader(bytes.Repeat([]byte("y"), 512<<10)))
-	if resp.StatusCode != 200 || body != "hello" {
-		t.Fatalf("benign streamed body: %d", resp.StatusCode)
+	if b.calls.Load() != 2 {
+		t.Fatalf("backend calls %d", b.calls.Load())
 	}
-	if tap.Stats.Blocked.Load() != 5 {
-		t.Fatalf("blocked counter %d", tap.Stats.Blocked.Load())
-	}
-}
-
-func TestHTTPResponseModes(t *testing.T) {
-	dir := startMockd(t)
-	leak := &backend{reply: "token " + marker}
-
-	detect := newServer(t, newTap(t, Config{SocketDir: dir}), leak)
-	resp, body := do(t, detect.Client(), "GET", detect.URL+"/", nil)
-	if resp.StatusCode != 200 || !strings.Contains(body, marker) {
-		t.Fatalf("detect mode must not block responses: %d", resp.StatusCode)
-	}
-
-	prevent := newServer(t, newTap(t, Config{SocketDir: dir, Response: "prevent", Timeout: "2s"}), leak)
-	resp, body = do(t, prevent.Client(), "GET", prevent.URL+"/", nil)
-	if resp.StatusCode != 403 || strings.Contains(body, marker) || resp.Header.Get("Set-Cookie") != "" {
-		t.Fatalf("prevent mode: %d %q %v", resp.StatusCode, body, resp.Header)
+	if Lookup("shm-websecure").client == nil {
+		t.Fatal("shared-memory client not used")
 	}
 }
 
 func TestFailPolicy(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "none")
 	b := &backend{reply: "ok"}
-	open := newServer(t, newTap(t, Config{SocketDir: missing}), b)
+	open := newServer(t, middleware(t, "fail-open", Config{SocketDir: missing}, b))
 	if resp, _ := do(t, open.Client(), "GET", open.URL+"/", nil); resp.StatusCode != 200 {
 		t.Fatalf("fail open: %d", resp.StatusCode)
 	}
-	closed := newServer(t, newTap(t, Config{SocketDir: missing, FailPolicy: "closed"}), b)
+	closed := newServer(t, middleware(t, "fail-closed", Config{SocketDir: missing, FailPolicy: "closed"}, b))
 	if resp, _ := do(t, closed.Client(), "GET", closed.URL+"/", nil); resp.StatusCode != 503 {
 		t.Fatalf("fail closed: %d", resp.StatusCode)
 	}

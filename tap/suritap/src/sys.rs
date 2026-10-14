@@ -72,7 +72,11 @@ fn sockaddr(path: &Path) -> io::Result<(libc::sockaddr_un, libc::socklen_t)> {
 }
 
 fn seqpacket(nonblock: bool) -> io::Result<OwnedFd> {
-    let mut ty = libc::SOCK_SEQPACKET | libc::SOCK_CLOEXEC;
+    unix_socket(libc::SOCK_SEQPACKET, nonblock)
+}
+
+fn unix_socket(kind: libc::c_int, nonblock: bool) -> io::Result<OwnedFd> {
+    let mut ty = kind | libc::SOCK_CLOEXEC;
     if nonblock {
         ty |= libc::SOCK_NONBLOCK;
     }
@@ -84,8 +88,17 @@ fn seqpacket(nonblock: bool) -> io::Result<OwnedFd> {
 /// file. Access control relies on the permissions of the directory and
 /// `mode`.
 pub fn seqpacket_listen(path: &Path, mode: Option<u32>) -> io::Result<OwnedFd> {
+    listen(libc::SOCK_SEQPACKET, path, mode)
+}
+
+/// Binds a non-blocking `SOCK_STREAM` listener (socket transport).
+pub fn stream_listen(path: &Path, mode: Option<u32>) -> io::Result<OwnedFd> {
+    listen(libc::SOCK_STREAM, path, mode)
+}
+
+fn listen(kind: libc::c_int, path: &Path, mode: Option<u32>) -> io::Result<OwnedFd> {
     let (addr, len) = sockaddr(path)?;
-    let fd = seqpacket(true)?;
+    let fd = unix_socket(kind, true)?;
     match std::fs::remove_file(path) {
         Ok(()) => {}
         Err(e) if e.kind() == io::ErrorKind::NotFound => {}
@@ -194,6 +207,36 @@ pub fn recv_with_fds(fd: RawFd, buf: &mut [u8], fds: &mut Vec<OwnedFd>) -> io::R
         return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated message"));
     }
     Ok(n)
+}
+
+/// Non-blocking receive; `Ok(None)` when nothing is available, `Ok(Some(0))`
+/// at end of stream.
+pub fn recv_nb(fd: RawFd, buf: &mut [u8]) -> io::Result<Option<usize>> {
+    match retry(|| {
+        cvt_size(unsafe { libc::recv(fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), libc::MSG_DONTWAIT) })
+    }) {
+        Ok(n) => Ok(Some(n)),
+        Err(e) if e.kind() == io::ErrorKind::WouldBlock => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// Non-blocking send; returns the bytes written (0 when the socket is full).
+pub fn send_nb(fd: RawFd, buf: &[u8]) -> io::Result<usize> {
+    match retry(|| {
+        cvt_size(unsafe {
+            libc::send(
+                fd,
+                buf.as_ptr() as *const libc::c_void,
+                buf.len(),
+                libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL,
+            )
+        })
+    }) {
+        Ok(n) => Ok(n),
+        Err(e) if e.kind() == io::ErrorKind::WouldBlock => Ok(0),
+        Err(e) => Err(e),
+    }
 }
 
 /// Credentials of the process on the other end of a UNIX socket.

@@ -2,7 +2,10 @@
 //!
 //! ```yaml
 //! suritap:
-//!   socket-dir: /run/suritap   # worker-N.sock files are created here
+//!   socket-dir: /run/suritap   # worker-N.sock (shared memory) and
+//!                              # worker-N.stream.sock (socket transport)
+//!   stream: yes                # socket transport for clients without
+//!                              # shared memory (Traefik Yaegi plugin, Lua)
 //!   socket-mode: "0660"        # optional chmod of the sockets
 //!   threads: auto              # worker threads (auto = online CPUs)
 //!   ips: yes                   # engine in IPS mode (verdicts can drop)
@@ -38,6 +41,7 @@ pub const LIVE_DEVICE: &str = "suritap";
 pub struct Config {
     pub socket_dir: PathBuf,
     pub socket_mode: Option<u32>,
+    pub stream: bool,
     pub threads: u16,
     pub ips: bool,
     pub max_sessions: usize,
@@ -146,6 +150,7 @@ impl Config {
         Ok(Config {
             socket_dir,
             socket_mode,
+            stream: get_bool("stream", true),
             threads,
             ips: get_bool("ips", true),
             max_sessions: get_num("max-sessions", 256)?,

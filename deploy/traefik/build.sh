@@ -24,7 +24,8 @@ cd "$SRC"
 git reset -q --hard
 git clean -fdq
 git apply "$PATCH"
-go mod edit -require=github.com/jc-lab/suricontroller@v0.0.0 -replace="github.com/jc-lab/suricontroller=$ROOT"
+go mod edit -require=github.com/jc-lab/suricontroller@v0.0.0 -replace="github.com/jc-lab/suricontroller=$ROOT" \
+    -replace="github.com/jc-lab/suricontroller/adapters/traefik-plugin=$ROOT/adapters/traefik-plugin"
 go mod tidy
 # The dashboard assets are not built; the API and dashboard stay usable
 # only with an upstream image. Everything else is unchanged.

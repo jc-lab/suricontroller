@@ -429,6 +429,18 @@ pub fn ping(token: u32, ts: u64) -> [u8; SMALL] {
     b
 }
 
+/// Socket transport (`worker-N.stream.sock`, SOCK_STREAM): after the
+/// 64-byte HELLO/WELCOME exchange, both directions carry records framed
+/// exactly like ring records (`len:u32 kind:u16 flags:u16 body`, no
+/// padding). Meant for clients that cannot map shared memory (Traefik
+/// Yaegi plugins, OpenResty/Kong Lua).
+pub const STREAM_MAX_PAYLOAD: usize = 64 * 1024;
+/// Largest frame a stream client may send (a DATA record with
+/// [`STREAM_MAX_PAYLOAD`] bytes).
+pub const STREAM_MAX_FRAME: usize = 8 + DATA_FIXED + STREAM_MAX_PAYLOAD;
+/// Verdict requests a stream client may have outstanding.
+pub const STREAM_MAX_INFLIGHT: usize = 1024;
+
 pub const HELLO_SIZE: usize = 64;
 pub const WELCOME_SIZE: usize = 64;
 

@@ -48,12 +48,10 @@ type settings struct {
 	response   mode
 	failClosed bool
 	timeout    time.Duration
-	maxBody    int64
-	maxRespBuf int64
 }
 
-func (c *Config) settings() (settings, error) {
-	s := settings{dir: c.SocketDir, name: c.Name, timeout: 100 * time.Millisecond, maxBody: 1 << 20, maxRespBuf: 64 << 10}
+func parseSettings(c *Config) (settings, error) {
+	s := settings{dir: c.SocketDir, name: c.Name, timeout: 100 * time.Millisecond}
 	if s.dir == "" {
 		s.dir = "/run/suritap"
 	}
@@ -79,23 +77,13 @@ func (c *Config) settings() (settings, error) {
 			return s, fmt.Errorf("suritap.timeout: invalid duration %q", c.Timeout)
 		}
 	}
-	if c.MaxRequestBody < 0 {
-		return s, errors.New("suritap.maxRequestBody must not be negative")
-	}
-	if c.MaxRequestBody > 0 {
-		s.maxBody = c.MaxRequestBody
-	}
-	if c.MaxResponseBuffer < 0 {
-		return s, errors.New("suritap.maxResponseBuffer must not be negative")
-	}
-	if c.MaxResponseBuffer > 0 {
-		s.maxRespBuf = c.MaxResponseBuffer
-	}
 	return s, nil
 }
 
 // Logger receives block decisions and transport errors.
 var Logger = slog.Default()
+
+func sprintf(format string, args ...interface{}) string { return fmt.Sprintf(format, args...) }
 
 // Stats are cumulative counters of a Tap.
 type Stats struct {
@@ -118,7 +106,7 @@ type Tap struct {
 // New creates a Tap; the connection to Suricata is made lazily and
 // re-established after failures.
 func New(entryPoint string, cfg *Config) (*Tap, error) {
-	s, err := cfg.settings()
+	s, err := parseSettings(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -184,9 +172,15 @@ func parseAddr(s string) netip.AddrPort {
 	return netip.AddrPort{}
 }
 
-// open announces a connection; src/dst of different or unknown families
-// are mapped onto the source family.
+// open announces a connection of the TCP tap.
 func (t *Tap) open(src, dst netip.AddrPort, meta []suritap.Meta) (*suritap.Conn, error) {
+	meta = append(meta, suritap.Meta{Tag: suritap.MetaProxy, Value: "traefik"}, suritap.Meta{Tag: suritap.MetaEndpoint, Value: t.entryPoint})
+	return t.openRaw(src, dst, meta)
+}
+
+// openRaw announces a connection; src/dst of different or unknown families
+// are mapped onto the source family.
+func (t *Tap) openRaw(src, dst netip.AddrPort, meta []suritap.Meta) (*suritap.Conn, error) {
 	if !src.IsValid() {
 		return nil, fmt.Errorf("suritap: unusable client address")
 	}
@@ -201,7 +195,6 @@ func (t *Tap) open(src, dst netip.AddrPort, meta []suritap.Meta) (*suritap.Conn,
 	if err != nil {
 		return nil, err
 	}
-	meta = append(meta, suritap.Meta{Tag: suritap.MetaProxy, Value: "traefik"}, suritap.Meta{Tag: suritap.MetaEndpoint, Value: t.entryPoint})
 	conn, err := c.Open(suritap.OpenParams{Src: src, Dst: dst, Meta: meta})
 	if errors.Is(err, suritap.ErrClosed) {
 		t.reset(c)

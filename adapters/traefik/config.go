@@ -18,20 +18,13 @@ package suritaptraefik
 import (
 	"context"
 	"net"
+
+	plugin "github.com/jc-lab/suricontroller/adapters/traefik-plugin"
 )
 
 // Config is the entry point configuration (Traefik static configuration
-// entryPoints.<name>.suritap). Durations are strings such as "50ms".
-type Config struct {
-	SocketDir         string `description:"Directory of the Suricata suritap worker sockets." json:"socketDir,omitempty" toml:"socketDir,omitempty" yaml:"socketDir,omitempty" export:"true"`
-	Mode              string `description:"prevent (block on drop verdicts, default) or detect (never wait for verdicts)." json:"mode,omitempty" toml:"mode,omitempty" yaml:"mode,omitempty" export:"true"`
-	FailPolicy        string `description:"What to do without a verdict (Suricata down, timeout): open (default) or closed." json:"failPolicy,omitempty" toml:"failPolicy,omitempty" yaml:"failPolicy,omitempty" export:"true"`
-	Timeout           string `description:"Verdict timeout (default 100ms)." json:"timeout,omitempty" toml:"timeout,omitempty" yaml:"timeout,omitempty" export:"true"`
-	MaxRequestBody    int64  `description:"Request bodies up to this size are buffered and inspected before forwarding (default 1048576); larger ones are inspected while streaming." json:"maxRequestBody,omitempty" toml:"maxRequestBody,omitempty" yaml:"maxRequestBody,omitempty" export:"true"`
-	Response          string `description:"Response inspection: off, detect (default) or prevent." json:"response,omitempty" toml:"response,omitempty" yaml:"response,omitempty" export:"true"`
-	MaxResponseBuffer int64  `description:"Prevent mode: responses up to this size are inspected complete before they are sent (default 65536); larger ones are inspected while streaming and aborted on a drop." json:"maxResponseBuffer,omitempty" toml:"maxResponseBuffer,omitempty" yaml:"maxResponseBuffer,omitempty" export:"true"`
-	Name              string `description:"Client name reported to Suricata (default traefik)." json:"name,omitempty" toml:"name,omitempty" yaml:"name,omitempty" export:"true"`
-}
+// entryPoints.<name>.suritap); it is the plugin's configuration.
+type Config = plugin.Config
 
 // WriteCloser matches Traefik's tcp.WriteCloser.
 type WriteCloser interface {

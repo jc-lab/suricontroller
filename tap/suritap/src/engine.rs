@@ -37,7 +37,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::proto::{self, Action, Alert, Dir, MetaTag, Open, Reason, MAX_ALERTS};
-use crate::ring::{Producer, Record};
+use crate::ring::{Producer, Record, HEADER};
 use crate::sys;
 
 /// Bytes reserved in front of each packet for the inspector.
@@ -290,33 +290,53 @@ impl std::fmt::Display for Error {
 }
 
 /// s2c side of a session.
-pub struct Out<'a> {
-    pub ring: &'a mut Producer,
-    /// eventfd of the client, -1 for none.
-    pub bell: RawFd,
+pub enum Out<'a> {
+    /// Shared-memory ring and the client's eventfd (-1 for none).
+    Ring { ring: &'a mut Producer, bell: RawFd },
+    /// Socket transport: framed records appended to an output buffer of at
+    /// most `limit` bytes.
+    Buffer { buf: &'a mut Vec<u8>, limit: usize },
 }
 
 impl Out<'_> {
     /// Sends a record the client did not reserve a credit for (BYPASS,
-    /// FLOW_ERROR). It is dropped unless half of the ring — the part the
-    /// client's verdict credits may use — stays free, so uncredited records
-    /// can never make a credited VERDICT overflow.
+    /// FLOW_ERROR). It is dropped unless half of the ring (or buffer) — the
+    /// part the client's verdict credits may use — stays free, so
+    /// uncredited records can never make a credited VERDICT overflow.
     fn send_uncredited(&mut self, kind: u16, parts: &[&[u8]]) -> bool {
         let body: usize = parts.iter().map(|p| p.len()).sum();
-        if self.ring.available() < self.ring.need(body) + self.ring.capacity() / 2 {
-            return false;
-        }
-        self.send(kind, parts)
+        let room = match self {
+            Out::Ring { ring, .. } => ring.available() >= ring.need(body) + ring.capacity() / 2,
+            Out::Buffer { buf, limit } => buf.len() + HEADER + body <= *limit / 2,
+        };
+        room && self.send(kind, parts)
     }
 
     fn send(&mut self, kind: u16, parts: &[&[u8]]) -> bool {
-        if !self.ring.push(kind, 0, parts) {
-            return false;
+        match self {
+            Out::Ring { ring, bell } => {
+                if !ring.push(kind, 0, parts) {
+                    return false;
+                }
+                if ring.publish() {
+                    sys::eventfd_signal(*bell);
+                }
+                true
+            }
+            Out::Buffer { buf, limit } => {
+                let len = HEADER + parts.iter().map(|p| p.len()).sum::<usize>();
+                if buf.len() + len > *limit {
+                    return false;
+                }
+                buf.extend_from_slice(&(len as u32).to_le_bytes());
+                buf.extend_from_slice(&kind.to_le_bytes());
+                buf.extend_from_slice(&0u16.to_le_bytes());
+                for p in parts {
+                    buf.extend_from_slice(p);
+                }
+                true
+            }
         }
-        if self.ring.publish() {
-            sys::eventfd_signal(self.bell);
-        }
-        true
     }
 }
 
@@ -1108,7 +1128,7 @@ mod tests {
             assert!(self.c2s_p.push(kind, flags, parts));
             self.c2s_p.publish();
             let rec = self.c2s_c.peek().unwrap().unwrap();
-            let mut out = Out {
+            let mut out = Out::Ring {
                 ring: &mut self.s2c_p,
                 bell: -1,
             };

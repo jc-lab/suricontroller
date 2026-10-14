@@ -48,16 +48,21 @@ tap-test:
 	cd tap && cargo test -p suritap
 	cd tap && cargo build -p suritap --bins
 	$(GO) test -race ./pkg/suritap/ ./adapters/...
+	cd adapters/traefik-plugin && $(GO) vet ./... && $(GO) test -race ./...
+	# The interpreter itself is racy: no -race for the Yaegi harness.
+	cd test/tap/yaegi && $(GO) vet ./... && $(GO) test ./...
 
 # Phase-1 validation against a real Suricata (needs SURICATA_PREFIX and SURICATA_SRC).
 tap-integration:
 	./test/tap/run.sh
 
-# Traefik with the suritap adapter (patch in deploy/traefik) -> bin/traefik-suritap.
+# Patched Traefik build with the shared-memory adapter (deploy/traefik) ->
+# bin/traefik-suritap. The plugin (adapters/traefik-plugin) needs no build.
 traefik:
 	./deploy/traefik/build.sh
 
-# Traefik + real Suricata end-to-end (needs SURICATA_PREFIX and SURICATA_SRC).
+# Official Traefik + plugin + real Suricata end-to-end (needs SURICATA_PREFIX
+# and SURICATA_SRC); ./test/tap/traefik.sh --patch tests the patched build.
 tap-traefik:
 	./test/tap/traefik.sh
 
