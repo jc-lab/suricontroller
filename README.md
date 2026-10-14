@@ -24,6 +24,16 @@ Suricata를 여러 노드(OpenWRT 라우터, 서버, 엔드포인트)에 배포�
 
 설계는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)를 참고하세요.
 
+### suritap: TLS 종단 프록시 평문 검사 (1단계)
+
+TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 공유메모리로 Suricata에 넘기고, 요청 단위 판정(pass/drop)을 받습니다.
+
+- `tap/suritap-plugin`: Rust로 작성한 Suricata capture plugin
+- `pkg/suritap`: Go 클라이언트
+- `tap/suritap`: Rust 클라이언트
+
+명세와 검증 결과는 [docs/suritap.md](docs/suritap.md)를 참고하세요.
+
 ## 빠른 시작
 
 ### 1. 컨트롤러
@@ -96,12 +106,16 @@ make lint          # golangci-lint
 make proto         # proto → Go/TS 코드 생성 (protoc 필요)
 make web           # 웹 UI 빌드 (web/dist)
 make integration   # Docker + 실제 Suricata E2E (IDS 경보, IPS 차단, 검증 실패, 롤백, 재부팅 복원)
+make tap-test      # suritap 단위 테스트 + Go↔Rust 상호운용 (cargo 필요)
+make tap SURICATA_SRC=/path/to/suricata-8.0.7        # suritap.so, suritap-mockd, suritap-probe
+SURICATA_PREFIX=... SURICATA_SRC=... make tap-integration   # 실제 Suricata로 suritap 검증
 ```
 
 | 경로 | 내용 |
 |---|---|
 | `proto/` | 에이전트 프로토콜(`agent/v1`), 관리 API(`api/v1`) |
-| `pkg/` | 공용 패키지: sshkey, noiseconn, wire, bundle, ruleset, yamlmerge, overlay, ringqueue |
+| `pkg/` | 공용 패키지: sshkey, noiseconn, wire, bundle, ruleset, yamlmerge, overlay, ringqueue, suritap(Go 클라이언트) |
+| `tap/` | suritap Rust 워크스페이스: 프로토콜·Rust 클라이언트(`suritap`), Suricata 플러그인(`suritap-plugin`) |
 | `controller/` | embed 가능한 컨트롤러 |
 | `agent/` | 노드 에이전트 |
 | `web/` | 웹 UI (`web/ui` 소스, `web/dist` 빌드 결과) |

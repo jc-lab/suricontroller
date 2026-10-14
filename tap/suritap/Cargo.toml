@@ -1,0 +1,15 @@
+[package]
+name = "suritap"
+description = "Shared-memory transport between TLS-terminating proxies and the Suricata suritap capture plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+
+[dependencies]
+libc.workspace = true
+
+[[bin]]
+name = "suritap-mockd"
+path = "src/bin/suritap-mockd.rs"

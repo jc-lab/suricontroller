@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["suritap", "suritap-plugin"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+repository = "https://github.com/jc-lab/suricontroller"
+
+[workspace.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = 1

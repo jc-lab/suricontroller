@@ -32,6 +32,22 @@ jobs:
           version: v2.13.2
       - run: go test -race ./...
 
+  suritap:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --all -- --check
+        working-directory: tap
+      - run: cargo clippy -p suritap --all-targets -- -D warnings
+        working-directory: tap
+      - run: make tap-test
+
   web:
     runs-on: ubuntu-24.04
     defaults:
