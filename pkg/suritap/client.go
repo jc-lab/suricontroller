@@ -383,7 +383,12 @@ func signal(fd int) {
 }
 
 // push appends one record, waiting for ring space until ctx is done (no
-// waiting when ctx is nil).
+// waiting with noWait).
+// noWait makes push fail with ErrRingFull instead of waiting for space.
+var noWait context.Context = noWaitContext{context.Background()}
+
+type noWaitContext struct{ context.Context }
+
 func (s *session) push(ctx context.Context, kind, flags uint16, parts ...[]byte) error {
 	body := 0
 	for _, b := range parts {
@@ -409,7 +414,7 @@ func (s *session) push(ctx context.Context, kind, flags uint16, parts ...[]byte)
 			s.mu.Unlock()
 			return errTooLarge
 		}
-		if ctx == nil {
+		if _, ok := ctx.(noWaitContext); ok {
 			s.mu.Unlock()
 			return ErrRingFull
 		}
@@ -590,6 +595,12 @@ type Conn struct {
 	cid     uint64
 	closed  atomic.Bool
 	cleanup runtime.Cleanup
+
+	// Payload of each direction that could not be queued (ring full past
+	// the deadline). It is reported as a GAP before more payload of that
+	// direction, so the engine never splices bytes across a hole.
+	gapMu sync.Mutex
+	gaps  [2]uint64
 }
 
 // CID is the connection id (logged in EVE as suritap.cid).
@@ -599,11 +610,16 @@ func (c *Conn) CID() uint64 { return c.cid }
 func (c *Conn) Worker() int { return c.s.workerIndex }
 
 func (c *Conn) sendChunks(ctx context.Context, dir Dir, data []byte) error {
+	if err := c.flushGap(ctx, dir); err != nil {
+		c.lost(dir, len(data))
+		return err
+	}
 	var h [dataFixed]byte
 	for len(data) > 0 {
 		n := min(len(data), c.s.maxPayload)
 		dataHeader(&h, c.cid, dir, 0)
 		if err := c.s.push(ctx, kData, 0, h[:], data[:n]); err != nil {
+			c.lost(dir, len(data))
 			return err
 		}
 		data = data[n:]
@@ -611,7 +627,52 @@ func (c *Conn) sendChunks(ctx context.Context, dir Dir, data []byte) error {
 	return nil
 }
 
+// lost records n bytes of dir that were not queued and reports them as a
+// gap right away when the ring has room.
+func (c *Conn) lost(dir Dir, n int) {
+	if n == 0 || dir > ToClient {
+		return
+	}
+	c.gapMu.Lock()
+	defer c.gapMu.Unlock()
+	c.gaps[dir] += uint64(n)
+	if c.pushGap(noWait, dir, c.gaps[dir]) == nil {
+		c.gaps[dir] = 0
+	}
+}
+
+// flushGap reports the pending gap of dir before new payload.
+func (c *Conn) flushGap(ctx context.Context, dir Dir) error {
+	if dir > ToClient {
+		return nil
+	}
+	c.gapMu.Lock()
+	defer c.gapMu.Unlock()
+	if c.gaps[dir] == 0 {
+		return nil
+	}
+	if err := c.pushGap(ctx, dir, c.gaps[dir]); err != nil {
+		return err
+	}
+	c.gaps[dir] = 0
+	return nil
+}
+
+// pushGap queues GAP records for n bytes (noWait: only if there is room).
+func (c *Conn) pushGap(ctx context.Context, dir Dir, n uint64) error {
+	for n > 0 {
+		k := uint32(min(n, 1<<32-1))
+		if err := c.s.push(ctx, kGap, 0, small(c.cid, uint8(dir), k)); err != nil {
+			return err
+		}
+		n -= uint64(k)
+	}
+	return nil
+}
+
 // Send streams payload without waiting for a verdict (detect-only mode).
+// Payload that cannot be queued before ctx ends is reported to the engine
+// as a gap (now or before the next payload of dir), as for Inspect.
 func (c *Conn) Send(ctx context.Context, dir Dir, data []byte) error {
 	return c.sendChunks(ctx, dir, data)
 }
@@ -624,15 +685,24 @@ func (c *Conn) Inspect(ctx context.Context, dir Dir, data []byte) (Verdict, erro
 		split = (len(data) - 1) / c.s.maxPayload * c.s.maxPayload
 	}
 	if err := c.sendChunks(ctx, dir, data[:split]); err != nil {
+		c.lost(dir, len(data)-split)
 		return Verdict{}, err
 	}
 	last := data[split:]
+	sent := false
 	r, err := c.s.request(ctx, func(token uint32) error {
 		var h [dataFixed]byte
 		dataHeader(&h, c.cid, dir, token)
-		return c.s.push(ctx, kData, fWantVerdict, h[:], last)
+		if err := c.s.push(ctx, kData, fWantVerdict, h[:], last); err != nil {
+			return err
+		}
+		sent = true
+		return nil
 	})
 	if err != nil {
+		if !sent {
+			c.lost(dir, len(last))
+		}
 		return Verdict{}, err
 	}
 	if r.pong {
@@ -643,14 +713,7 @@ func (c *Conn) Inspect(ctx context.Context, dir Dir, data []byte) (Verdict, erro
 
 // Gap reports n bytes of dir that were not sent (e.g. skipped under load).
 func (c *Conn) Gap(ctx context.Context, dir Dir, n uint64) error {
-	for n > 0 {
-		k := uint32(min(n, 1<<32-1))
-		if err := c.s.push(ctx, kGap, 0, small(c.cid, uint8(dir), k)); err != nil {
-			return err
-		}
-		n -= uint64(k)
-	}
-	return nil
+	return c.pushGap(ctx, dir, n)
 }
 
 // EOF half-closes one direction.

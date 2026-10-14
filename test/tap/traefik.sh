@@ -54,7 +54,7 @@ if [[ ! -x "$TRAEFIK" ]]; then
         mv "$WORK/traefik" "$TRAEFIK"
     fi
 fi
-"$TRAEFIK" version | head -1
+"$TRAEFIK" version | awk "NR == 1"
 
 log "start Suricata, backend and Traefik"
 # Traefik listens on 127.0.0.2 (the "home" listener); clients come from

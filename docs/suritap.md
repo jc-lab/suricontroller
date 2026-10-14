@@ -208,6 +208,7 @@ let v = conn.inspect(Dir::ToServer, req, Duration::from_millis(50))?;
 ```
 
 - 큰 버퍼는 `max_payload` 단위로 나눠 보낸다. 링이 가득 차면 ctx나 timeout 안에서 기다린다(역압).
+- 기한 안에 링에 넣지 못한 페이로드는 GAP으로 보고한다. 공간이 있으면 바로, 없으면 그 방향의 다음 페이로드 앞에 보낸다. 그래서 엔진이 구멍 너머의 바이트를 이어 붙이지 않는다(Go 클라이언트).
 - `Close`는 블록하지 않는다. 링이 가득 차 있으면 CLOSE를 큐에 넣었다가, 다음 레코드보다 먼저 또는 공간이 생기는 즉시 보낸다. Close를 호출하지 않고 버린 Conn도 Go는 `runtime.AddCleanup`, Rust는 `Drop`으로 닫는다.
 - 클라이언트는 IPv4-mapped IPv6 주소(듀얼스택 리스너)를 IPv4로 바꿔서 보낸다.
 - 서버가 사라지면 진행 중인 요청은 즉시 `ErrClosed` / `BrokenPipe`로 실패한다.
@@ -346,6 +347,12 @@ http:
 | `name` / `endpoint` | `traefik` / 미들웨어 이름 | EVE의 `suritap.client` / `suritap.endpoint` |
 
 - 같은 `socketDir`과 `name`을 쓰는 미들웨어는 워커 세션을 공유한다. 세션은 첫 요청 때 열고, 끊기면 다음 요청 때 다시 연다.
+- 세션 관리(소켓 전송 클라이언트):
+  - 세션을 여는 동안 transport 잠금을 잡지 않는다. 응답하지 않는 워커가 있어도 다른 워커의 요청은 영향을 받지 않는다. 열리는 중인 세션을 기다리는 요청은 `timeout`까지만 기다린다.
+  - 한 워커의 재연결이 실패해도 다른 워커의 세션은 그대로 둔다. 워커 수가 바뀐 것(Suricata 재시작)을 알게 되면 이전 세션을 모두 닫고 다시 구성한다.
+  - 프레임은 통째로만 쓴다. 요청의 `timeout`은 프레임 사이에서만 확인하고, 남은 페이로드는 GAP으로 보고한다. 프레임 하나를 5초 안에 쓰지 못하면 그 세션만 끊는다. 그래서 느린 요청 하나가 같은 세션의 다른 요청을 실패시키지 않는다.
+  - 판정 요청이 timeout될 때 마지막 판정 이후 5초가 지났거나, 판정 슬롯이 바닥났는데 절반 이상을 timeout된 요청이 차지하고 있으면 워커가 멈춘 것으로 보고 세션을 다시 연다.
+  - 5분 동안 트래픽이 없는 세션은 닫는다. Traefik 플러그인에는 종료 콜백이 없어서, 설정이 바뀌어 쓰이지 않게 된 세션을 이렇게 정리한다.
 - 로그: 차단과 오류는 stderr(Traefik이 ERROR로 기록), 나머지는 stdout(DEBUG)으로 나간다. Suricata에 닿지 못한다는 로그는 10초에 한 번만 남긴다.
 
 ### 8.3 패치 빌드 설정
@@ -376,7 +383,7 @@ entryPoints:
 
 - **차단 응답:** 차단된 요청은 403과 함께 `X-Suritap-Cid`를 받는다. 이 값은 EVE의 `suritap.cid`와 같다. 이때 업스트림이 이미 설정한 헤더(Set-Cookie 등)는 버린다.
 - **큰 요청 바디:** 업스트림이 읽는 동안 판정한다. 중간에 drop되면 업스트림 요청을 끊고 클라이언트에는 403을 준다.
-- **응답 prevent:** 작은 응답은 끝까지 모아 한 번에 판정한다. chunked 응답이면 종료 청크까지 포함한다. Suricata는 메시지가 끝나야 작은 바디를 검사하기 때문이다. 큰 응답은 스트리밍 중에 drop이 나면 연결을 중단한다.
+- **응답 prevent:** 작은 응답은 끝까지 모아 한 번에 판정한다. chunked 응답이면 종료 청크까지 포함한다. Suricata는 메시지가 끝나야 작은 바디를 검사하기 때문이다. 큰 응답은 스트리밍 중에 drop이 나면 연결을 중단한다. 핸들러가 Flush하면(SSE, long polling) 그때까지의 내용을 판정한 뒤 바로 보내고, 이후로는 스트리밍으로 판정한다.
 - **WebSocket 등 Upgrade:** 핸드셰이크 요청까지만 검사한다.
 - **메타데이터:** SNI, ALPN, HTTP 버전, 엔트리포인트, `X-Request-Id`를 보낸다. TCP는 라우터 이름(`name@provider`)도 보낸다. 모두 EVE의 `suritap.*`에 남는다.
 - **Suricata 쪽 설정:** 리스너 주소를 `HOME_NET`에 넣어야 인바운드 룰이 적용된다(§5.3).
@@ -404,7 +411,7 @@ SURICATA_PREFIX=... SURICATA_SRC=... test/tap/traefik.sh --patch    # 패치 빌
 
 HTTP/3는 같은 핸들러를 거친다. 다만 이 환경의 curl이 h3를 지원하지 않아 E2E에서는 빠졌다.
 
-Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그인 로더와 같은 방식(GOPATH 레이아웃, `CreateConfig` 후 reflection으로 필드 설정, `New` 호출)으로 플러그인을 실행하고, suritap-mockd 또는 실제 Suricata를 상대로 기능 시나리오, 부하(16 클라이언트 × 300 요청, 판정 timeout 0건), 판정을 보내지 않는 서버를 상대로 한 timeout(동시 요청 모두 timeout 시각에 503)을 검사한다. Yaegi 자체의 내부 data race 때문에 이 하네스는 `-race` 없이 돌린다(플러그인의 네이티브 테스트는 `-race`).
+Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그인 로더와 같은 방식(GOPATH 레이아웃, `CreateConfig` 후 reflection으로 필드 설정, `New` 호출)으로 플러그인을 실행하고, suritap-mockd 또는 실제 Suricata를 상대로 기능 시나리오, 부하(16 클라이언트 × 300 요청, 판정 timeout 0건), 판정을 보내지 않는 서버를 상대로 한 timeout(동시 요청 모두 timeout 시각에 503), 리버스 프록시를 거친 스트리밍 요청 바디(업스트림 transport goroutine이 바디를 읽는 경로)와 Flush되는 응답을 검사한다. Yaegi 자체의 내부 data race 때문에 이 하네스는 `-race` 없이 돌린다(플러그인의 네이티브 테스트는 `-race`).
 
 ### 8.6 오버헤드 (`--bench`, GET 요청과 짧은 응답, 16 클라이언트, 소규모 룰, 워커 2개)
 
@@ -431,9 +438,12 @@ Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그
 | `sync.Once.Do` 안의 클로저, range 중 map 삭제 | 인터프리터 크래시 |
 | 구조체 필드에 대한 `sync/atomic`(여러 goroutine) | 인터프리터 크래시 |
 | nil 인터페이스에 대한 comma-ok 타입 단언 | panic |
+| 지역 변수가 많은 함수 안의 `for … range` | range 대상 슬롯을 다른 지역 변수와 혼동해 panic(`reflect: call of reflect.Value.Len on int Value`). 해당 위치는 인덱스 루프로 바꿨다 |
 | 플러그인 goroutine의 panic | Traefik 프로세스 전체가 종료된다. 백그라운드 goroutine은 `recover`로 감싼다 |
 
 그래서 소켓 클라이언트는 판정 대기를 고정 슬롯(`[]chan []byte`)에 두고, ctx 취소·timeout은 `select` 대신 `context.AfterFunc`가 대기 채널에 표시값을 넣는 방식으로 받는다. 인터페이스는 Go 관례대로 ctx를 받고(`Inspect(ctx, …)`), 요청 ctx를 부모로 쓰므로 클라이언트가 끊기면 대기도 바로 끝난다. 동시 판정 수는 슬롯 free list로 제한한다.
+
+해석 실행에서는 함수 호출과 `defer`가 비싸다. 요청마다 도는 경로(잠금 보조 함수 등)에 이것들을 넣었을 때 하네스 부하 테스트가 11k에서 9k req/s로 떨어졌고, 인라인으로 바꾸자 11k로 돌아왔다.
 
 ## 9. 알려진 제약과 다음 단계
 

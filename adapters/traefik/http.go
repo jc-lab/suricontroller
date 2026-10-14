@@ -47,7 +47,7 @@ func toAddrPort(a plugin.Addr) netip.AddrPort {
 	return netip.AddrPortFrom(ip.Unmap(), uint16(a.Port))
 }
 
-func (s shmTransport) Open(src, dst plugin.Addr, meta []plugin.Meta) (plugin.Conn, error) {
+func (s shmTransport) Open(_ context.Context, src, dst plugin.Addr, meta []plugin.Meta) (plugin.Conn, error) {
 	m := make([]suritap.Meta, len(meta))
 	for i, x := range meta {
 		m[i] = suritap.Meta{Tag: suritap.MetaTag(x.Tag), Value: x.Value}
