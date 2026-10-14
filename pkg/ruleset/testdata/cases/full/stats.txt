@@ -1,0 +1,8 @@
+loaded 70
+disabled_by_conf 20
+enabled_by_conf 8
+modified 29
+dropped 22
+flowbits_enabled 5
+total 64
+enabled 43

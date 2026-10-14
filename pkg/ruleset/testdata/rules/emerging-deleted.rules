@@ -1,0 +1,1 @@
+alert tcp any any -> any any (msg:"ET DELETED should be ignored"; content:"x"; sid:2200430; rev:1;)

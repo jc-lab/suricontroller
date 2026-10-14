@@ -1,0 +1,21 @@
+services:
+  suri-controller:
+    image: ghcr.io/jc-lab/suri-controller:latest
+    restart: unless-stopped
+    environment:
+      SURICONTROLLER_ADMIN_USERNAME: admin
+      SURICONTROLLER_ADMIN_PASSWORD_HASH: "${ADMIN_PASSWORD_HASH}"  # suri-controller hash-password
+      SURICONTROLLER_TRUST_PROXY_HEADERS: "true"
+    volumes:
+      - ./data:/var/lib/suricontroller
+    ports:
+      - "127.0.0.1:8080:8080"   # put a TLS reverse proxy (or cloudflared) in front
+
+  # Optional: publish through a Cloudflare tunnel. Agents connect to
+  # wss://<hostname>/agent/v1/connect; the Noise layer keeps them end-to-end
+  # encrypted even though TLS terminates at Cloudflare.
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   command: tunnel --no-autoupdate run
+  #   environment:
+  #     TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN}"

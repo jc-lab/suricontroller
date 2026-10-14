@@ -1,0 +1,53 @@
+.root {
+  overflow: hidden;
+}
+
+.pre {
+  margin: 0;
+  padding: 4px 0;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: max-content;
+}
+
+.pre > div {
+  padding: 0 10px;
+  white-space: pre;
+}
+
+.ctx {
+  color: var(--mantine-color-text);
+}
+
+.add {
+  background: light-dark(var(--mantine-color-green-0), rgba(47, 158, 68, 0.18));
+  color: light-dark(var(--mantine-color-green-9), var(--mantine-color-green-3));
+}
+
+.del {
+  background: light-dark(var(--mantine-color-red-0), rgba(224, 49, 49, 0.18));
+  color: light-dark(var(--mantine-color-red-9), var(--mantine-color-red-3));
+}
+
+.hunk {
+  background: light-dark(var(--mantine-color-blue-0), rgba(34, 139, 230, 0.15));
+  color: light-dark(var(--mantine-color-blue-8), var(--mantine-color-blue-3));
+}
+
+.file {
+  font-weight: 700;
+  background: var(--mantine-color-default-hover);
+  border-top: 1px solid var(--mantine-color-default-border);
+  margin-top: 4px;
+}
+
+.fileName {
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+}
+
+.meta {
+  color: var(--mantine-color-dimmed);
+  font-style: italic;
+}

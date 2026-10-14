@@ -1,0 +1,43 @@
+# suri-node-agent configuration.
+node_id: router-01                       # must match the key comment registered on the controller
+key_file: /etc/suri-agent/agent_ed25519  # created on first start
+
+controller:
+  url: wss://suri.example.com/agent/v1/connect
+  # Controller host key: `suri-controller hostkey` or the System page of the web UI.
+  host_key: "ssh-ed25519 AAAA... suri-controller"
+  # headers:                             # e.g. Cloudflare Access service token
+  #   CF-Access-Client-Id: "..."
+  #   CF-Access-Client-Secret: "..."
+
+platform:
+  profile: docker                        # docker | openwrt-native | systemd-native
+  host_root: /host                       # host filesystem mount (docker profile)
+  firewall: auto                         # auto | nftables | iptables | none
+
+# Interfaces the controller may manage. Others are never touched.
+interfaces:
+  - name: br-lan
+  - name: wan
+    ips: false                           # per-interface override of ips.enabled
+
+ips:
+  enabled: true                          # false: the controller can only set IDS mode
+  queues: "0"                            # NFQUEUE number or range, e.g. "0-3"
+  fail_open: true                        # let traffic pass when Suricata is down
+
+suricata:
+  base_config: /etc/suricata/suricata.yaml   # yours: edit freely
+  local_rules_dir: /etc/suricata/rules.local # *.rules here are always loaded
+  allow_lua: false
+  instances:                             # log locations (default-log-dir per instance)
+    ids: { log_dir: /var/log/suricata/ids }
+    ips: { log_dir: /var/log/suricata/ips }
+
+logs:
+  queue_max_bytes: 16MiB                 # memory queue; oldest records are dropped when full
+  start_position: end
+  rotation:                              # disable if logrotate or another tool rotates the files
+    enabled: true
+    max_size: 64MiB
+    keep: 2

@@ -1,0 +1,13 @@
+# Emerging Threats
+#
+# This distribution may contain rules under two different licenses.
+#
+alert dns $HOME_NET any -> any any (msg:"ET DNS Query for .su TLD (Soviet Union) Often Malware Related"; dns.query; content:".su"; endswith; nocase; reference:url,www.abuse.ch/?p=3581; classtype:bad-unknown; sid:2014169; rev:3; metadata:created_at 2012_01_31, former_category DNS, updated_at 2019_09_28;)
+alert dns $HOME_NET any -> any any (msg:"ET DNS Query to a *.pw domain - Likely Hostile"; dns.query; content:".pw"; endswith; nocase; classtype:bad-unknown; sid:2016778; rev:4; metadata:created_at 2013_04_19, deployment Perimeter, signature_severity Minor;)
+#alert dns $HOME_NET any -> any any (msg:"ET DNS Query for .to TLD"; dns.query; content:".to"; endswith; nocase; classtype:bad-unknown; sid:2027757; rev:2; metadata:created_at 2019_07_26, deployment Perimeter;)
+# alert udp $HOME_NET any -> any 53 (msg:"ET DNS Standard query response, Format Error"; byte_test:1,&,1,3; classtype:not-suspicious; sid:2003195; rev:6; metadata:created_at 2010_07_30, former_category DNS;)
+## alert udp any 53 -> $HOME_NET any (msg:"ET DNS Reply Sinkhole - Microsoft"; content:"|00 01 00 01|"; content:"|c7 02 8e 01|"; distance:4; within:6; flowbits:set,ET.dns.sinkhole; classtype:trojan-activity; sid:2016101; rev:3;)
+alert dns $HOME_NET any -> any any (msg:"ET DNS Sinkhole follow-up query"; flowbits:isset,ET.dns.sinkhole; dns.query; content:"sinkhole"; classtype:trojan-activity; sid:2016102; rev:1; metadata:former_category DNS;)
+	#   alert dns any any -> any any (msg:"ET DNS indented and tab prefixed disabled rule"; dns.query; content:"tab"; sid:2016103; rev:1;)
+   alert dns any any -> any any (msg:"ET DNS leading whitespace"; dns.query; content:"lead"; sid:2016104; rev:1;)   
+alert dns any any -> any any (msg:"ET DNS seconds threshold"; dns.query; content:"thr"; threshold:type both, track by_src, count 5, seconds 60; sid:2200500; rev:1;)

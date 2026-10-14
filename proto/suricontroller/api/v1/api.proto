@@ -1,0 +1,599 @@
+syntax = "proto3";
+
+// Management API of suri-controller (Connect protocol). Used by
+// suri-controller-web and by programs embedding the controller.
+package suricontroller.api.v1;
+
+import "google/protobuf/timestamp.proto";
+import "suricontroller/agent/v1/agent.proto";
+
+option go_package = "github.com/jc-lab/suricontroller/gen/suricontroller/api/v1;apiv1";
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+service AuthService {
+  // GetAuthInfo is callable without authentication.
+  rpc GetAuthInfo(GetAuthInfoRequest) returns (GetAuthInfoResponse);
+  // Login is callable without authentication.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+message Principal {
+  string id = 1;
+  string display_name = 2;
+  repeated string roles = 3;
+}
+
+message GetAuthInfoRequest {}
+
+message GetAuthInfoResponse {
+  // Whether username/password login is supported.
+  bool password_login = 1;
+  // External login URL when password login is not supported.
+  string login_url = 2;
+  // Set when the request is already authenticated.
+  Principal principal = 3;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  Principal principal = 1;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {}
+
+// ---------------------------------------------------------------------------
+// System
+// ---------------------------------------------------------------------------
+
+service SystemService {
+  rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
+}
+
+message GetInfoRequest {}
+
+message GetInfoResponse {
+  string version = 1;
+  // Controller host public key ("ssh-ed25519 AAAA... suri-controller"),
+  // to be pinned in agent.yaml.
+  string host_key = 2;
+  string host_key_fingerprint = 3;
+  // Path of the agent WebSocket endpoint.
+  string agent_path = 4;
+}
+
+message Settings {
+  // Capacity of the controller log ingest queue in bytes.
+  uint64 log_ingest_queue_max_bytes = 1;
+}
+
+message GetSettingsRequest {}
+
+message GetSettingsResponse {
+  Settings settings = 1;
+}
+
+message UpdateSettingsRequest {
+  Settings settings = 1;
+}
+
+message UpdateSettingsResponse {
+  Settings settings = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Nodes
+// ---------------------------------------------------------------------------
+
+service NodeService {
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+  rpc GetNode(GetNodeRequest) returns (GetNodeResponse);
+  // AddNode registers a node from its public key line
+  // ("ssh-ed25519 AAAA... node-id"). The node id is the key comment.
+  rpc AddNode(AddNodeRequest) returns (AddNodeResponse);
+  rpc UpdateNode(UpdateNodeRequest) returns (UpdateNodeResponse);
+  rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
+  rpc SetInterfaceModes(SetInterfaceModesRequest) returns (SetInterfaceModesResponse);
+  rpc ListApplyHistory(ListApplyHistoryRequest) returns (ListApplyHistoryResponse);
+}
+
+message NodeInterface {
+  string name = 1;
+  bool ips_allowed = 2;
+  bool present = 3;
+  bool up = 4;
+  repeated string addresses = 5;
+  // Desired mode set by the administrator.
+  suricontroller.agent.v1.InterfaceMode mode = 6;
+  // Mode currently applied on the node.
+  suricontroller.agent.v1.InterfaceMode applied_mode = 7;
+}
+
+message NodeDeployState {
+  uint64 desired_generation = 1;
+  suricontroller.agent.v1.BundleRef desired_bundle = 2;
+  uint64 applied_generation = 3;
+  suricontroller.agent.v1.BundleRef applied_bundle = 4;
+  suricontroller.agent.v1.ApplyStatus last_status = 5;
+  suricontroller.agent.v1.ApplyStage last_stage = 6;
+  string last_message = 7;
+  google.protobuf.Timestamp last_report_at = 8;
+  // Applied generation equals the desired generation.
+  bool in_sync = 9;
+  // Error computing the desired state (e.g. render failure).
+  string desired_error = 10;
+}
+
+message Node {
+  string id = 1;
+  string public_key = 2;
+  string fingerprint = 3;
+  bool enabled = 4;
+  string description = 5;
+  bool online = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp last_seen_at = 8;
+  google.protobuf.Timestamp connected_at = 9;
+  string remote_addr = 10;
+  string agent_version = 11;
+  suricontroller.agent.v1.PlatformInfo platform = 12;
+  suricontroller.agent.v1.EngineInfo engine = 13;
+  repeated NodeInterface interfaces = 14;
+  repeated suricontroller.agent.v1.InstanceStatus instances = 15;
+  repeated suricontroller.agent.v1.Warning warnings = 16;
+  repeated suricontroller.agent.v1.LogSource log_sources = 17;
+  suricontroller.agent.v1.LogQueueStats log_queue = 18;
+  NodeDeployState deploy = 19;
+}
+
+message ListNodesRequest {}
+
+message ListNodesResponse {
+  repeated Node nodes = 1;
+}
+
+message GetNodeRequest {
+  string id = 1;
+}
+
+message GetNodeResponse {
+  Node node = 1;
+}
+
+message AddNodeRequest {
+  string public_key = 1;
+  string description = 2;
+}
+
+message AddNodeResponse {
+  Node node = 1;
+}
+
+message UpdateNodeRequest {
+  string id = 1;
+  optional bool enabled = 2;
+  optional string description = 3;
+}
+
+message UpdateNodeResponse {
+  Node node = 1;
+}
+
+message DeleteNodeRequest {
+  string id = 1;
+}
+
+message DeleteNodeResponse {}
+
+message SetInterfaceModesRequest {
+  string id = 1;
+  map<string, suricontroller.agent.v1.InterfaceMode> modes = 2;
+}
+
+message SetInterfaceModesResponse {
+  Node node = 1;
+}
+
+message ApplyHistoryEntry {
+  int64 id = 1;
+  suricontroller.agent.v1.ApplyReport report = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message ListApplyHistoryRequest {
+  string id = 1;
+  uint32 limit = 2;
+}
+
+message ListApplyHistoryResponse {
+  repeated ApplyHistoryEntry entries = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Git repositories (rules / config)
+// ---------------------------------------------------------------------------
+
+enum Repo {
+  REPO_UNSPECIFIED = 0;
+  REPO_RULES = 1;
+  REPO_CONFIG = 2;
+}
+
+service RepoService {
+  rpc ListCommits(ListCommitsRequest) returns (ListCommitsResponse);
+  rpc GetCommit(GetCommitRequest) returns (GetCommitResponse);
+  rpc ListTree(ListTreeRequest) returns (ListTreeResponse);
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
+  // WriteFiles commits changes on top of base_commit. Fails with
+  // FailedPrecondition when the branch moved since base_commit.
+  rpc WriteFiles(WriteFilesRequest) returns (WriteFilesResponse);
+  rpc Diff(DiffRequest) returns (DiffResponse);
+}
+
+message Commit {
+  string id = 1;
+  string message = 2;
+  string author = 3;
+  google.protobuf.Timestamp time = 4;
+  repeated string parents = 5;
+}
+
+message ListCommitsRequest {
+  Repo repo = 1;
+  uint32 limit = 2;
+  // Continue listing from this commit (exclusive).
+  string before = 3;
+  // Only commits touching this path prefix.
+  string path = 4;
+}
+
+message ListCommitsResponse {
+  repeated Commit commits = 1;
+  string head = 2;
+}
+
+message FileChangeStat {
+  string path = 1;
+  // added | modified | deleted
+  string action = 2;
+  uint32 additions = 3;
+  uint32 deletions = 4;
+}
+
+message GetCommitRequest {
+  Repo repo = 1;
+  string id = 2;
+}
+
+message GetCommitResponse {
+  Commit commit = 1;
+  repeated FileChangeStat files = 2;
+}
+
+message TreeEntry {
+  string path = 1;
+  bool dir = 2;
+  uint64 size = 3;
+}
+
+message ListTreeRequest {
+  Repo repo = 1;
+  // Empty means HEAD.
+  string commit = 2;
+  string path = 3;
+  bool recursive = 4;
+}
+
+message ListTreeResponse {
+  string commit = 1;
+  repeated TreeEntry entries = 2;
+}
+
+message ReadFileRequest {
+  Repo repo = 1;
+  string commit = 2;
+  string path = 3;
+}
+
+message ReadFileResponse {
+  string commit = 1;
+  bytes content = 2;
+}
+
+message FileChange {
+  string path = 1;
+  bytes content = 2;
+  bool delete = 3;
+}
+
+message WriteFilesRequest {
+  Repo repo = 1;
+  string base_commit = 2;
+  repeated FileChange changes = 3;
+  string message = 4;
+}
+
+message WriteFilesResponse {
+  Commit commit = 1;
+}
+
+message DiffRequest {
+  Repo repo = 1;
+  // Empty from means the parent of to.
+  string from = 2;
+  string to = 3;
+  string path = 4;
+}
+
+message DiffResponse {
+  string unified_diff = 1;
+  repeated FileChangeStat files = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Rule providers
+// ---------------------------------------------------------------------------
+
+service RuleService {
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
+  rpc UpdateProvider(UpdateProviderRequest) returns (UpdateProviderResponse);
+  rpc SyncProvider(SyncProviderRequest) returns (SyncProviderResponse);
+}
+
+message Provider {
+  // Directory name in the rules repository.
+  string name = 1;
+  // et-open | local | url
+  string type = 2;
+  bool enabled = 3;
+  uint32 interval_seconds = 4;
+  map<string, string> options = 5;
+  google.protobuf.Timestamp last_fetch_at = 6;
+  google.protobuf.Timestamp last_success_at = 7;
+  string last_error = 8;
+  string last_commit = 9;
+  // Whether the provider downloads rules (false for local).
+  bool fetches = 10;
+}
+
+message ListProvidersRequest {}
+
+message ListProvidersResponse {
+  repeated Provider providers = 1;
+}
+
+message UpdateProviderRequest {
+  string name = 1;
+  optional bool enabled = 2;
+  optional uint32 interval_seconds = 3;
+  map<string, string> options = 4;
+}
+
+message UpdateProviderResponse {
+  Provider provider = 1;
+}
+
+message SyncProviderRequest {
+  string name = 1;
+}
+
+message SyncProviderResponse {
+  bool changed = 1;
+  string commit = 2;
+  Provider provider = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Deployment
+// ---------------------------------------------------------------------------
+
+enum DeployKind {
+  DEPLOY_KIND_UNSPECIFIED = 0;
+  DEPLOY_KIND_RULES = 1;
+  DEPLOY_KIND_CONFIG = 2;
+}
+
+enum DeployMode {
+  DEPLOY_MODE_UNSPECIFIED = 0;
+  // Track the branch head.
+  DEPLOY_MODE_AUTO = 1;
+  // Deploy pinned_commit (rollback / fixed version).
+  DEPLOY_MODE_PINNED = 2;
+  // Keep the current effective commit; new commits are not deployed.
+  DEPLOY_MODE_PAUSED = 3;
+}
+
+message DeployPolicy {
+  DeployKind kind = 1;
+  DeployMode mode = 2;
+  string pinned_commit = 3;
+  // Commit nodes should run.
+  string effective_commit = 4;
+  string head_commit = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  string updated_by = 7;
+}
+
+service DeployService {
+  rpc GetPolicies(GetPoliciesRequest) returns (GetPoliciesResponse);
+  rpc SetPolicy(SetPolicyRequest) returns (SetPolicyResponse);
+  rpc PreviewNode(PreviewNodeRequest) returns (PreviewNodeResponse);
+}
+
+message GetPoliciesRequest {}
+
+message GetPoliciesResponse {
+  DeployPolicy rules = 1;
+  DeployPolicy config = 2;
+}
+
+message SetPolicyRequest {
+  DeployKind kind = 1;
+  DeployMode mode = 2;
+  string pinned_commit = 3;
+}
+
+message SetPolicyResponse {
+  DeployPolicy policy = 1;
+}
+
+message RuleStats {
+  uint32 total = 1;
+  uint32 enabled = 2;
+  uint32 disabled = 3;
+  uint32 dropped = 4;
+  uint32 modified = 5;
+  uint32 flowbits_enabled = 6;
+}
+
+message PreviewNodeRequest {
+  string node_id = 1;
+  // Empty values use the effective commits.
+  string rules_commit = 2;
+  string config_commit = 3;
+}
+
+message PreviewNodeResponse {
+  string rules_commit = 1;
+  string config_commit = 2;
+  string bundle_id = 3;
+  uint64 bundle_size = 4;
+  RuleStats rule_stats = 5;
+  // Merged controller-managed suricata.yaml overlay.
+  string controller_yaml = 6;
+  repeated string warnings = 7;
+}
+
+// ---------------------------------------------------------------------------
+// Logs
+// ---------------------------------------------------------------------------
+
+service LogService {
+  rpc GetCollectionPolicies(GetCollectionPoliciesRequest) returns (GetCollectionPoliciesResponse);
+  rpc SetGlobalCollectionPolicy(SetGlobalCollectionPolicyRequest) returns (SetGlobalCollectionPolicyResponse);
+  rpc SetNodeCollectionPolicy(SetNodeCollectionPolicyRequest) returns (SetNodeCollectionPolicyResponse);
+  rpc GetRetentionPolicy(GetRetentionPolicyRequest) returns (GetRetentionPolicyResponse);
+  rpc SetRetentionPolicy(SetRetentionPolicyRequest) returns (SetRetentionPolicyResponse);
+  rpc ListLogFiles(ListLogFilesRequest) returns (ListLogFilesResponse);
+  rpc TailLog(TailLogRequest) returns (stream TailLogResponse);
+  rpc GetIngestStats(GetIngestStatsRequest) returns (GetIngestStatsResponse);
+}
+
+message GetCollectionPoliciesRequest {}
+
+message GetCollectionPoliciesResponse {
+  suricontroller.agent.v1.LogCollectionPolicy global = 1;
+  // Nodes with an override. Nodes not listed inherit the global policy.
+  map<string, suricontroller.agent.v1.LogCollectionPolicy> nodes = 2;
+}
+
+message SetGlobalCollectionPolicyRequest {
+  suricontroller.agent.v1.LogCollectionPolicy policy = 1;
+}
+
+message SetGlobalCollectionPolicyResponse {}
+
+message SetNodeCollectionPolicyRequest {
+  string node_id = 1;
+  // Remove the override and inherit the global policy.
+  bool inherit = 2;
+  suricontroller.agent.v1.LogCollectionPolicy policy = 3;
+}
+
+message SetNodeCollectionPolicyResponse {}
+
+enum RotateInterval {
+  ROTATE_INTERVAL_UNSPECIFIED = 0;
+  ROTATE_INTERVAL_HOURLY = 1;
+  ROTATE_INTERVAL_DAILY = 2;
+}
+
+message RetentionPolicy {
+  RotateInterval rotate = 1;
+  // Rotate a segment early once it reaches this size (0 = no limit).
+  uint64 max_segment_bytes = 2;
+  // Delete segments older than this (0 = keep).
+  uint32 max_age_hours = 3;
+  // Per-node size cap (0 = no limit).
+  uint64 max_bytes_per_node = 4;
+  // Total size cap across all nodes (0 = no limit).
+  uint64 max_total_bytes = 5;
+  bool compress = 6;
+}
+
+message GetRetentionPolicyRequest {}
+
+message GetRetentionPolicyResponse {
+  RetentionPolicy policy = 1;
+}
+
+message SetRetentionPolicyRequest {
+  RetentionPolicy policy = 1;
+}
+
+message SetRetentionPolicyResponse {
+  RetentionPolicy policy = 1;
+}
+
+message LogFile {
+  string node_id = 1;
+  suricontroller.agent.v1.LogType type = 2;
+  // Path relative to the node's log directory.
+  string path = 3;
+  uint64 size = 4;
+  google.protobuf.Timestamp mod_time = 5;
+  bool compressed = 6;
+}
+
+message ListLogFilesRequest {
+  string node_id = 1;
+  suricontroller.agent.v1.LogType type = 2;
+}
+
+message ListLogFilesResponse {
+  repeated LogFile files = 1;
+  uint64 total_bytes = 2;
+}
+
+message TailLogRequest {
+  string node_id = 1;
+  suricontroller.agent.v1.LogType type = 2;
+  // Number of most recent lines to send first.
+  uint32 lines = 3;
+  // Keep streaming new lines.
+  bool follow = 4;
+  // Only lines containing this substring.
+  string filter = 5;
+}
+
+message TailLogResponse {
+  repeated string lines = 1;
+}
+
+message GetIngestStatsRequest {}
+
+message NodeIngestStats {
+  string node_id = 1;
+  uint64 records = 2;
+  uint64 bytes = 3;
+  uint64 agent_dropped = 4;
+}
+
+message GetIngestStatsResponse {
+  uint64 queue_bytes = 1;
+  uint64 queue_capacity_bytes = 2;
+  uint64 queue_dropped_records = 3;
+  uint64 written_records = 4;
+  repeated NodeIngestStats nodes = 5;
+}

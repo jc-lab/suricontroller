@@ -1,0 +1,1 @@
+alert udp $HOME_NET any -> $EXTERNAL_NET any (msg:"ET P2P BitTorrent DHT ping"; content:"d1|3a|ad2|3a|id20|3a|"; classtype:policy-violation; sid:2200410; rev:1;)

@@ -1,0 +1,27 @@
+.viewport {
+  height: min(60vh, 640px);
+  overflow: auto;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8));
+}
+
+.pre {
+  margin: 0;
+  padding: 6px 10px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+  min-width: max-content;
+}
+
+.wrap {
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-width: 0;
+}
+
+.pre > div:hover {
+  background: var(--mantine-color-default-hover);
+}

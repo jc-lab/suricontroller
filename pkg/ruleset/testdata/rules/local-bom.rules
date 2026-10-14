@@ -1,0 +1,2 @@
+﻿alert tcp any any -> any any (msg:"LOCAL BOM first line is lost"; content:"bom"; sid:9000010; rev:1;)
+alert tcp any any -> any any (msg:"LOCAL after BOM"; content:"bom"; sid:9000011; rev:1;)

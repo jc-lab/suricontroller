@@ -1,0 +1,5 @@
+alert dns $HOME_NET any -> any any (msg:"LOCAL override .su with higher rev"; dns.query; content:".su"; endswith; nocase; classtype:bad-unknown; sid:2014169; rev:10; metadata:created_at 2012_01_31, former_category DNS;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 22 (msg:"LOCAL lower rev duplicate is dropped"; flags:S,12; sid:2001219; rev:1;)
+alert dns any any -> any any (msg:"LOCAL same rev duplicate keeps first"; dns.query; content:"lead"; sid:2016104; rev:1;)
+alert tcp any any -> any any (msg:"LOCAL gid 3 higher rev"; content:"y"; gid:3; sid:2200300; rev:2;)
+#alert udp any 53 -> $HOME_NET any (msg:"LOCAL sinkhole setter newer but disabled"; content:"|00 01 00 01|"; flowbits:set,ET.dns.sinkhole; sid:2016101; rev:4;)

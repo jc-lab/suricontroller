@@ -1,0 +1,17 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: var(--mantine-color-body);
+}
+
+.mono {
+  font-family: var(--mantine-font-family-monospace);
+}
+
+.clickable-row {
+  cursor: pointer;
+}

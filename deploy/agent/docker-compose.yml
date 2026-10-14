@@ -1,0 +1,13 @@
+services:
+  suri-node-agent:
+    image: ghcr.io/jc-lab/suri-node-agent:latest
+    container_name: suri-node-agent
+    network_mode: host
+    restart: unless-stopped
+    cap_add: [NET_ADMIN, NET_RAW, SYS_NICE, IPC_LOCK]
+    volumes:
+      - /:/host:ro                           # host tools (nft, iptables, uci) run via chroot
+      - ./etc:/etc/suri-agent                # agent.yaml and the agent key
+      - ./suricata:/etc/suricata             # your suricata.yaml and local rules
+      - ./data:/var/lib/suri-agent           # applied state (restored at boot)
+      - /var/log/suricata:/var/log/suricata  # logs, readable by other collectors on the host

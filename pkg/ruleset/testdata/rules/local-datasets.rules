@@ -1,0 +1,5 @@
+alert http any any -> any any (msg:"LOCAL dataset load present"; http.user_agent; dataset:isset,ua-seen,type string,load sample.lst; sid:9000020; rev:1;)
+alert http any any -> any any (msg:"LOCAL dataset load missing"; http.user_agent; dataset:isset,ua-missing,type string,load missing.lst; sid:9000021; rev:1;)
+#alert http any any -> any any (msg:"LOCAL dataset disabled"; http.user_agent; dataset:isset,ua-dis,type string,load missing.lst; sid:9000022; rev:1;)
+alert http any any -> any any (msg:"LOCAL dataset load with space is ignored"; http.user_agent; dataset:isset,ua-sp,type string, load missing.lst; sid:9000023; rev:1;)
+alert http any any -> any any (msg:"LOCAL dataset without load"; http.user_agent; dataset:isset,ua-noload,type string; sid:9000024; rev:1;)

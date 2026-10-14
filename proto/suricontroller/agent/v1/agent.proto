@@ -1,0 +1,312 @@
+syntax = "proto3";
+
+// Protocol between suri-node-agent and suri-controller.
+//
+// Transport: WebSocket -> Noise_IK_25519_ChaChaPoly_BLAKE2s -> yamux.
+// Every yamux stream starts with a StreamHeader, followed by uvarint
+// length-prefixed messages whose type depends on the stream type.
+package suricontroller.agent.v1;
+
+option go_package = "github.com/jc-lab/suricontroller/gen/suricontroller/agent/v1;agentv1";
+
+// ---------------------------------------------------------------------------
+// Handshake payloads (carried inside the Noise handshake messages)
+// ---------------------------------------------------------------------------
+
+// HandshakeInit is the payload of Noise message 1 (agent -> controller).
+// It must not cause any state change on the controller, because message 1
+// can be replayed.
+message HandshakeInit {
+  string node_id = 1;
+  string agent_version = 2;
+  int64 timestamp_unix_ms = 3;
+}
+
+enum RejectReason {
+  REJECT_REASON_UNSPECIFIED = 0;
+  REJECT_REASON_UNKNOWN_KEY = 1;
+  REJECT_REASON_DISABLED = 2;
+  REJECT_REASON_NODE_ID_MISMATCH = 3;
+  REJECT_REASON_CLOCK_SKEW = 4;
+  REJECT_REASON_REPLAY = 5;
+  REJECT_REASON_PROTOCOL = 6;
+}
+
+// HandshakeResponse is the payload of Noise message 2 (controller -> agent).
+message HandshakeResponse {
+  bool accepted = 1;
+  RejectReason reason = 2;
+  string message = 3;
+  int64 server_time_unix_ms = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Streams
+// ---------------------------------------------------------------------------
+
+enum StreamType {
+  STREAM_TYPE_UNSPECIFIED = 0;
+  // Bidirectional Envelope messages. Exactly one per session, opened first.
+  STREAM_TYPE_CONTROL = 1;
+  // Agent -> controller LogBatch messages.
+  STREAM_TYPE_LOGS = 2;
+  // Bundle download: agent sends StreamHeader{blob}, controller answers with
+  // BlobResponse followed by raw bytes until EOF.
+  STREAM_TYPE_BLOB = 3;
+}
+
+message StreamHeader {
+  StreamType type = 1;
+  BlobRequest blob = 2;
+}
+
+message BlobRequest {
+  string bundle_id = 1;
+  uint64 offset = 2;
+}
+
+message BlobResponse {
+  bool ok = 1;
+  string error = 2;
+  // Total size of the blob (not the remaining size).
+  uint64 size = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Control stream
+// ---------------------------------------------------------------------------
+
+message Envelope {
+  // Request id. 0 for notifications that expect no reply.
+  uint64 id = 1;
+  // Id of the request this message replies to. 0 if not a reply.
+  uint64 reply_to = 2;
+  oneof body {
+    Hello hello = 10;
+    HelloAck hello_ack = 11;
+    DesiredState desired_state = 12;
+    ApplyReport apply_report = 13;
+    StatusReport status = 14;
+    Error error = 15;
+    Ack ack = 16;
+  }
+}
+
+message Error {
+  string code = 1;
+  string message = 2;
+}
+
+message Ack {}
+
+// Hello is the first message the agent sends on the control stream.
+message Hello {
+  string node_id = 1;
+  string agent_version = 2;
+  PlatformInfo platform = 3;
+  EngineInfo engine = 4;
+  // Interfaces the agent allows the controller to manage (from agent.yaml).
+  repeated InterfaceInfo interfaces = 5;
+  AppliedState applied = 6;
+  repeated Warning warnings = 7;
+  repeated LogSource log_sources = 8;
+}
+
+message HelloAck {
+  int64 server_time_unix_ms = 1;
+  string controller_version = 2;
+  // Status report interval requested by the controller.
+  uint32 status_interval_seconds = 3;
+}
+
+message PlatformInfo {
+  // docker | openwrt-native | systemd-native
+  string profile = 1;
+  string os_name = 2;
+  string os_version = 3;
+  string arch = 4;
+  string hostname = 5;
+  string kernel = 6;
+  // nftables | iptables | none
+  string firewall_backend = 7;
+}
+
+message EngineInfo {
+  string version = 1;
+  repeated string features = 2;
+  bool nfq = 3;
+  bool af_packet = 4;
+}
+
+message InterfaceInfo {
+  string name = 1;
+  // Whether the agent allows IPS mode on this interface (agent decides).
+  bool ips_allowed = 2;
+  bool present = 3;
+  bool up = 4;
+  repeated string addresses = 5;
+}
+
+enum InterfaceMode {
+  INTERFACE_MODE_UNSPECIFIED = 0;
+  INTERFACE_MODE_OFF = 1;
+  INTERFACE_MODE_IDS = 2;
+  INTERFACE_MODE_IPS = 3;
+}
+
+message Warning {
+  string code = 1;
+  string message = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Desired / applied state
+// ---------------------------------------------------------------------------
+
+message BundleRef {
+  // Hex sha256 of the bundle archive.
+  string bundle_id = 1;
+  string rules_commit = 2;
+  string config_commit = 3;
+  uint64 size = 4;
+}
+
+message DesiredState {
+  // Incremented by the controller whenever any field below changes.
+  uint64 generation = 1;
+  // Unset means "no managed rules/config yet".
+  BundleRef bundle = 2;
+  map<string, InterfaceMode> interface_modes = 3;
+  LogCollectionPolicy log_policy = 4;
+}
+
+message AppliedState {
+  uint64 generation = 1;
+  BundleRef bundle = 2;
+  map<string, InterfaceMode> interface_modes = 3;
+}
+
+enum ApplyStage {
+  APPLY_STAGE_UNSPECIFIED = 0;
+  APPLY_STAGE_POLICY = 1;
+  APPLY_STAGE_DOWNLOAD = 2;
+  APPLY_STAGE_VERIFY = 3;
+  APPLY_STAGE_RENDER = 4;
+  APPLY_STAGE_VALIDATE = 5;
+  APPLY_STAGE_FIREWALL = 6;
+  APPLY_STAGE_ACTIVATE = 7;
+  APPLY_STAGE_HEALTHCHECK = 8;
+  APPLY_STAGE_DONE = 9;
+}
+
+enum ApplyStatus {
+  APPLY_STATUS_UNSPECIFIED = 0;
+  APPLY_STATUS_IN_PROGRESS = 1;
+  APPLY_STATUS_SUCCEEDED = 2;
+  // Failed before activation; the previous state keeps running.
+  APPLY_STATUS_FAILED = 3;
+  // Failed after activation; the previous release was restored.
+  APPLY_STATUS_ROLLED_BACK = 4;
+}
+
+message RuleError {
+  string file = 1;
+  uint32 line = 2;
+  uint32 sid = 3;
+  string message = 4;
+}
+
+message ApplyReport {
+  uint64 generation = 1;
+  ApplyStatus status = 2;
+  ApplyStage stage = 3;
+  string message = 4;
+  // Additional detail, e.g. the tail of `suricata -T` output.
+  string detail = 5;
+  repeated RuleError rule_errors = 6;
+  // What is actually running on the node now.
+  AppliedState applied = 7;
+  int64 started_at_unix_ms = 8;
+  int64 finished_at_unix_ms = 9;
+  // Non-fatal issues found while applying (e.g. shadowed config keys).
+  repeated Warning warnings = 10;
+}
+
+// ---------------------------------------------------------------------------
+// Status
+// ---------------------------------------------------------------------------
+
+message StatusReport {
+  int64 time_unix_ms = 1;
+  repeated InstanceStatus instances = 2;
+  LogQueueStats log_queue = 3;
+  repeated Warning warnings = 4;
+  repeated InterfaceInfo interfaces = 5;
+  repeated LogSource log_sources = 6;
+}
+
+message InstanceStatus {
+  // ids | ips
+  string name = 1;
+  // af-packet | nfq
+  string capture = 2;
+  bool running = 3;
+  int64 uptime_seconds = 4;
+  uint64 rss_bytes = 5;
+  repeated string interfaces = 6;
+  map<string, uint64> counters = 7;
+  uint32 rules_loaded = 8;
+  uint32 rules_failed = 9;
+  string last_error = 10;
+}
+
+// ---------------------------------------------------------------------------
+// Logs
+// ---------------------------------------------------------------------------
+
+enum LogType {
+  LOG_TYPE_UNSPECIFIED = 0;
+  LOG_TYPE_EVE = 1;
+  // suricata.log (engine log)
+  LOG_TYPE_SURICATA = 2;
+  LOG_TYPE_FAST = 3;
+  LOG_TYPE_STATS = 4;
+  LOG_TYPE_AGENT = 5;
+}
+
+// LogSource describes a log the agent can collect on the node. Log file
+// locations are owned by the node user; the agent only reads them.
+message LogSource {
+  LogType type = 1;
+  string instance = 2;
+  string path = 3;
+  // For eve: event types enabled in the user's eve-log output.
+  repeated string eve_types = 4;
+}
+
+message LogCollectionPolicy {
+  bool enabled = 1;
+  repeated LogType types = 2;
+  // Collect every available eve event type.
+  bool eve_all_types = 3;
+  // Eve event types to collect when eve_all_types is false.
+  repeated string eve_types = 4;
+}
+
+message LogQueueStats {
+  uint64 bytes = 1;
+  uint64 capacity_bytes = 2;
+  uint64 dropped_records = 3;
+  uint64 sent_records = 4;
+}
+
+message LogBatch {
+  uint64 seq = 1;
+  LogType type = 2;
+  string instance = 3;
+  // Newline-delimited records, zstd-compressed.
+  bytes zstd_records = 4;
+  uint32 record_count = 5;
+  // Records dropped by the agent queue since the previous batch.
+  uint64 dropped_since_last = 6;
+}
