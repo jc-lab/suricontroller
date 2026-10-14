@@ -259,6 +259,7 @@ extern "C" fn thread_init(tv: *mut ThreadVars, initdata: *const c_void, data: *m
         max_segment: cfg.max_segment,
         ack_threshold: cfg.ack_threshold,
         max_flows: cfg.max_flows,
+        max_total_flows: cfg.max_worker_flows,
         discriminator: cfg.discriminator,
         keepalive: cfg.keepalive,
     };

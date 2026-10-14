@@ -133,6 +133,29 @@ func TestInteropWithRustServer(t *testing.T) {
 	}
 	wg.Wait()
 
+	// Close while the ring is full: the CLOSE is queued, then flushed.
+	conn.s.mu.Lock()
+	var h [dataFixed]byte
+	dataHeader(&h, 0, ToServer, 0) // unknown cid, no verdict wanted: no reply
+	for conn.s.tx.push(kData, 0, h[:], make([]byte, 8000)) {
+	}
+	conn.s.tx.publish()
+	conn.s.mu.Unlock()
+	victim := &Conn{s: conn.s, cid: 424242} // same (full) session
+	if err := victim.Close(false); err != nil {
+		t.Fatal(err)
+	}
+	if !victim.s.pendingCloses() {
+		t.Log("ring drained before the check; queueing path not observed")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for victim.s.pendingCloses() && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if victim.s.pendingCloses() {
+		t.Fatal("queued CLOSE was not flushed")
+	}
+
 	unknown := &Conn{s: conn.s, cid: 1}
 	if v, err := unknown.Inspect(ctx, ToServer, []byte("x")); err != nil || v.Action != Error || v.Reason != ReasonUnknownFlow {
 		t.Fatalf("unknown flow: %+v %v", v, err)

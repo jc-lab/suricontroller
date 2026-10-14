@@ -68,6 +68,8 @@ Client ──TLS──▶ [Proxy + suritap client] ──plain──▶ Upstream
 
 eventfd는 서버가 생성하므로 서버가 그 유형을 신뢰할 수 있다. 핸드셰이크 뒤에는 소켓으로 아무것도 보내지 않으며, 소켓 종료(HUP)가 곧 세션 종료다. 클라이언트가 죽으면 서버는 그 세션의 열린 flow를 RST로 정리한다.
 
+연결 후 2초 안에 HELLO를 보내지 않으면 서버가 연결을 끊는다. 대기 중인 연결이 64개를 넘으면 가장 오래 기다린 연결부터 끊는다. 아무것도 보내지 않는 연결이 정상 클라이언트를 막지 못하게 하기 위해서다. 링 커서는 공유메모리에서 다시 읽지 않고 항상 0에서 시작한다(검증 후 변경 방지).
+
 ### 3.4 레코드
 
 | 방향 | kind | body |
@@ -86,6 +88,7 @@ eventfd는 서버가 생성하므로 서버가 그 유형을 신뢰할 수 있�
 ### 3.5 판정 의미
 
 - `WANT_VERDICT`가 붙은 DATA에는 그 방향으로 지금까지 보낸 모든 데이터를 덮는 판정이 온다. 이전 레코드의 drop과 alert도 누적되어 함께 보고된다.
+- 한 번이라도 drop된 연결은 이후 모든 판정이 drop(`reason=flow`)이다. 방향과 무관하며, 페이로드 없는 판정 요청에도 적용된다(fail-closed).
 - `action`
   - `pass`: 통과.
   - `drop`: 차단. drop·reject 룰이나 엔진 정책에 걸린 경우다.
@@ -101,6 +104,7 @@ eventfd는 서버가 생성하므로 서버가 그 유형을 신뢰할 수 있�
   `drop_reason`은 Suricata의 `PKT_DROP_REASON_*` 원값이다(버전마다 다르다).
 - alert는 pass 판정에도 실린다. 예를 들어 alert 전용 룰이 매치된 경우다. `action` 비트는 alert=1, drop=2, reject=4/8/16이다.
 - 크레딧: 클라이언트가 동시에 기다릴 수 있는 판정 수는 `s2c 크기 / 최대 VERDICT 레코드 / 2`로 제한한다. 그래서 서버는 s2c가 가득 차서 막히는 일이 없다. 이를 어기면 프로토콜 위반으로 세션을 닫는다.
+- 크레딧 없이 오는 레코드(BYPASS, FLOW_ERROR)는 s2c의 절반이 비어 있을 때만 보낸다. 그렇지 않으면 버린다. 그래서 이런 레코드가 쌓여도 판정 레코드는 항상 들어간다.
 
 ## 4. 패킷 합성 (`tap/suritap/src/engine.rs`)
 
@@ -135,7 +139,7 @@ suricata -c suricata.yaml --capture-plugin=suritap
 | `socket-mode` | — | 소켓 chmod(8진수) |
 | `threads` | `auto` | 워커 수 |
 | `ips` | `yes` | IPS 모드(판정에 drop 포함). `no`면 IDS 모드라 drop 룰도 alert로만 동작한다 |
-| `max-sessions` / `max-flows` | 256 / 65536 | 워커당 세션 수 / 세션당 flow 수 |
+| `max-sessions` / `max-flows` / `max-worker-flows` | 256 / 65536 / 262144 | 워커당 세션 수 / 세션당 flow 수 / 워커 전체 flow 수 |
 | `max-segment` / `ack-threshold` | 32kb / 256kb | 합성 세그먼트 크기 / pure ACK 기준 |
 | `max-region-size` | 64mb | 받아들이는 region 상한 |
 | `batch` / `spin-us` / `idle-ms` | 64 / 0 / 100 | 세션당 한 번에 처리할 레코드 수 / 잠들기 전 busy-poll 시간 / 유휴 주기 |
@@ -173,6 +177,8 @@ let v = conn.inspect(Dir::ToServer, req, Duration::from_millis(50))?;
 ```
 
 - 큰 버퍼는 `max_payload` 단위로 나눠 보낸다. 링이 가득 차면 ctx나 timeout 안에서 기다린다(역압).
+- `Close`는 블록하지 않는다. 링이 가득 차 있으면 CLOSE를 큐에 넣었다가, 다음 레코드보다 먼저 또는 공간이 생기는 즉시 보낸다. Close를 호출하지 않고 버린 Conn도 Go는 `runtime.AddCleanup`, Rust는 `Drop`으로 닫는다.
+- 클라이언트는 IPv4-mapped IPv6 주소(듀얼스택 리스너)를 IPv4로 바꿔서 보낸다.
 - 서버가 사라지면 진행 중인 요청은 즉시 `ErrClosed` / `BrokenPipe`로 실패한다.
 - `Options.Spin`(Go)은 판정을 읽는 쪽이 잠들기 전에 busy-poll하는 시간이다.
 
@@ -211,7 +217,7 @@ drop되거나 bypass된 flow는 FIN과 RST가 엔진에서 처리되지 않으�
 
 ### 7.2 바디 룰의 판정 시점
 
-- 마커를 바디 앞쪽에 둔 96 KiB 바디를 4 KiB씩 보내면, 32 KiB(`request-body-minimal-inspect-size`)째 청크에서 drop된다.
+- 마커를 바디 앞쪽에 둔 96 KiB 바디를 4 KiB씩 보내면, `request-body-minimal-inspect-size`(32 KiB)에 이른 직후, 실측으로는 32~36 KiB째 청크에서 drop된다.
 - 마커가 마지막 청크에 있으면 요청이 끝나는 시점에 drop된다.
 
 따라서 업스트림으로 아무것도 보내지 않고 막아야 하는 엔드포인트는 요청을 버퍼링한 뒤 완료 시점에 판정해야 한다. nginx나 Kong의 기본 동작이 이와 같다. 그렇지 않으면 inspect-size를 낮춘다.
@@ -240,6 +246,7 @@ inline 모드는 검사가 끝난 세그먼트를 ACK와 무관하게 정리한�
 
 - 단일 IPS 인스턴스에서 Detect(shadow) 모드로 쓰면, 처음 would-drop이 난 뒤로는 그 연결이 더 검사되지 않는다(flow drop).
 - drop된 flow는 RST가 처리되지 않으므로 `flow-timeouts.tcp.established` 동안 엔진 메모리에 남는다. 구분자 덕분에 정확성 문제는 없다.
+- 소켓에 접근할 수 있는 프로세스는 신뢰 경계 안에 있다. 세션·flow·메타데이터 상한으로 자원 사용은 제한하지만, 접근 제어는 소켓 디렉터리 권한으로 해야 한다.
 - 플러그인은 Suricata 내부 헤더에 의존하므로 Suricata 버전마다 다시 빌드해야 한다.
 - HTTP/3(QUIC) 정규화와 multi-tenant(`tenant` 필드는 예약됨)는 아직 없다. 데이터 경로 배치 최적화도 남아 있다.
 - 다음 단계:

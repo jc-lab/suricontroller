@@ -172,6 +172,10 @@ struct Session {
     dead: AtomicBool,
     bypassed: Mutex<HashSet<u64>>,
     flow_errors: Mutex<HashMap<u64, u32>>,
+    /// CLOSE records that did not fit in the ring yet: (cid, how). Flushed
+    /// before any other record and whenever space frees up, so a closed
+    /// connection is never leaked on the server.
+    closes: Mutex<Vec<(u64, u8)>>,
     worker_index: u16,
     worker_count: u16,
     max_payload: usize,
@@ -228,6 +232,7 @@ impl Session {
             dead: AtomicBool::new(false),
             bypassed: Mutex::new(HashSet::new()),
             flow_errors: Mutex::new(HashMap::new()),
+            closes: Mutex::new(Vec::new()),
             worker_index: w.worker_index,
             worker_count: w.worker_count,
             max_payload: (w.max_payload as usize).min(region.c2s_size() / 4 - HEADER - proto::DATA_FIXED),
@@ -275,6 +280,7 @@ impl Session {
             if n > 0 {
                 rx.release();
             }
+            self.flush_closes();
             self.notify_space();
             if self.dead.load(Acquire) {
                 return;
@@ -332,6 +338,43 @@ impl Session {
         }
     }
 
+    /// Pushes queued CLOSE records while they fit. Caller holds `tx`.
+    fn flush_closes_locked(&self, tx: &mut Producer) {
+        let mut q = self.closes.lock().unwrap();
+        let mut sent = 0;
+        for (cid, how) in q.iter() {
+            if !tx.push(proto::K_CLOSE, 0, &[&proto::small(*cid, *how, 0)]) {
+                break;
+            }
+            sent += 1;
+        }
+        if sent > 0 {
+            q.drain(..sent);
+            if tx.publish() {
+                sys::eventfd_signal(self.c2s_bell.as_raw_fd());
+            }
+        }
+    }
+
+    fn flush_closes(&self) {
+        if !self.closes.lock().unwrap().is_empty() {
+            let mut tx = self.tx.lock().unwrap();
+            self.flush_closes_locked(&mut tx);
+        }
+    }
+
+    /// Closes a connection without blocking: the CLOSE is queued when the
+    /// ring is full.
+    fn close_conn(&self, cid: u64, how: u8) {
+        self.bypassed.lock().unwrap().remove(&cid);
+        self.flow_errors.lock().unwrap().remove(&cid);
+        if self.dead.load(Acquire) {
+            return;
+        }
+        self.closes.lock().unwrap().push((cid, how));
+        self.flush_closes();
+    }
+
     fn notify_space(&self) {
         if self.space_waiters.load(SeqCst) > 0 {
             // Taking the lock orders us after a producer that is about to wait.
@@ -362,6 +405,11 @@ impl Session {
         loop {
             if self.dead.load(Acquire) {
                 return Err(broken());
+            }
+            // Queued CLOSEs go first; a record that does not fit after them
+            // waits for space like any other.
+            if !self.closes.lock().unwrap().is_empty() {
+                self.flush_closes_locked(&mut tx);
             }
             if tx.push(kind, flags, parts) {
                 if tx.publish() {
@@ -614,17 +662,18 @@ impl Conn {
         )
     }
 
-    /// Closes the connection (FIN both ways, or RST when `reset`).
+    /// Closes the connection (FIN both ways, or RST when `reset`). Never
+    /// blocks: when the ring is full the CLOSE is queued and sent as soon
+    /// as there is room.
     pub fn close(&self, reset: bool) -> io::Result<()> {
         if self.closed.swap(true, AcqRel) {
             return Ok(());
         }
-        self.s.push(
-            proto::K_CLOSE,
-            0,
-            &[&proto::small(self.cid, reset as u8, 0)],
-            Some(Instant::now() + Duration::from_millis(100)),
-        )
+        if self.s.dead.load(Acquire) {
+            return Err(broken());
+        }
+        self.s.close_conn(self.cid, reset as u8);
+        Ok(())
     }
 
     /// True once Suricata decided the rest of the connection needs no
@@ -642,10 +691,8 @@ impl Conn {
 impl Drop for Conn {
     fn drop(&mut self) {
         if !self.closed.swap(true, AcqRel) {
-            let _ = self.s.push(proto::K_CLOSE, 0, &[&proto::small(self.cid, 0, 0)], None);
+            self.s.close_conn(self.cid, 0);
         }
-        self.s.bypassed.lock().unwrap().remove(&self.cid);
-        self.s.flow_errors.lock().unwrap().remove(&self.cid);
     }
 }
 
@@ -761,6 +808,34 @@ mod tests {
         for h in th {
             h.join().unwrap();
         }
+
+        // Closing while the ring is full queues the CLOSE instead of losing it.
+        {
+            let mut tx = c.s.tx.lock().unwrap();
+            // DATA for an unknown connection without WANT_VERDICT: no reply.
+            while tx.push(
+                proto::K_DATA,
+                0,
+                &[&proto::data_header(0, Dir::ToServer, 0), &[0u8; 8000]],
+            ) {}
+            drop(tx);
+            let victim = client.open(&OpenParams::new(
+                "198.51.100.250:9".parse().unwrap(),
+                "10.0.0.1:443".parse().unwrap(),
+            ));
+            drop(victim);
+        }
+        let queued = Conn {
+            s: c.s.clone(),
+            cid: 777,
+            closed: AtomicBool::new(false),
+        };
+        drop(queued);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !c.s.closes.lock().unwrap().is_empty() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(c.s.closes.lock().unwrap().is_empty(), "queued CLOSE was not flushed");
 
         // Unknown connection id after the server dropped it.
         let fake = Conn {

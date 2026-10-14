@@ -229,6 +229,8 @@ pub struct EngineConfig {
     pub ack_threshold: u64,
     /// Maximum concurrent flows per session.
     pub max_flows: usize,
+    /// Maximum concurrent flows of all sessions of this engine (worker).
+    pub max_total_flows: usize,
     /// Tag packets with a per-connection VLAN discriminator.
     pub discriminator: bool,
     /// Inject a pure ACK into connections idle this long (zero disables).
@@ -242,6 +244,7 @@ impl Default for EngineConfig {
             max_segment: 32 * 1024,
             ack_threshold: 256 * 1024,
             max_flows: 65536,
+            max_total_flows: 262_144,
             discriminator: true,
             keepalive: Duration::from_secs(120),
         }
@@ -289,6 +292,18 @@ pub struct Out<'a> {
 }
 
 impl Out<'_> {
+    /// Sends a record the client did not reserve a credit for (BYPASS,
+    /// FLOW_ERROR). It is dropped unless half of the ring — the part the
+    /// client's verdict credits may use — stays free, so uncredited records
+    /// can never make a credited VERDICT overflow.
+    fn send_uncredited(&mut self, kind: u16, parts: &[&[u8]]) -> bool {
+        let body: usize = parts.iter().map(|p| p.len()).sum();
+        if self.ring.available() < self.ring.need(body) + self.ring.capacity() / 2 {
+            return false;
+        }
+        self.send(kind, parts)
+    }
+
     fn send(&mut self, kind: u16, parts: &[&[u8]]) -> bool {
         if !self.ring.push(kind, 0, parts) {
             return false;
@@ -348,6 +363,9 @@ impl Pending {
 struct Flow {
     v6: bool,
     bypassed: bool,
+    /// A packet of the flow was dropped: every later verdict is a drop.
+    dropped: bool,
+    dropped_reason: u8,
     fin: [bool; 2],
     ip_id: u16,
     sport: u16,
@@ -380,7 +398,6 @@ pub struct Flows {
     map: HashMap<u64, Flow>,
     session: u32,
     client: Arc<str>,
-    next_keepalive: u64,
 }
 
 impl Flows {
@@ -389,7 +406,6 @@ impl Flows {
             map: HashMap::new(),
             session,
             client: client.into(),
-            next_keepalive: 0,
         }
     }
 
@@ -408,6 +424,9 @@ pub struct Engine {
     buf: PacketBuffer,
     rng: u64,
     epoch: Instant,
+    /// Engine clock (ms since `epoch`), refreshed by [`Engine::tick`].
+    now: u64,
+    total_flows: usize,
     pub stats: EngineStats,
 }
 
@@ -435,6 +454,8 @@ impl Engine {
             buf,
             rng: seed | 1,
             epoch: Instant::now(),
+            now: 0,
+            total_flows: 0,
             stats: EngineStats::default(),
         }
     }
@@ -443,8 +464,15 @@ impl Engine {
         &self.cfg
     }
 
-    fn now_ms(&self) -> u64 {
-        self.epoch.elapsed().as_millis() as u64
+    /// Refreshes the engine clock; call once per processing pass rather
+    /// than reading the clock per packet.
+    pub fn tick(&mut self) {
+        self.now = self.epoch.elapsed().as_millis() as u64;
+    }
+
+    /// Flows of all sessions.
+    pub fn total_flows(&self) -> usize {
+        self.total_flows
     }
 
     fn random(&mut self) -> u32 {
@@ -483,7 +511,7 @@ impl Engine {
     fn flow_error(&mut self, out: &mut Out<'_>, cid: u64, code: u32) {
         self.stats.flow_errors += 1;
         // Best effort: the client learns about it on its next verdict anyway.
-        let _ = out.send(proto::K_FLOW_ERROR, &[&proto::small(cid, 0, code)]);
+        let _ = out.send_uncredited(proto::K_FLOW_ERROR, &[&proto::small(cid, 0, code)]);
     }
 
     fn open<I: Inspector>(
@@ -509,7 +537,7 @@ impl Engine {
             self.flow_error(out, open.cid, proto::FE_DUPLICATE);
             return Ok(());
         }
-        if flows.map.len() >= self.cfg.max_flows {
+        if flows.map.len() >= self.cfg.max_flows || self.total_flows >= self.cfg.max_total_flows {
             self.flow_error(out, open.cid, proto::FE_OVERLOAD);
             return Ok(());
         }
@@ -523,6 +551,8 @@ impl Engine {
         let mut f = Flow {
             v6: open.v6,
             bypassed: false,
+            dropped: false,
+            dropped_reason: 0,
             fin: [false; 2],
             ip_id: self.random() as u16,
             sport: open.sport,
@@ -578,6 +608,7 @@ impl Engine {
             false,
         );
         flows.map.insert(cid, f);
+        self.total_flows += 1;
         self.stats.flows_opened += 1;
         Ok(())
     }
@@ -631,7 +662,15 @@ impl Engine {
             self.emit(insp, Some(&mut *out), session, cid, f, dir.other(), TH_ACK, None, false);
         }
         if want {
-            let p = std::mem::take(&mut f.pending[d]);
+            let mut p = std::mem::take(&mut f.pending[d]);
+            if f.dropped && p.action & (ACTION_DROP | ACTION_REJECT_ANY) == 0 {
+                // Dropped earlier (any direction), possibly reported
+                // already: the flow stays dropped even when this request
+                // produced no packet.
+                p.action |= ACTION_DROP;
+                p.reason = Reason::Flow as u8;
+                p.drop_reason = f.dropped_reason;
+            }
             return self.verdict(out, cid, token, dir, p);
         }
         Ok(())
@@ -683,6 +722,7 @@ impl Engine {
                     self.fin(insp, Some(&mut *out), session, cid, &mut f, Dir::ToServer);
                     self.fin(insp, Some(&mut *out), session, cid, &mut f, Dir::ToClient);
                 }
+                self.total_flows -= 1;
                 self.stats.flows_closed += 1;
             }
         }
@@ -716,15 +756,21 @@ impl Engine {
         self.emit(insp, out, session, cid, f, dir.other(), TH_ACK, None, false);
     }
 
-    /// Injects keepalive ACKs into idle connections. Cheap to call often:
-    /// flows are only scanned every `keepalive / 4`.
+    /// Interval at which [`Engine::housekeep`] should run (`None` when
+    /// keepalives are disabled).
+    pub fn housekeep_interval(&self) -> Option<Duration> {
+        (!self.cfg.keepalive.is_zero()).then(|| (self.cfg.keepalive / 4).max(Duration::from_millis(250)))
+    }
+
+    /// Injects keepalive ACKs into the idle connections of a session.
+    /// Scans every flow: call it every [`Engine::housekeep_interval`].
     pub fn housekeep<I: Inspector>(&mut self, insp: &mut I, flows: &mut Flows) {
         let ka = self.cfg.keepalive.as_millis() as u64;
-        let now = self.now_ms();
-        if ka == 0 || now < flows.next_keepalive {
+        if ka == 0 {
             return;
         }
-        flows.next_keepalive = now + (ka / 4).max(250);
+        self.tick();
+        let now = self.now;
         let session = flows.session;
         for (cid, f) in flows.map.iter_mut() {
             if now.saturating_sub(f.last) >= ka && !(f.fin[0] && f.fin[1]) {
@@ -749,6 +795,7 @@ impl Engine {
                 None,
                 false,
             );
+            self.total_flows -= 1;
             self.stats.flows_closed += 1;
         }
     }
@@ -846,7 +893,7 @@ impl Engine {
         if flags & TH_ACK != 0 {
             f.acked[o] = f.sent[o];
         }
-        f.last = self.now_ms();
+        f.last = self.now;
         let info = PacketInfo {
             session,
             cid,
@@ -865,12 +912,16 @@ impl Engine {
             self.stats.engine_failures += 1;
         }
         f.pending[d].add(&outcome);
+        if outcome.dropped() && !f.dropped {
+            f.dropped = true;
+            f.dropped_reason = outcome.drop_reason;
+        }
         if outcome.bypass != 0 && !f.bypassed {
             f.bypassed = true;
             self.stats.bypasses += 1;
             if let Some(out) = out {
                 // Best effort: only an optimisation for the client.
-                let _ = out.send(proto::K_BYPASS, &[&proto::small(cid, 2, 0)]);
+                let _ = out.send_uncredited(proto::K_BYPASS, &[&proto::small(cid, 2, 0)]);
             }
         }
     }
@@ -936,9 +987,9 @@ fn write_headers(b: &mut [u8], f: &Flow, dir: Dir, flags: u8, seq: u32, ack: u32
     ip_len + tcp_len
 }
 
-/// RFC 1071 Internet checksum.
-pub fn checksum(b: &[u8]) -> u16 {
-    let mut sum: u32 = 0;
+/// One's-complement sum of 16-bit big-endian words (odd tail padded).
+fn sum16(sum: u32, b: &[u8]) -> u32 {
+    let mut sum = sum;
     let mut chunks = b.chunks_exact(2);
     for c in &mut chunks {
         sum += u16::from_be_bytes([c[0], c[1]]) as u32;
@@ -946,10 +997,19 @@ pub fn checksum(b: &[u8]) -> u16 {
     if let [x] = chunks.remainder() {
         sum += (*x as u32) << 8;
     }
+    sum
+}
+
+fn fold(mut sum: u32) -> u16 {
     while sum >> 16 != 0 {
         sum = (sum & 0xffff) + (sum >> 16);
     }
     !(sum as u16)
+}
+
+/// RFC 1071 Internet checksum.
+pub fn checksum(b: &[u8]) -> u16 {
+    fold(sum16(0, b))
 }
 
 /// Fills in the TCP checksum of a packet produced by the engine (only
@@ -970,20 +1030,8 @@ pub fn fix_tcp_checksum(pkt: &mut [u8]) {
     }
     pkt[ip_len + 16] = 0;
     pkt[ip_len + 17] = 0;
-    let mut sum: u32 = 0;
-    for part in [&pseudo[..], &pkt[ip_len..]] {
-        let mut chunks = part.chunks_exact(2);
-        for c in &mut chunks {
-            sum += u16::from_be_bytes([c[0], c[1]]) as u32;
-        }
-        if let [x] = chunks.remainder() {
-            sum += (*x as u32) << 8;
-        }
-    }
-    while sum >> 16 != 0 {
-        sum = (sum & 0xffff) + (sum >> 16);
-    }
-    let c = !(sum as u16);
+    // Both parts have even length, so summing them separately is exact.
+    let c = fold(sum16(sum16(0, &pseudo), &pkt[ip_len..]));
     pkt[ip_len + 16..ip_len + 18].copy_from_slice(&c.to_be_bytes());
 }
 
@@ -1179,9 +1227,11 @@ mod tests {
         h.data(1, Dir::ToServer, 9, true, b"tail");
         let v = proto::Verdict::decode(&h.replies()[0].1).unwrap();
         assert_eq!((v.token, v.action), (9, Action::Drop));
-        // pending state was consumed
+        // The pending rule match was consumed; the flow stays dropped.
         h.data(1, Dir::ToServer, 10, true, b"more");
-        assert_eq!(proto::Verdict::decode(&h.replies()[0].1).unwrap().action, Action::Pass);
+        let v = proto::Verdict::decode(&h.replies()[0].1).unwrap();
+        assert_eq!((v.action, v.reason), (Action::Drop, Reason::Flow));
+        assert!(v.alerts.is_empty());
     }
 
     #[test]
@@ -1206,6 +1256,57 @@ mod tests {
             ]
         );
         assert!(h.send(proto::K_DATA, 0, &[&[0u8; 3]]).is_err(), "short DATA is fatal");
+    }
+
+    #[test]
+    fn drop_is_sticky_even_without_packets() {
+        let mut h = Harness::new(EngineConfig::default());
+        h.open(1, "1.1.1.1", "2.2.2.2");
+        h.data(1, Dir::ToServer, 1, true, b"GET /EVIL");
+        assert_eq!(proto::Verdict::decode(&h.replies()[0].1).unwrap().reason, Reason::Rule);
+        // An empty flush (no packet reaches the engine) must not pass.
+        h.data(1, Dir::ToServer, 2, true, b"");
+        let v = proto::Verdict::decode(&h.replies()[0].1).unwrap();
+        assert_eq!((v.action, v.reason, v.drop_reason), (Action::Drop, Reason::Flow, 8));
+        h.data(1, Dir::ToClient, 3, true, b"");
+        assert_eq!(proto::Verdict::decode(&h.replies()[0].1).unwrap().action, Action::Drop);
+    }
+
+    #[test]
+    fn total_flow_limit() {
+        let cfg = EngineConfig {
+            max_total_flows: 1,
+            ..Default::default()
+        };
+        let mut h = Harness::new(cfg);
+        h.open(1, "1.1.1.1", "2.2.2.2");
+        h.open(2, "1.1.1.1", "2.2.2.2");
+        let r = h.replies();
+        assert_eq!(
+            (r[0].0, proto::get_u32(&r[0].1, 12)),
+            (proto::K_FLOW_ERROR, proto::FE_OVERLOAD)
+        );
+        assert_eq!(h.engine.total_flows(), 1);
+        h.send(proto::K_CLOSE, 0, &[&proto::small(1, 1, 0)]).unwrap();
+        assert_eq!(h.engine.total_flows(), 0);
+        h.open(3, "1.1.1.1", "2.2.2.2");
+        assert!(h.replies().is_empty());
+    }
+
+    #[test]
+    fn uncredited_records_leave_room_for_verdicts() {
+        let mut h = Harness::new(EngineConfig::default());
+        h.open(1, "1.1.1.1", "2.2.2.2");
+        // Duplicate OPENs produce FLOW_ERRORs nobody reads.
+        for _ in 0..10_000 {
+            h.open(1, "1.1.1.1", "2.2.2.2");
+        }
+        // A credited verdict still fits.
+        h.data(1, Dir::ToServer, 7, true, b"x");
+        let r = h.replies();
+        let errors = r.iter().filter(|x| x.0 == proto::K_FLOW_ERROR).count();
+        assert!(errors > 0 && errors * 24 <= MIN_RING / 2, "{errors} uncredited records");
+        assert_eq!(r.last().unwrap().0, proto::K_VERDICT);
     }
 
     #[test]
@@ -1237,7 +1338,7 @@ mod tests {
         let n = h.fake.packets.len();
         h.engine.housekeep(&mut h.fake, &mut h.flows);
         assert_eq!(h.fake.packets.len(), n, "not idle yet");
-        std::thread::sleep(Duration::from_millis(300)); // scans are throttled to >= 250 ms
+        std::thread::sleep(Duration::from_millis(30));
         h.engine.housekeep(&mut h.fake, &mut h.flows);
         assert_eq!(h.fake.packets.len(), n + 2);
         assert!(h.fake.infos[n..]

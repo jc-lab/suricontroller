@@ -308,8 +308,10 @@ pub struct Open {
 pub struct BadRecord(pub &'static str);
 
 impl Open {
+    /// IPv4-mapped IPv6 addresses (dual-stack listeners) are converted to
+    /// IPv4 so that IPv4 address variables in rules apply.
     pub fn new(cid: u64, src: IpAddr, sport: u16, dst: IpAddr, dport: u16) -> Result<Open, BadRecord> {
-        let (v6, s, d) = match (src, dst) {
+        let (v6, s, d) = match (src.to_canonical(), dst.to_canonical()) {
             (IpAddr::V4(s), IpAddr::V4(d)) => {
                 let mut a = [0u8; 16];
                 let mut b = [0u8; 16];
@@ -535,6 +537,15 @@ mod tests {
         assert_eq!(Open::decode(&b).unwrap(), o);
         assert!(Open::decode(&b[..b.len() - 1]).is_err());
         assert!(Open::new(1, "::1".parse().unwrap(), 1, "1.2.3.4".parse().unwrap(), 2).is_err());
+        let m = Open::new(
+            1,
+            "::ffff:203.0.113.5".parse().unwrap(),
+            1,
+            "10.0.0.1".parse().unwrap(),
+            2,
+        )
+        .unwrap();
+        assert!(!m.v6 && m.src[..4] == [203, 0, 113, 5]);
     }
 
     #[test]

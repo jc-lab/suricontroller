@@ -93,6 +93,11 @@ type session struct {
 	bypassed   sync.Map // cid -> struct{}
 	flowErrors sync.Map // cid -> uint32
 
+	// CLOSE records that did not fit yet; flushed before any other record
+	// and whenever ring space frees up.
+	closeMu sync.Mutex
+	closes  []closeReq
+
 	workerIndex, workerCount int
 	maxPayload               int
 	spin                     time.Duration
@@ -237,6 +242,7 @@ func (s *session) readLoop() {
 		if n > 0 {
 			rx.release()
 		}
+		s.flushCloses()
 		s.notifySpace()
 		if s.dead.Load() {
 			return
@@ -307,6 +313,61 @@ func (s *session) dispatch(r record) {
 	}
 }
 
+type closeReq struct {
+	cid uint64
+	how uint8
+}
+
+// flushClosesLocked pushes queued CLOSEs while they fit. Caller holds s.mu.
+func (s *session) flushClosesLocked() {
+	s.closeMu.Lock()
+	defer s.closeMu.Unlock()
+	n := 0
+	for _, c := range s.closes {
+		if !s.tx.push(kClose, 0, small(c.cid, c.how, 0)) {
+			break
+		}
+		n++
+	}
+	if n > 0 {
+		s.closes = s.closes[n:]
+		if s.tx.publish() {
+			signal(s.c2sBell)
+		}
+	}
+}
+
+func (s *session) pendingCloses() bool {
+	s.closeMu.Lock()
+	defer s.closeMu.Unlock()
+	return len(s.closes) > 0
+}
+
+func (s *session) flushCloses() {
+	if !s.pendingCloses() {
+		return
+	}
+	s.mu.Lock()
+	if !s.dead.Load() {
+		s.flushClosesLocked()
+	}
+	s.mu.Unlock()
+}
+
+// closeConn closes a connection without blocking; the CLOSE is queued
+// when the ring is full so the server never keeps a closed flow.
+func (s *session) closeConn(cid uint64, how uint8) {
+	s.bypassed.Delete(cid)
+	s.flowErrors.Delete(cid)
+	if s.dead.Load() {
+		return
+	}
+	s.closeMu.Lock()
+	s.closes = append(s.closes, closeReq{cid, how})
+	s.closeMu.Unlock()
+	s.flushCloses()
+}
+
 func (s *session) notifySpace() {
 	if s.spaceWaiters.Load() > 0 {
 		s.mu.Lock()
@@ -333,6 +394,9 @@ func (s *session) push(ctx context.Context, kind, flags uint16, parts ...[]byte)
 		if s.dead.Load() {
 			s.mu.Unlock()
 			return ErrClosed
+		}
+		if s.pendingCloses() {
+			s.flushClosesLocked()
 		}
 		if s.tx.push(kind, flags, parts...) {
 			if s.tx.publish() {
@@ -483,7 +547,10 @@ func (c *Client) Open(p OpenParams) (*Conn, error) {
 	if err := s.push(ctx, kOpen, 0, body); err != nil {
 		return nil, err
 	}
-	return &Conn{s: s, cid: cid}, nil
+	conn := &Conn{s: s, cid: cid}
+	// A Conn dropped without Close must not leak its flow in Suricata.
+	conn.cleanup = runtime.AddCleanup(conn, func(c closeReq) { s.closeConn(c.cid, c.how) }, closeReq{cid: cid})
+	return conn, nil
 }
 
 // Ping measures a round trip through worker idx without the engine.
@@ -519,9 +586,10 @@ func (c *Client) Close() error {
 // Conn is one proxied connection. It is safe for concurrent use, but
 // payload of one direction must be sent in order.
 type Conn struct {
-	s      *session
-	cid    uint64
-	closed atomic.Bool
+	s       *session
+	cid     uint64
+	closed  atomic.Bool
+	cleanup runtime.Cleanup
 }
 
 // CID is the connection id (logged in EVE as suritap.cid).
@@ -590,20 +658,23 @@ func (c *Conn) EOF(ctx context.Context, dir Dir) error {
 	return c.s.push(ctx, kEOF, 0, small(c.cid, uint8(dir), 0))
 }
 
-// Close ends the connection (FIN both ways, or RST when reset).
+// Close ends the connection (FIN both ways, or RST when reset). It never
+// blocks: when the ring is full the CLOSE is queued and sent as soon as
+// there is room.
 func (c *Conn) Close(reset bool) error {
 	if c.closed.Swap(true) {
 		return nil
 	}
-	defer c.s.bypassed.Delete(c.cid)
-	defer c.s.flowErrors.Delete(c.cid)
+	c.cleanup.Stop()
+	if c.s.dead.Load() {
+		return ErrClosed
+	}
 	var how uint8
 	if reset {
 		how = 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	return c.s.push(ctx, kClose, 0, small(c.cid, how, 0))
+	c.s.closeConn(c.cid, how)
+	return nil
 }
 
 // Bypassed reports that Suricata needs no more payload of this connection.

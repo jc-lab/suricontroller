@@ -42,9 +42,9 @@ type producer struct {
 	head, tail uint64
 }
 
-func newProducer(r ring) *producer {
-	return &producer{r: r, head: atomic.LoadUint64(r.word64(ctlHead)), tail: atomic.LoadUint64(r.word64(ctlTail))}
-}
+// Rings start empty at offset 0; cursors are never reloaded from shared
+// memory, which the peer could have changed.
+func newProducer(r ring) *producer { return &producer{r: r} }
 
 func (p *producer) maxRecord() int { return int(p.r.size / 4) }
 
@@ -145,10 +145,7 @@ type consumer struct {
 	tail, head uint64
 }
 
-func newConsumer(r ring) *consumer {
-	t := atomic.LoadUint64(r.word64(ctlTail))
-	return &consumer{r: r, tail: t, head: t}
-}
+func newConsumer(r ring) *consumer { return &consumer{r: r} }
 
 func (c *consumer) peek() (record, bool, error) {
 	for {

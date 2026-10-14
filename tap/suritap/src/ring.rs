@@ -92,10 +92,11 @@ pub struct Producer {
 }
 
 impl Producer {
+    /// Rings always start empty at offset 0 (checked when a region is
+    /// opened). The cursors are not reloaded from shared memory: the peer
+    /// could change them after that check and misalign every access.
     pub(crate) fn new(ring: RawRing) -> Self {
-        let head = ring.head().load(Acquire);
-        let tail = ring.tail().load(Acquire);
-        Producer { ring, head, tail }
+        Producer { ring, head: 0, tail: 0 }
     }
 
     /// Size of the ring in bytes.
@@ -112,6 +113,12 @@ impl Producer {
 
     fn free(&self) -> u64 {
         (self.ring.size as u64).saturating_sub(self.head.wrapping_sub(self.tail))
+    }
+
+    /// Free bytes right now (reloads the consumer's position).
+    pub fn available(&mut self) -> usize {
+        self.refresh(Acquire);
+        self.free() as usize
     }
 
     fn refresh(&mut self, order: std::sync::atomic::Ordering) {
@@ -268,9 +275,9 @@ pub struct Consumer {
 }
 
 impl Consumer {
+    /// Starts at offset 0; see [`Producer::new`].
     pub(crate) fn new(ring: RawRing) -> Self {
-        let tail = ring.tail().load(Acquire);
-        Consumer { ring, tail, head: tail }
+        Consumer { ring, tail: 0, head: 0 }
     }
 
     /// Next record, `Ok(None)` when the ring is empty.
@@ -438,5 +445,10 @@ mod tests {
         unsafe { ptr::write(m.data.as_mut_ptr() as *mut u64, 200u64 | (1u64 << 32)) };
         let mut c = Consumer::new(unsafe { RawRing::new(m.ctl.as_mut_ptr(), m.data.as_mut_ptr(), 256) });
         assert_eq!(c.peek().unwrap_err(), Corrupt("bad record length"));
+        // A head that is not a multiple of 8 away from our tail is rejected
+        // before any (misaligned) header read.
+        unsafe { ptr::write(m.ctl.as_mut_ptr() as *mut u64, 12) };
+        let mut c = Consumer::new(unsafe { RawRing::new(m.ctl.as_mut_ptr(), m.data.as_mut_ptr(), 256) });
+        assert_eq!(c.peek().unwrap_err(), Corrupt("head out of range"));
     }
 }

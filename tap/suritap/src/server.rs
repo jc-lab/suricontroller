@@ -105,6 +105,8 @@ const T_PENDING: u64 = 3;
 const T_SOCK: u64 = 4;
 const T_BELL: u64 = 5;
 const MAX_PENDING: usize = 64;
+/// A connection must send HELLO within this time.
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 
 fn token(kind: u64, idx: u32, gen: u32) -> u64 {
     (kind << 56) | ((gen as u64 & 0x00ff_ffff) << 32) | idx as u64
@@ -123,12 +125,14 @@ pub struct Worker {
     ep: Epoll,
     listener: OwnedFd,
     breaker: Arc<OwnedFd>,
-    pending: Slab<OwnedFd>,
+    /// Accepted connections waiting for HELLO, with their deadline.
+    pending: Slab<(OwnedFd, Instant)>,
     sessions: Slab<Session>,
     pub engine: Engine,
     next_id: u32,
     events: Vec<libc::epoll_event>,
     busy_passes: u32,
+    next_housekeep: Instant,
     failed: Vec<(u32, String)>,
     pub stats: WorkerStats,
 }
@@ -157,6 +161,7 @@ impl Worker {
             next_id: 0,
             events: vec![libc::epoll_event { events: 0, u64: 0 }; 64],
             busy_passes: 0,
+            next_housekeep: Instant::now(),
             failed: Vec::new(),
             stats: WorkerStats::default(),
         })
@@ -182,6 +187,11 @@ impl Worker {
     /// `timeout_ms` waiting for records, connections or a [`Breaker`].
     /// Returns true when records were processed.
     pub fn run_once<I: Inspector>(&mut self, insp: &mut I, timeout_ms: i32) -> bool {
+        let now = Instant::now();
+        self.engine.tick();
+        if now >= self.next_housekeep {
+            self.housekeep(insp, now);
+        }
         let mut work = 0usize;
         {
             let Worker {
@@ -193,7 +203,6 @@ impl Worker {
             } = self;
             for idx in 0..sessions.capacity() {
                 let Some(s) = sessions.by_index(idx) else { continue };
-                engine.housekeep(insp, &mut s.flows);
                 match process(engine, insp, s, cfg.batch) {
                     Ok(n) => work += n,
                     Err(e) => failed.push((idx as u32, e)),
@@ -202,7 +211,7 @@ impl Worker {
         }
         while let Some((idx, why)) = self.failed.pop() {
             self.stats.protocol_errors += 1;
-            self.close_session(idx, insp, &why, true);
+            self.close_session(idx, insp, &why, Level::Warning, true);
         }
         if work > 0 {
             self.busy_passes = self.busy_passes.wrapping_add(1);
@@ -268,7 +277,7 @@ impl Worker {
                             Ok(0) | Err(_)
                         );
                     if eof {
-                        self.close_session(idx, insp, "client disconnected", true);
+                        self.close_session(idx, insp, "client disconnected", Level::Info, true);
                     }
                 }
                 T_BELL => {
@@ -281,16 +290,57 @@ impl Worker {
         }
     }
 
+    /// Keepalives for idle flows and expiry of stalled handshakes; runs on
+    /// a worker-level timer so the hot loop reads the clock once per pass.
+    fn housekeep<I: Inspector>(&mut self, insp: &mut I, now: Instant) {
+        let Worker { sessions, engine, .. } = self;
+        for s in sessions.iter_mut() {
+            engine.housekeep(insp, &mut s.flows);
+        }
+        self.expire_pending(now);
+        let interval = self
+            .engine
+            .housekeep_interval()
+            .unwrap_or(HANDSHAKE_TIMEOUT)
+            .min(HANDSHAKE_TIMEOUT);
+        self.next_housekeep = now + interval;
+    }
+
+    fn drop_pending(&mut self, idx: u32) {
+        if let Some((fd, _)) = self.pending.remove(idx) {
+            self.ep.delete(fd.as_raw_fd());
+        }
+    }
+
+    fn expire_pending(&mut self, now: Instant) {
+        for idx in 0..self.pending.capacity() {
+            if matches!(self.pending.by_index(idx), Some((_, deadline)) if *deadline <= now) {
+                self.stats.handshake_failures += 1;
+                self.drop_pending(idx as u32);
+            }
+        }
+    }
+
     fn accept_all(&mut self) {
         loop {
             match sys::accept(self.listener.as_raw_fd()) {
                 Ok(Some(fd)) => {
                     if self.pending.len() >= MAX_PENDING {
-                        self.log(Level::Warning, "too many pending handshakes; dropping connection");
-                        continue;
+                        // Make room by evicting the connection waiting the
+                        // longest instead of refusing newcomers: idle
+                        // connections must not lock legitimate clients out.
+                        let oldest = (0..self.pending.capacity())
+                            .filter_map(|i| self.pending.by_index(i).map(|(_, d)| (*d, i)))
+                            .min()
+                            .map(|(_, i)| i as u32);
+                        if let Some(i) = oldest {
+                            self.log(Level::Warning, "too many pending handshakes; evicting the oldest");
+                            self.stats.handshake_failures += 1;
+                            self.drop_pending(i);
+                        }
                     }
                     let raw = fd.as_raw_fd();
-                    let (idx, gen) = self.pending.insert(fd);
+                    let (idx, gen) = self.pending.insert((fd, Instant::now() + HANDSHAKE_TIMEOUT));
                     let events = (libc::EPOLLIN | libc::EPOLLRDHUP) as u32;
                     if self.ep.add(raw, token(T_PENDING, idx, gen), events).is_err() {
                         self.pending.remove(idx);
@@ -306,7 +356,7 @@ impl Worker {
     }
 
     fn handshake(&mut self, idx: u32, gen: u32) {
-        let Some(fd) = self.pending.get_mut(idx, gen) else {
+        let Some((fd, _)) = self.pending.get_mut(idx, gen) else {
             return;
         };
         let raw = fd.as_raw_fd();
@@ -317,7 +367,7 @@ impl Worker {
             return;
         }
         self.ep.delete(raw);
-        let sock = self.pending.remove(idx).unwrap();
+        let (sock, _) = self.pending.remove(idx).unwrap();
         match r {
             Ok(n) if n > 0 => {
                 if let Err(e) = self.establish(&buf[..n], fds, sock) {
@@ -419,7 +469,7 @@ impl Worker {
         Ok(())
     }
 
-    fn close_session<I: Inspector>(&mut self, idx: u32, insp: &mut I, why: &str, reset_flows: bool) {
+    fn close_session<I: Inspector>(&mut self, idx: u32, insp: &mut I, why: &str, level: Level, reset_flows: bool) {
         let Some(mut s) = self.sessions.remove(idx) else { return };
         self.ep.delete(s.sock.as_raw_fd());
         self.ep.delete(s.c2s_bell.as_raw_fd());
@@ -428,11 +478,6 @@ impl Worker {
             self.engine.close_all(insp, &mut s.flows);
         }
         self.stats.sessions_closed += 1;
-        let level = if why == "client disconnected" {
-            Level::Info
-        } else {
-            Level::Warning
-        };
         self.log(
             level,
             &format!(

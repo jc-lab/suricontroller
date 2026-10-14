@@ -8,6 +8,7 @@
 //!   ips: yes                   # engine in IPS mode (verdicts can drop)
 //!   max-sessions: 256          # per worker
 //!   max-flows: 65536           # per session
+//!   max-worker-flows: 262144   # all sessions of one worker
 //!   max-segment: 32kb          # TCP payload per synthetic packet
 //!   ack-threshold: 256kb       # unacknowledged bytes before a pure ACK
 //!   max-region-size: 64mb      # largest shared memory region accepted
@@ -40,6 +41,7 @@ pub struct Config {
     pub ips: bool,
     pub max_sessions: usize,
     pub max_flows: usize,
+    pub max_worker_flows: usize,
     pub max_segment: usize,
     pub ack_threshold: u64,
     pub max_region: usize,
@@ -147,6 +149,7 @@ impl Config {
             ips: get_bool("ips", true),
             max_sessions: get_num("max-sessions", 256)?,
             max_flows: get_num("max-flows", 65536)?,
+            max_worker_flows: get_num("max-worker-flows", 262_144)?,
             max_segment: get_size("max-segment", 32 * 1024)? as usize,
             ack_threshold: get_size("ack-threshold", 256 * 1024)?,
             max_region: get_size("max-region-size", 64 << 20)? as usize,
