@@ -226,6 +226,8 @@ pub struct EngineConfig {
     /// Largest TCP payload per synthetic packet.
     pub max_segment: usize,
     /// Unacknowledged bytes per direction before a pure ACK is injected.
+    /// Keep it well below 3 x the engine's body minimal inspect size, or
+    /// HTTP body inspection stalls on large uploads/downloads.
     pub ack_threshold: u64,
     /// Maximum concurrent flows per session.
     pub max_flows: usize,
@@ -242,7 +244,10 @@ impl Default for EngineConfig {
     fn default() -> Self {
         EngineConfig {
             max_segment: 32 * 1024,
-            ack_threshold: 256 * 1024,
+            // Suricata stops inspecting HTTP bodies whose uninspected part
+            // exceeds 3 x request/response-body-minimal-inspect-size
+            // (96 KiB by default) when the data is not acknowledged.
+            ack_threshold: 32 * 1024,
             max_flows: 65536,
             max_total_flows: 262_144,
             discriminator: true,

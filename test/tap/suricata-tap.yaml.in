@@ -53,7 +53,7 @@ suritap:
   threads: 2
   ips: yes
   max-segment: 32kb
-  ack-threshold: 256kb
+  ack-threshold: 32kb
   idle-ms: 100
 
 exception-policy: auto

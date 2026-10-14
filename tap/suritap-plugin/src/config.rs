@@ -10,7 +10,8 @@
 //!   max-flows: 65536           # per session
 //!   max-worker-flows: 262144   # all sessions of one worker
 //!   max-segment: 32kb          # TCP payload per synthetic packet
-//!   ack-threshold: 256kb       # unacknowledged bytes before a pure ACK
+//!   ack-threshold: 32kb        # unacknowledged bytes before a pure ACK (keep
+//!                              # below 3 x http body minimal inspect size)
 //!   max-region-size: 64mb      # largest shared memory region accepted
 //!   batch: 64                  # records per session per pass
 //!   spin-us: 0                 # busy-poll before sleeping
@@ -151,7 +152,7 @@ impl Config {
             max_flows: get_num("max-flows", 65536)?,
             max_worker_flows: get_num("max-worker-flows", 262_144)?,
             max_segment: get_size("max-segment", 32 * 1024)? as usize,
-            ack_threshold: get_size("ack-threshold", 256 * 1024)?,
+            ack_threshold: get_size("ack-threshold", 32 * 1024)?,
             max_region: get_size("max-region-size", 64 << 20)? as usize,
             batch: get_num("batch", 64usize)?.max(1),
             spin: Duration::from_micros(get_num("spin-us", 0u64)?),

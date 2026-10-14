@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/jc-lab/suricontroller/pkg/version.Version=$(VERSION)
 GO      ?= go
 
-.PHONY: all build controller agent web proto test lint integration docker-agent docker-controller clean tap tap-test tap-integration
+.PHONY: all build controller agent web proto test lint integration docker-agent docker-controller clean tap tap-test tap-integration traefik tap-traefik
 
 all: build
 
@@ -47,11 +47,19 @@ tap:
 tap-test:
 	cd tap && cargo test -p suritap
 	cd tap && cargo build -p suritap --bins
-	$(GO) test -race ./pkg/suritap/
+	$(GO) test -race ./pkg/suritap/ ./adapters/...
 
 # Phase-1 validation against a real Suricata (needs SURICATA_PREFIX and SURICATA_SRC).
 tap-integration:
 	./test/tap/run.sh
+
+# Traefik with the suritap adapter (patch in deploy/traefik) -> bin/traefik-suritap.
+traefik:
+	./deploy/traefik/build.sh
+
+# Traefik + real Suricata end-to-end (needs SURICATA_PREFIX and SURICATA_SRC).
+tap-traefik:
+	./test/tap/traefik.sh
 
 docker-agent:
 	docker build -f deploy/agent/Dockerfile --build-arg VERSION=$(VERSION) -t suri-node-agent:dev .

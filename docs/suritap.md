@@ -1,6 +1,6 @@
 # suritap — TLS 종단 프록시 평문의 Suricata 검사
 
-TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 공유메모리로 Suricata에 넘기고, 요청 단위 판정(pass/drop)을 돌려받는 구성 요소다. 이 문서는 1단계(PoC) 구현의 설계, 프로토콜 명세, 검증 결과를 다룬다.
+TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 공유메모리로 Suricata에 넘기고, 요청 단위 판정(pass/drop)을 돌려받는 구성 요소다. 이 문서는 1단계(전송·플러그인·클라이언트)와 2단계(Traefik 어댑터)의 설계, 프로토콜 명세, 검증 결과를 다룬다.
 
 ## 1. 구성 요소
 
@@ -9,8 +9,10 @@ TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 공�
 | `tap/suritap` | Rust | 프로토콜·공유메모리 링·패킷 합성 엔진·서버 워커·**Rust 클라이언트**(libsuritap 역할), `suritap-mockd` | MPL-2.0 |
 | `tap/suritap-plugin` | Rust (+ 얇은 C glue) | Suricata 8 capture plugin `suritap.so` | GPL-2.0-only |
 | `pkg/suritap` | Go | **Go 클라이언트**(libsuritap 역할) | MPL-2.0 |
-| `cmd/suritap-probe` | Go | 기능 검증(`check`), 벤치마크(`bench`), 크래시 테스트(`hold`) | MPL-2.0 |
-| `test/tap` | sh / yaml | 실제 Suricata로 1단계 검증(`run.sh`), 테스트 룰·설정 | — |
+| `adapters/traefik` | Go | Traefik 어댑터(`suritaptraefik`). Traefik에 의존하지 않는 net/http 미들웨어와 TCP 래퍼 | MPL-2.0 |
+| `deploy/traefik` | patch / sh | Traefik v3.7.14 연결 패치와 빌드 스크립트 | — |
+| `cmd/suritap-probe` | Go | 기능 검증(`check`), 벤치마크(`bench`, `httpbench`), 크래시 테스트(`hold`), 테스트 백엔드(`backend`) | MPL-2.0 |
+| `test/tap` | sh / yaml | 실제 Suricata로 검증: 1단계 `run.sh`, Traefik `traefik.sh`, 테스트 룰·설정 | — |
 
 Suricata 코드에 링크되는 것은 `suritap.so`뿐이다. 프록시는 공유메모리와 UNIX 소켓 너머에 있으므로 GPL과 무관하다.
 
@@ -140,7 +142,7 @@ suricata -c suricata.yaml --capture-plugin=suritap
 | `threads` | `auto` | 워커 수 |
 | `ips` | `yes` | IPS 모드(판정에 drop 포함). `no`면 IDS 모드라 drop 룰도 alert로만 동작한다 |
 | `max-sessions` / `max-flows` / `max-worker-flows` | 256 / 65536 / 262144 | 워커당 세션 수 / 세션당 flow 수 / 워커 전체 flow 수 |
-| `max-segment` / `ack-threshold` | 32kb / 256kb | 합성 세그먼트 크기 / pure ACK 기준 |
+| `max-segment` / `ack-threshold` | 32kb / 32kb | 합성 세그먼트 크기 / pure ACK 기준(§7.5: HTTP 바디 minimal inspect size의 3배보다 충분히 작게) |
 | `max-region-size` | 64mb | 받아들이는 region 상한 |
 | `batch` / `spin-us` / `idle-ms` | 64 / 0 / 100 | 세션당 한 번에 처리할 레코드 수 / 잠들기 전 busy-poll 시간 / 유휴 주기 |
 | `discriminator` / `keepalive` | `yes` / `auto` | §4 참고 |
@@ -242,14 +244,108 @@ inline 모드는 검사가 끝난 세그먼트를 ACK와 무관하게 정리한�
 
 정리하면 지연은 탐지 엔진 비용이 지배하고, 공유메모리 전송 비용은 수 µs 수준이다. 서버 `spin-us: 50`을 켜면 저부하일 때 깨우기 지연이 줄어든다.
 
-## 8. 알려진 제약과 다음 단계
+### 7.5 발견: HTTP 바디 검사는 제때 오는 ACK가 필요하다
+
+처음에는 ACK 기준을 256 KiB로 두었다. 이 설정에서는 업로드 바디의 앞쪽 약 60 KiB 이후에 있는 마커를 놓쳤다. 합성 패킷을 pcap으로 떠서 일반 Suricata 오프라인 모드로 돌려도 결과가 같았다.
+
+원인은 Suricata의 `HtpBodyPrune`이다. 확인되지 않은 바디가 `3 × max(minimal-inspect-size, inspect-window)`(기본 96 KiB)를 넘으면, 검사되지 않은 부분을 그냥 버린다.
+
+ACK 기준을 4~64 KiB로 낮추자, 300 KiB나 500 KiB 지점의 마커도 그 데이터를 실은 청크에서 바로 차단됐다. 그래서 기본값을 32 KiB로 바꿨다. 회귀 테스트는 `body-deep-marker`다.
+
+## 8. Traefik 어댑터 (2단계)
+
+### 8.1 구조
+
+| 대상 | 방식 | 이유 |
+|---|---|---|
+| HTTP(1.1, h2, h3) | **transaction tap**: 엔트리포인트 핸들러 체인에서 요청마다 HTTP/1.1로 정규화하고, 요청 하나를 합성 flow 하나로 검사한다 | `http.Server`는 `*tls.Conn` 타입 단언으로 ALPN(h2)과 `r.TLS`를 처리한다. 그래서 TLS 연결을 감싸면 HTTP/2가 깨진다. 또 h2와 h3의 다중화 스트림은 하나의 HTTP/1.1 바이트 스트림으로 표현할 수 없다 |
+| TLS를 종단하는 TCP 라우터 | **stream tap**: 복호화된 `net.Conn`을 감싸 모든 Read와 Write를 검사한다 | 프로토콜과 무관하다(pgsql, MQTT 등) |
+
+어댑터는 Traefik을 import하지 않는다. Traefik 쪽은 패치(`deploy/traefik/traefik-v3.7.14.patch`, 4개 파일, 50여 줄)로 연결한다.
+
+1. `static.EntryPoint`에 `Suritap *suritaptraefik.Config` 필드를 추가한다. 그래서 static 설정(파일, CLI, 환경 변수)으로 그대로 설정할 수 있다.
+2. `newHTTPServer`에서 forwarded-headers 처리 직후, 라우팅 전에 `suritaptraefik.Middleware`를 끼운다. HTTP와 HTTPS 서버에 모두 적용되고, h3 서버도 같은 핸들러를 쓴다.
+3. `tcp.Manager`에서 TLS를 종단하는 TCP 라우터의 핸들러를 `suritaptraefik.WrapConn`으로 감싼다.
+4. 어댑터 로그를 Traefik zerolog로 보낸다(`pkg/server/suritap.go`).
+
+```sh
+make traefik            # deploy/traefik/build.sh → bin/traefik-suritap (v3.7.14-suritap)
+```
+
+빌드 스크립트는 지정한 태그를 받아 패치를 적용하고, 이 저장소를 `replace`로 연결해 빌드한다. 그 결과 Traefik의 `golang.org/x/*`와 `klauspost/compress`는 마이너 버전이 올라간다. 패치한 패키지의 Traefik 단위 테스트는 통과했다. 대시보드 정적 파일은 빌드하지 않는다.
+
+### 8.2 설정 (`entryPoints.<name>.suritap`)
+
+```yaml
+entryPoints:
+  websecure:
+    address: ":443"
+    suritap:
+      socketDir: /run/suritap
+      mode: prevent          # prevent | detect
+      response: detect       # off | detect | prevent
+      failPolicy: open       # open | closed
+      timeout: 100ms
+      maxRequestBody: 1048576
+      maxResponseBuffer: 65536
+```
+
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `mode` | `prevent` | `prevent`: drop 판정이면 차단한다. `detect`: 판정을 기다리지 않는다 |
+| `response` | `detect` | 응답 검사 방식. `prevent`면 `maxResponseBuffer`까지 버퍼링한 뒤 응답 전체를 판정한다 |
+| `failPolicy` | `open` | Suricata가 없거나 timeout일 때 통과(`open`)할지 503(`closed`)을 줄지 |
+| `timeout` | `100ms` | 판정 대기 시간 |
+| `maxRequestBody` | 1 MiB | 이 크기 이하의 요청 바디는 버퍼링하고 판정한 뒤 업스트림으로 보낸다. 큰 바디는 업스트림이 읽는 동안 청크마다 판정한다 |
+| `maxResponseBuffer` | 64 KiB | prevent 응답을 버퍼링할 최대 크기 |
+
+### 8.3 동작
+
+- **차단 응답:** 차단된 요청은 403과 함께 `X-Suritap-Cid`를 받는다. 이 값은 EVE의 `suritap.cid`와 같다. 이때 업스트림이 이미 설정한 헤더(Set-Cookie 등)는 버린다.
+- **큰 요청 바디:** 업스트림이 읽는 동안 판정한다. 중간에 drop되면 업스트림 요청을 끊고 클라이언트에는 403을 준다.
+- **응답 prevent:** 작은 응답은 끝까지 모아 한 번에 판정한다. chunked 응답이면 종료 청크까지 포함한다. Suricata는 메시지가 끝나야 작은 바디를 검사하기 때문이다. 큰 응답은 스트리밍 중에 drop이 나면 연결을 중단한다.
+- **WebSocket 등 Upgrade:** 핸드셰이크 요청까지만 검사한다.
+- **메타데이터:** SNI, ALPN, HTTP 버전, 엔트리포인트, `X-Request-Id`를 보낸다. TCP는 라우터 이름(`name@provider`)도 보낸다. 모두 EVE의 `suritap.*`에 남는다.
+- **Suricata 쪽 설정:** 리스너 주소를 `HOME_NET`에 넣어야 인바운드 룰이 적용된다(§5.3).
+
+### 8.4 검증 (`test/tap/traefik.sh`, Suricata 8.0.7 + Traefik 3.7.14-suritap)
+
+| 항목 | 결과 |
+|---|---|
+| h2와 h1의 정상 요청 / URI 공격 | 200 / 403 |
+| 작은 바디 공격(h2), 스트리밍 바디 공격(h1, 300 KiB 지점) | 403. 작은 바디 공격은 백엔드에 닿지 않는다 |
+| reject 룰(User-Agent) | 403 |
+| 응답 유출 룰: detect / prevent 엔트리포인트 | 200(EVE alert) / 403 |
+| suritap이 없는 엔트리포인트 | 그대로 통과 |
+| TLS 종단 TCP 라우터 | 정상 echo는 통과, 공격 바이트는 연결 종료 |
+| EVE 메타데이터 | `proxy=traefik, endpoint, sni, alpn=h2, proto, route=echo@file` |
+| Suricata 중지 시 | fail-open 엔트리포인트는 200, fail-closed는 503 |
+| 차단 로그 | Traefik 로그에 `WRN suritap: blocked … sids=[…]` |
+
+HTTP/3는 같은 핸들러를 거친다. 다만 이 환경의 curl이 h3를 지원하지 않아 E2E에서는 빠졌다.
+
+### 8.5 오버헤드 (`--bench`, GET 요청과 짧은 응답, 16 클라이언트, 소규모 룰, 워커 2개)
+
+모든 프로세스가 같은 호스트에서 CPU를 나눠 쓴 조건이다.
+
+| | suritap 없음 | prevent (응답 detect) | prevent (응답 prevent) |
+|---|---|---|---|
+| HTTP/2 | 25.3k req/s, p50 0.59ms | 18.5k, p50 0.80ms | 20.2k, p50 0.75ms |
+| HTTP/1.1 | 34.5k req/s, p50 0.42ms | 22.1k, p50 0.68ms | 21.4k, p50 0.71ms |
+
+요청당 추가 지연은 약 0.2~0.3ms다. 요청마다 합성 flow를 열고 닫는 비용(패킷 약 9개)이 대부분이다.
+
+## 9. 알려진 제약과 다음 단계
 
 - 단일 IPS 인스턴스에서 Detect(shadow) 모드로 쓰면, 처음 would-drop이 난 뒤로는 그 연결이 더 검사되지 않는다(flow drop).
 - drop된 flow는 RST가 처리되지 않으므로 `flow-timeouts.tcp.established` 동안 엔진 메모리에 남는다. 구분자 덕분에 정확성 문제는 없다.
 - 소켓에 접근할 수 있는 프로세스는 신뢰 경계 안에 있다. 세션·flow·메타데이터 상한으로 자원 사용은 제한하지만, 접근 제어는 소켓 디렉터리 권한으로 해야 한다.
 - 플러그인은 Suricata 내부 헤더에 의존하므로 Suricata 버전마다 다시 빌드해야 한다.
-- HTTP/3(QUIC) 정규화와 multi-tenant(`tenant` 필드는 예약됨)는 아직 없다. 데이터 경로 배치 최적화도 남아 있다.
+- multi-tenant(`tenant` 필드는 예약됨)는 아직 없다. 데이터 경로 배치 최적화도 남아 있다.
+- Traefik 어댑터의 제약:
+  - 요청마다 합성 flow를 쓰므로, 같은 연결의 여러 요청에 걸친 공격은 보지 못한다. HTTP/1 연결 단위로 flow를 재사용하면 오버헤드도 줄일 수 있다.
+  - 미들웨어가 엔트리포인트 단계에 있어서 HTTP 라우터와 서비스 이름은 메타데이터에 없다.
+  - 패치는 Traefik 버전마다 따로 유지해야 한다.
 - 다음 단계:
-  - 2단계: Traefik 어댑터(Go, stream tap)
   - 3단계: Kong 어댑터(Lua/OpenResty)
   - 5단계: suricontroller 통합(agent의 `tap` 인스턴스, 엔드포인트별 Off/Detect/Prevent, 이미지)

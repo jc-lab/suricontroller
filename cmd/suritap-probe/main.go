@@ -26,6 +26,8 @@ commands:
   check   run functional scenarios (expects test/tap/tap.rules)
   bench   measure verdict latency and throughput
   hold    open connections and wait (for crash-cleanup tests)
+  backend HTTP and TCP echo upstreams for proxy tests
+  httpbench  HTTP latency/throughput through a proxy
 `)
 	os.Exit(2)
 }
@@ -42,6 +44,10 @@ func main() {
 		os.Exit(runBench(args))
 	case "hold":
 		os.Exit(runHold(args))
+	case "backend":
+		os.Exit(runBackend(args))
+	case "httpbench":
+		os.Exit(runHTTPBench(args))
 	default:
 		usage()
 	}

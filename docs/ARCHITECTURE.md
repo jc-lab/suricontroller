@@ -1000,13 +1000,16 @@ services:
 
 ### 8.2 suritap (TLS 종단 프록시 평문 검사)
 
-TLS 종단 프록시가 평문을 공유메모리로 Suricata capture plugin에 넘기고 판정을 받는 확장입니다. 1단계(PoC)를 마쳤으며, 내용은 다음과 같습니다.
+TLS 종단 프록시가 평문을 공유메모리로 Suricata capture plugin에 넘기고 판정을 받는 확장입니다.
 
-- Rust 플러그인
-- Go/Rust 클라이언트
-- 실제 Suricata 8.0.7 검증 스크립트
+| 단계 | 상태 | 내용 |
+|---|---|---|
+| 1 | 완료 | Rust 플러그인, Go/Rust 클라이언트, 실제 Suricata 8.0.7 검증 스크립트 |
+| 2 | 완료 | Traefik 어댑터(HTTP transaction tap, TLS 종단 TCP stream tap)와 Traefik v3.7.14 패치 |
+| 3 | 예정 | Kong 어댑터 |
+| 5 | 예정 | 이 컨트롤러와 통합(agent의 `tap` 인스턴스, 엔드포인트별 모드) |
 
-설계, 명세, 검증 결과는 [suritap.md](suritap.md)를 참고하세요. 다음 단계는 Traefik/Kong 어댑터이고, 그 뒤에 이 컨트롤러와 통합합니다(agent의 `tap` 인스턴스, 엔드포인트별 모드).
+설계, 명세, 검증 결과는 [suritap.md](suritap.md)를 참고하세요.
 
 ## 9. 테스트 전략
 

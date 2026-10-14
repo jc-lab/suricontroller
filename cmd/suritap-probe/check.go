@@ -39,6 +39,7 @@ var groups = map[string][]scenario{
 		{"body-small-drop", bodySmall},
 		{"body-streamed-timing", bodyStreamed},
 		{"body-marker-in-last-chunk", bodyLastChunk},
+		{"body-deep-marker", bodyDeep},
 		{"response-body-drop", responseDrop},
 		{"raw-stream-drop", rawStream},
 		{"pgsql-query-drop", pgsqlDrop},
@@ -296,6 +297,36 @@ func bodyLastChunk(ctx context.Context, c *suritap.Client) (string, error) {
 		}
 	}
 	return "", errors.New("unreachable")
+}
+
+// bodyDeep puts the marker 300 KiB into a 600 KiB upload: inspection must
+// keep up with the body (the engine needs timely ACKs for that).
+func bodyDeep(ctx context.Context, c *suritap.Client) (string, error) {
+	conn, err := open(c, false)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close(true)
+	const total, chunk, at = 600 << 10, 16 << 10, 300 << 10
+	body := bytes.Repeat([]byte("d"), total)
+	copy(body[at:], "EVIL-BODY-MARKER")
+	hdr := fmt.Sprintf("POST /upload HTTP/1.1\r\nHost: probe.example\r\nContent-Length: %d\r\n\r\n", total)
+	if _, err := conn.Inspect(ctx, suritap.ToServer, []byte(hdr)); err != nil {
+		return "", err
+	}
+	for off := 0; off < total; off += chunk {
+		v, err := conn.Inspect(ctx, suritap.ToServer, body[off:off+chunk])
+		if err != nil {
+			return "", err
+		}
+		if v.Action == suritap.Drop {
+			if off+chunk-at > chunk {
+				return "", fmt.Errorf("dropped late: %d bytes after the marker", off+chunk-at)
+			}
+			return fmt.Sprintf("marker at 300 KiB dropped in the chunk that carried it (%s)", describe(v)), expect(v, suritap.Drop, 9000002)
+		}
+	}
+	return "", errors.New("never dropped")
 }
 
 func responseDrop(ctx context.Context, c *suritap.Client) (string, error) {
