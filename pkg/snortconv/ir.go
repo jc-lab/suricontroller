@@ -16,11 +16,16 @@ const (
 	bufFile        buf = "file"
 	bufURI         buf = "uri"
 	bufRawURI      buf = "raw_uri"
+	bufURIPath     buf = "uri_path" // Snort 3 http_uri:path and friends
+	bufURIQuery    buf = "uri_query"
+	bufRawURIPath  buf = "raw_uri_path"
+	bufRawURIQuery buf = "raw_uri_query"
 	bufHeader      buf = "header"
 	bufRawHeader   buf = "raw_header"
 	bufCookie      buf = "cookie"
 	bufRawCookie   buf = "raw_cookie"
 	bufClientBody  buf = "client_body"
+	bufServerBody  buf = "server_body" // only from Snort 3 http_raw_body on responses
 	bufRawBody     buf = "raw_body"
 	bufMethod      buf = "method"
 	bufStatCode    buf = "stat_code"
@@ -28,6 +33,15 @@ const (
 	bufVersion     buf = "version"
 	bufUserAgent   buf = "user_agent"
 	bufHost        buf = "host"
+	// Single header fields (Snort 3 http_header:field <name>).
+	bufContentType buf = "content_type"
+	bufContentLen  buf = "content_length"
+	bufAccept      buf = "accept"
+	bufAcceptEnc   buf = "accept_encoding"
+	bufConnection  buf = "connection"
+	bufReferer     buf = "referer"
+	bufLocation    buf = "location"
+	bufServer      buf = "server"
 	bufRawRequest  buf = "raw_request"
 	bufRawStatus   buf = "raw_status"
 	bufBase64      buf = "base64"
@@ -55,6 +69,8 @@ type content struct {
 	FPLength    string
 
 	StartsWith, EndsWith bool
+
+	Replace string // Snort replace:"..." (inline rewrite), quoted text
 }
 
 func (c *content) relative() bool { return c.Distance != "" || c.Within != "" }

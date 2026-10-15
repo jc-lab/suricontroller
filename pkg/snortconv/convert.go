@@ -85,6 +85,9 @@ const (
 	CodeRelativeReset   = "relative-reset"
 	CodeRawPayload      = "raw-payload"
 	CodeFlowbitsSplit   = "flowbits-split"
+	CodeConfig          = "config"    // the rule needs a non-default suricata.yaml setting
+	CodeFileRule        = "file-rule" // Snort 3 file rule
+	CodeStream          = "stream"    // flow stream options changed
 )
 
 // Issue describes a change or a problem found while converting a rule.

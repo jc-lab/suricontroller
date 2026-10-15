@@ -17,6 +17,21 @@ var suricataBuf = map[buf]string{
 	bufCookie:      "http.cookie",
 	bufRawCookie:   "http.cookie", // Suricata does not normalize cookies
 	bufClientBody:  "http.request_body",
+	bufServerBody:  "http.response_body",
+	bufContentType: "http.content_type",
+	bufContentLen:  "http.content_len",
+	bufAccept:      "http.accept",
+	bufAcceptEnc:   "http.accept_enc",
+	bufConnection:  "http.connection",
+	bufReferer:     "http.referer",
+	bufLocation:    "http.location",
+	bufServer:      "http.server",
+	// Suricata has no buffer for the path or the query alone; prepare
+	// checks the ops still make sense on the whole URI.
+	bufURIPath:     "http.uri",
+	bufURIQuery:    "http.uri",
+	bufRawURIPath:  "http.uri.raw",
+	bufRawURIQuery: "http.uri.raw",
 	bufMethod:      "http.method",
 	bufStatCode:    "http.stat_code",
 	bufStatMsg:     "http.stat_msg",
@@ -39,6 +54,9 @@ var suricataBuf = map[buf]string{
 var suricataActions = map[string]string{
 	"alert": "alert", "pass": "pass", "drop": "drop", "reject": "reject",
 	"sdrop": "drop", "block": "drop",
+	// Snort 3 rewrite applies "replace"; Suricata applies replace in IPS
+	// mode whatever the action.
+	"rewrite": "alert",
 }
 
 // suricataProtos maps Snort header protocols and Snort 3 service names to
@@ -131,8 +149,20 @@ func (c *conv) prepare() {
 			}
 			continue
 		}
+		if isURIPart(o.Buf) && !c.uriPart(o) {
+			continue
+		}
 		if o.reset && o.relative() && !o.synthetic {
 			c.absolutize(o)
+		}
+		if o.Kind == "byte_jump" {
+			for _, a := range o.Args {
+				if f := strings.Fields(a); len(f) == 2 && f[0] == "post_offset" {
+					if _, ok := atoi(f[1]); !ok {
+						c.fail(CodeUnsupported, "byte_jump post_offset %s: Suricata does not accept a variable", f[1])
+					}
+				}
+			}
 		}
 		if o.Kind == "content" && o.C.FPOnly {
 			// Snort 2 inserts fast patterns case-insensitively and does not
@@ -264,6 +294,7 @@ func (c *conv) bufferlen(o *op) []item {
 // emit renders the Suricata rule.
 func (c *conv) emit() string {
 	c.assignBuffers()
+	c.resolveRawBody()
 	c.prepare()
 
 	// Map buffers.
@@ -319,6 +350,17 @@ func (c *conv) orderOps() []*op {
 			}
 		}
 	}
+	// Suricata cannot select another buffer after base64_data, and looks
+	// for base64_decode in the buffer selected just before it.
+	if _, ok := order[suricataBuf[bufBase64]]; ok {
+		for _, o := range orig {
+			if o.Kind == "base64_decode" {
+				moveLast(order, suricataBuf[o.Buf])
+				break
+			}
+		}
+		moveLast(order, suricataBuf[bufBase64])
+	}
 	grouped := make([]*op, 0, len(orig))
 	for i := 0; i < len(order); i++ {
 		for _, o := range orig {
@@ -331,6 +373,17 @@ func (c *conv) orderOps() []*op {
 		return grouped
 	}
 	return orig
+}
+
+// moveLast moves key to the end of a first-use order.
+func moveLast(order map[string]int, key string) {
+	i := order[key]
+	for k, v := range order {
+		if v > i {
+			order[k] = v - 1
+		}
+	}
+	order[key] = len(order) - 1
 }
 
 var (
@@ -419,15 +472,47 @@ func (c *conv) checkPacketAppLayer(ops []*op) {
 		}
 	}
 	var pkt []string
+	var flow *rawOpt
+	tls := false
 	for _, it := range c.items {
 		if it.opt == nil {
 			continue
 		}
-		if appLayerKeywords[it.opt.Name] {
+		switch name := it.opt.Name; {
+		case appLayerKeywords[name]:
 			app = true
+			tls = tls || name == "ssl_state" || name == "ssl_version"
+		case packetKeywords[name]:
+			pkt = append(pkt, name)
+		case name == "flow":
+			flow = it.opt
 		}
-		if packetKeywords[it.opt.Name] {
-			pkt = append(pkt, it.opt.Name)
+	}
+	for _, o := range ops {
+		if o.Buf == bufFile && tls {
+			c.fail(CodePacketAppLayer, "Suricata cannot inspect file data in TLS")
+			break
+		}
+	}
+	if flow != nil {
+		args := splitArgs(flow.Value)
+		n := len(args)
+		if app && hasArg(args, "no_stream") {
+			// Suricata treats no_stream as a packet match; Snort's
+			// app-layer buffers do not depend on it.
+			args = dropArg(args, "no_stream")
+			c.approx(CodeStream, "flow:no_stream dropped (Suricata cannot combine it with app-layer inspection)")
+		}
+		if hasArg(args, "only_stream") && len(pkt) > 0 {
+			if strings.Join(pkt, ",") == "dsize" {
+				args = dropArg(args, "only_stream")
+				c.approx(CodeStream, "flow:only_stream dropped (Suricata cannot combine it with dsize), so the size is checked per packet")
+			} else {
+				c.fail(CodePacketAppLayer, "Suricata cannot combine flow:only_stream with per-packet options (%s)", strings.Join(pkt, ", "))
+			}
+		}
+		if len(args) != n {
+			flow.Value = strings.Join(args, ",")
 		}
 	}
 	if app && len(pkt) > 0 {
@@ -440,9 +525,12 @@ var (
 	toServerBufs = map[buf]bool{
 		bufURI: true, bufRawURI: true, bufMethod: true, bufClientBody: true,
 		bufUserAgent: true, bufHost: true, bufRawRequest: true, bufSIPMethod: true,
+		bufURIPath: true, bufURIQuery: true, bufRawURIPath: true, bufRawURIQuery: true,
+		bufAccept: true, bufAcceptEnc: true, bufReferer: true,
 	}
 	toClientBufs = map[buf]bool{
 		bufStatCode: true, bufStatMsg: true, bufRawStatus: true, bufSIPStatCode: true,
+		bufServerBody: true, bufLocation: true, bufServer: true,
 	}
 )
 
@@ -452,20 +540,14 @@ var (
 // semantics), a buffer against the flow direction, and the raw header
 // buffer without a flow direction.
 func (c *conv) checkDirection(ops []*op) {
-	var toServer, toClient bool
+	toServer, toClient := c.flowDirection()
+	var req, resp, rawHeader bool
 	for _, it := range c.items {
-		if it.opt != nil && it.opt.Name == "flow" {
-			for _, f := range splitArgs(it.opt.Value) {
-				switch f {
-				case "to_server", "from_client":
-					toServer = true
-				case "to_client", "from_server":
-					toClient = true
-				}
-			}
+		// Suricata's modbus keyword only matches requests.
+		if it.opt != nil && it.opt.Name == "modbus" && toClient {
+			c.fail(CodeDirection, "Suricata matches modbus functions in requests only")
 		}
 	}
-	var req, resp, rawHeader bool
 	for _, o := range ops {
 		req = req || toServerBufs[o.Buf]
 		resp = resp || toClientBufs[o.Buf]
@@ -481,6 +563,99 @@ func (c *conv) checkDirection(ops []*op) {
 	}
 }
 
+// flowDirection reports the direction the rule's flow option names.
+func (c *conv) flowDirection() (toServer, toClient bool) {
+	for _, it := range c.items {
+		if it.opt != nil && it.opt.Name == "flow" {
+			for _, f := range splitArgs(it.opt.Value) {
+				switch f {
+				case "to_server", "from_client":
+					toServer = true
+				case "to_client", "from_server":
+					toClient = true
+				}
+			}
+		}
+	}
+	return toServer, toClient
+}
+
+// resolveRawBody maps Snort 3 http_raw_body, the body before dechunking
+// and decompression, to the request or response body by flow direction.
+// Suricata only keeps the decoded bodies.
+func (c *conv) resolveRawBody() {
+	toServer, toClient := c.flowDirection()
+	for _, it := range c.items {
+		if o := it.op; o != nil && o.Buf == bufRawBody {
+			switch {
+			case toServer:
+				o.Buf = bufClientBody
+			case toClient:
+				o.Buf = bufServerBody
+			default:
+				c.fail(CodeDirection, "http_raw_body needs a flow direction")
+				continue
+			}
+			c.approx(CodeApproxBuffer, "http_raw_body mapped to the dechunked, decompressed HTTP body")
+		}
+	}
+}
+
+func isURIPart(b buf) bool {
+	return b == bufURIPath || b == bufURIQuery || b == bufRawURIPath || b == bufRawURIQuery
+}
+
+var reUnescapedAnchor = regexp.MustCompile(`(^|[^\\])[$]`)
+
+// uriPart checks an op on a URI path or query, which Suricata inspects in
+// the whole URI. The path starts the URI, so positions from its start keep
+// their meaning; only checks of its end ($, bufferlen, isdataat:!) do not.
+// The query starts somewhere in the URI, so only unanchored and relative
+// matches keep their meaning (a relative match at the start of the query
+// becomes unanchored). It reports false when the op cannot be converted.
+func (c *conv) uriPart(o *op) bool {
+	query := o.Buf == bufURIQuery || o.Buf == bufRawURIQuery
+	part := map[bool]string{true: "query", false: "path"}[query]
+	bad := ""
+	switch o.Kind {
+	case "bsize":
+		bad = "bufferlen"
+	case "pcre":
+		if reUnescapedAnchor.MatchString(o.PcreRe) && !query {
+			bad = "a pcre anchored at the end"
+		}
+		if query && strings.HasPrefix(o.PcreRe, "^") && (o.reset || !strings.ContainsRune(o.PcreFlags, 'R')) {
+			bad = "a pcre anchored at the start"
+		}
+		if query && reUnescapedAnchor.MatchString(o.PcreRe) {
+			bad = "a pcre anchored at the end"
+		}
+	case "content":
+		if query && o.reset {
+			o.C.Distance, o.C.Within = "", ""
+		}
+		if query && (o.C.Offset != "" || o.C.Depth != "") {
+			bad = "an absolute content position"
+		}
+	case "isdataat":
+		if len(o.Args) > 0 && strings.HasPrefix(o.Args[0], "!") {
+			bad = "isdataat:!"
+		} else if query && (o.reset || !hasArg(o.Args, "relative")) {
+			bad = "an absolute isdataat"
+		}
+	default:
+		if query && (o.reset || !o.relative()) {
+			bad = "an absolute " + o.Kind
+		}
+	}
+	if bad != "" {
+		c.fail(CodeUnsupported, "Suricata has no URI %s buffer and %s cannot be checked on the whole URI", part, bad)
+		return false
+	}
+	c.approx(CodeApproxBuffer, "URI %s inspected in the whole URI (Suricata has no %s buffer)", part, part)
+	return true
+}
+
 func (c *conv) suricataProto() string {
 	return suricataProtos[strings.ToLower(c.r.Proto)]
 }
@@ -492,6 +667,13 @@ func (c *conv) header() string {
 		c.fail(CodeAction, "action %q has no Suricata equivalent", r.Action)
 	}
 	proto := c.suricataProto()
+	if r.Proto == "file" {
+		// Snort 3 file rules inspect files whatever the protocol carrying
+		// them; file.data does the same for the protocols Suricata
+		// extracts files from.
+		proto = "ip"
+		c.approx(CodeFileRule, "Snort file rule: Suricata inspects files from HTTP/1-2, SMTP, FTP, SMB and NFS, not POP3/IMAP")
+	}
 	if proto == "" {
 		c.fail(CodeProto, "protocol %q has no Suricata equivalent", r.Proto)
 	}
@@ -540,6 +722,9 @@ func (o *op) render() []string {
 		}
 		if cc.EndsWith {
 			out = append(out, "endswith")
+		}
+		if cc.Replace != "" {
+			out = append(out, `replace:"`+cc.Replace+`"`)
 		}
 		if cc.FastPattern {
 			if cc.FPOffset != "" {

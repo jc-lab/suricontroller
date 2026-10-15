@@ -183,6 +183,76 @@ func TestConvert(t *testing.T) {
 			in:      `alert tcp any any -> any 80 ( msg:"x"; http_header; content:"L:"; byte_extract:2,0,len,relative,string,dec; pkt_data; content:"P"; http_header; content:"Q",distance len; sid:26; )`,
 			want:    `alert tcp any any -> any 80 (msg:"x"; http.header; content:"L:"; byte_extract:2,0,len,relative,string,dec; pkt_data; content:"P"; http.header; content:"Q"; offset:len; sid:26;)`,
 		},
+		{
+			name:    "snort3 file rule",
+			dialect: Snort3,
+			in:      `alert file ( msg:"x"; file_data; content:"parseInt(",fast_pattern,nocase; sid:29; )`,
+			want:    `alert ip any any -> any any (msg:"x"; file.data; content:"parseInt("; nocase; fast_pattern; sid:29;)`,
+			status:  Approx,
+		},
+		{
+			name:    "http_uri:path is checked in the whole URI",
+			dialect: Snort3,
+			in:      `alert http any any -> any any ( msg:"x"; flow:to_server,established; http_uri:path; content:"/a.php",depth 6; http_uri:query; content:"id=",distance 0; sid:30; )`,
+			want:    `alert http any any -> any any (msg:"x"; flow:to_server,established; http.uri; content:"/a.php"; depth:6; content:"id="; sid:30;)`,
+			status:  Approx,
+		},
+		{
+			name:    "http_uri:query with an absolute position fails",
+			dialect: Snort3,
+			in:      `alert http any any -> any any ( msg:"x"; flow:to_server,established; http_uri:query; content:"id=",depth 3; sid:31; )`,
+			status:  Failed,
+		},
+		{
+			name:    "http_header fields with a Suricata buffer",
+			dialect: Snort3,
+			in:      `alert http any any -> any any ( msg:"x"; flow:to_server,established; http_header:field content-type; content:"text/xml"; http_header:field accept; content:"*/*"; sid:32; )`,
+			want:    `alert http any any -> any any (msg:"x"; flow:to_server,established; http.content_type; content:"text/xml"; http.accept; content:"*/*"; sid:32;)`,
+		},
+		{
+			name:    "http_raw_body follows the flow direction",
+			dialect: Snort3,
+			in:      `alert http any any -> any any ( msg:"x"; flow:to_client,established; http_raw_body; content:"PK"; sid:33; )`,
+			want:    `alert http any any -> any any (msg:"x"; flow:to_client,established; http.response_body; content:"PK"; sid:33;)`,
+			status:  Approx,
+		},
+		{
+			name:    "rewrite with replace",
+			dialect: Snort3,
+			in:      `rewrite tcp any any -> any 80 ( msg:"x"; flow:to_server,established; content:"abc"; replace:"xyz"; sid:34; )`,
+			want:    `alert tcp any any -> any 80 (msg:"x"; flow:to_server,established; content:"abc"; replace:"xyz"; sid:34;)`,
+		},
+		{
+			name:    "modbus_func and redundant ip_proto",
+			dialect: Snort3,
+			in:      `alert tcp any any -> any 502 ( msg:"x"; flow:to_server,established; modbus_func:write_file_record; ip_proto:6; sid:35; )`,
+			want:    `alert tcp any any -> any 502 (msg:"x"; flow:to_server,established; modbus:function 21; sid:35;)`,
+		},
+		{
+			name:    "space separated dce_opnum",
+			dialect: Snort3,
+			in:      `alert tcp any any -> any 445 ( msg:"x"; flow:to_server,established; dce_iface:uuid 3d742890-397c-11cf-9bf1-00805f88cb72; dce_opnum:"16 23 40-41"; sid:39; )`,
+			want:    `alert tcp any any -> any 445 (msg:"x"; flow:to_server,established; dce_iface:3d742890-397c-11cf-9bf1-00805f88cb72; dce_opnum:16,23,40-41; sid:39;)`,
+		},
+		{
+			name:    "base64_data comes last, right after its decode buffer",
+			dialect: Snort3,
+			in:      `alert tcp any any -> any 80 ( msg:"x"; flow:to_server,established; http_header; content:"Basic"; base64_decode:bytes 200,relative; http_uri; content:"/a"; base64_data; content:"cmd"; sid:36; )`,
+			want:    `alert tcp any any -> any 80 (msg:"x"; flow:to_server,established; http.uri; content:"/a"; http.header; content:"Basic"; base64_decode:bytes 200,relative; base64_data; content:"cmd"; sid:36;)`,
+		},
+		{
+			name:    "pcre with unescaped quotes",
+			dialect: Snort3,
+			in:      `alert tcp any any -> any 80 ( msg:"x"; flow:to_server,established; pcre:"/unescape\s*\x28\s*["']\x25[^"']*https?/i"; sid:37; )`,
+			want:    `alert tcp any any -> any 80 (msg:"x"; flow:to_server,established; pcre:"/unescape\s*\x28\s*["']\x25[^"']*https?/i"; sid:37;)`,
+		},
+		{
+			name:    "only_stream with bufferlen on the payload",
+			dialect: Snort3,
+			in:      `alert tcp any any -> any 6379 ( msg:"x"; flow:to_server,established,only_stream; bufferlen:12; content:"shell.exec"; sid:38; )`,
+			want:    `alert tcp any any -> any 6379 (msg:"x"; flow:to_server,established; dsize:12; content:"shell.exec"; sid:38;)`,
+			status:  Approx,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

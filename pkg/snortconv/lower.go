@@ -129,6 +129,12 @@ func (c *conv) lowerSnort2() {
 			c.items = append(c.items, item{op: last})
 		case "nocase":
 			lastContent(name).Nocase = true
+		case "replace":
+			if last != nil {
+				c.replace(last.C, v)
+			} else {
+				c.replace(nil, v)
+			}
 		case "rawbytes":
 			lastContent(name)
 			if last != nil {
@@ -213,12 +219,16 @@ func (c *conv) lowerSnort2() {
 
 // lowerSnort3 interprets the options of a Snort 3 rule.
 func (c *conv) lowerSnort3() {
+	var last *content // target of replace
 	for _, o := range c.r.Options {
 		name, v := o.Name, o.Value
 		if b, ok := snort3Sticky[name]; ok {
-			if name == "http_header" && o.HasValue {
+			switch {
+			case name == "http_header" && o.HasValue:
 				b = c.snort3HeaderField(v)
-			} else if o.HasValue && v != "" {
+			case (name == "http_uri" || name == "http_raw_uri") && o.HasValue:
+				b = c.snort3URIPart(b, v)
+			case o.HasValue && v != "":
 				c.fail(CodeUnsupported, "%s with arguments (%s) is not supported", name, v)
 			}
 			c.items = append(c.items, item{sticky: b})
@@ -231,7 +241,10 @@ func (c *conv) lowerSnort3() {
 				c.fail(CodeSyntax, "content: %v", err)
 				continue
 			}
+			last = cc
 			c.items = append(c.items, item{op: &op{Kind: "content", C: cc}})
+		case "replace":
+			c.replace(last, v)
 		case "pcre", "regex":
 			p, err := c.parsePcre(v)
 			if err != nil {
@@ -271,14 +284,62 @@ func (c *conv) snort3HeaderField(v string) buf {
 		c.fail(CodeUnsupported, "http_header:%s is not supported", v)
 		return bufHeader
 	}
-	switch strings.ToLower(f[1]) {
-	case "user-agent":
-		return bufUserAgent
-	case "host":
-		return bufHost
+	if b, ok := headerFields[strings.ToLower(f[1])]; ok {
+		return b
 	}
 	c.fail(CodeUnsupported, "http_header field %q has no Suricata buffer", f[1])
 	return bufHeader
+}
+
+// headerFields maps HTTP header names to the Suricata buffers holding only
+// that header's value.
+var headerFields = map[string]buf{
+	"user-agent":      bufUserAgent,
+	"host":            bufHost,
+	"cookie":          bufCookie,
+	"content-type":    bufContentType,
+	"content-length":  bufContentLen,
+	"accept":          bufAccept,
+	"accept-encoding": bufAcceptEnc,
+	"connection":      bufConnection,
+	"referer":         bufReferer,
+	"location":        bufLocation,
+	"server":          bufServer,
+}
+
+// snort3URIPart handles "http_uri:path" and "http_uri:query" (and the
+// http_raw_uri forms), which select one part of the URI. Suricata only has
+// the whole URI; emit checks the ops are still meaningful there.
+func (c *conv) snort3URIPart(b buf, v string) buf {
+	raw := b == bufRawURI
+	switch {
+	case v == "path" && raw:
+		return bufRawURIPath
+	case v == "path":
+		return bufURIPath
+	case v == "query" && raw:
+		return bufRawURIQuery
+	case v == "query":
+		return bufURIQuery
+	}
+	c.fail(CodeUnsupported, "%s:%s has no Suricata buffer", map[bool]string{true: "http_raw_uri", false: "http_uri"}[raw], v)
+	return b
+}
+
+// replace attaches Snort "replace" (inline rewrite) to the last content.
+// Suricata requires the replacement to have the content's length.
+func (c *conv) replace(cc *content, v string) {
+	_, txt, rest, err := parseQuoted(v)
+	switch {
+	case cc == nil:
+		c.fail(CodeSyntax, "replace without a preceding content")
+	case err != nil || strings.TrimSpace(rest) != "":
+		c.fail(CodeSyntax, "invalid replace %q", v)
+	case contentLen(txt) != contentLen(cc.Str):
+		c.fail(CodeUnsupported, "replace %q differs in length from content %q", txt, cc.Str)
+	default:
+		cc.Replace = txt
+	}
 }
 
 var reSnort3ContentMod = regexp.MustCompile(`^(depth|offset|distance|within|fast_pattern_offset|fast_pattern_length)\s+(\S+)$`)
@@ -339,14 +400,18 @@ func parseContentValue(v string, snort3 bool) (*content, error) {
 	return cc, nil
 }
 
+// parsePcre parses `[!]"/re/flags"`. Like Snort, it takes everything up to
+// the last quote, so the expression may contain unescaped quotes.
 func (c *conv) parsePcre(v string) (*op, error) {
-	neg, s, rest, err := parseQuoted(v)
-	if err != nil {
-		return nil, err
+	v = strings.TrimSpace(v)
+	neg := strings.HasPrefix(v, "!")
+	if neg {
+		v = strings.TrimSpace(v[1:])
 	}
-	if strings.TrimSpace(rest) != "" {
-		return nil, fmt.Errorf("unexpected text after the pcre string: %q", rest)
+	if len(v) < 2 || v[0] != '"' || v[len(v)-1] != '"' {
+		return nil, fmt.Errorf("expected a quoted expression in %q", v)
 	}
+	s := v[1 : len(v)-1]
 	if !strings.HasPrefix(s, "/") {
 		return nil, fmt.Errorf("pcre %q does not use / delimiters", s)
 	}
@@ -540,8 +605,8 @@ var passthrough = map[string]bool{
 	"priority": true, "reference": true, "flow": true, "detection_filter": true,
 	"threshold": true, "flags": true, "ttl": true, "tos": true, "id": true,
 	"seq": true, "ack": true, "window": true, "fragbits": true,
-	"fragoffset": true, "ipopts": true, "itype": true, "icode": true,
-	"icmp_id": true, "icmp_seq": true, "ip_proto": true, "sameip": true,
+	"fragoffset": true, "itype": true, "icode": true,
+	"icmp_id": true, "icmp_seq": true, "sameip": true,
 	"ssl_version": true, "ftpbounce": true, "asn1": true, "rpc": true,
 }
 
@@ -565,7 +630,27 @@ func (c *conv) common(o rawOpt) {
 		// Snort ORs a comma separated list; Suricata uses '|'.
 		c.keep(rawOpt{Name: name, Value: strings.ReplaceAll(strings.ReplaceAll(v, " ", ""), ",", "|"), HasValue: true})
 	case name == "dce_opnum":
+		// Snort 3 also separates opnums with spaces ("16 23 40-41").
+		c.keep(rawOpt{Name: name, Value: strings.Join(strings.Fields(strings.ReplaceAll(strings.Trim(v, `"`), ",", " ")), ","), HasValue: true})
+	case name == "ip_proto":
+		// Suricata only accepts ip_proto in "ip" rules; it is redundant
+		// when it names the header protocol.
+		if n, ok := ipProtoNumbers[strings.ToLower(c.r.Proto)]; ok && strings.TrimSpace(v) == n {
+			return
+		}
+		c.keep(o)
+	case name == "ipopts" && v == "lsrre":
+		// Suricata has no separate check for the LSRR variant Snort calls
+		// lsrre; lsrr matches every LSRR option.
+		c.approx(CodeUnsupported, "ipopts:lsrre widened to ipopts:lsrr")
+		c.keep(rawOpt{Name: name, Value: "lsrr", HasValue: true})
+	case name == "ipopts":
+		c.keep(o)
+	case name == "modbus_func":
+		c.modbusFunc(v)
+	case name == "dnp3_ind":
 		c.keep(rawOpt{Name: name, Value: strings.Trim(v, `"`), HasValue: true})
+		c.note(CodeConfig, "needs app-layer.protocols.dnp3 enabled in suricata.yaml")
 	case name == "sip_method":
 		c.sipMethod(v)
 	case name == "sip_stat_code":
@@ -672,4 +757,32 @@ func (c *conv) sipStatCode(v string) {
 		p.PcreRe = "^(?:" + strings.Join(alts, "|") + ")$"
 	}
 	c.items = append(c.items, item{op: p})
+}
+
+var ipProtoNumbers = map[string]string{"tcp": "6", "udp": "17", "icmp": "1"}
+
+// modbusFunctions are Snort's modbus_func names.
+var modbusFunctions = map[string]int{
+	"read_coils": 1, "read_discrete_inputs": 2, "read_holding_registers": 3,
+	"read_input_registers": 4, "write_single_coil": 5, "write_single_register": 6,
+	"read_exception_status": 7, "diagnostics": 8, "get_comm_event_counter": 11,
+	"get_comm_event_log": 12, "write_multiple_coils": 15,
+	"write_multiple_registers": 16, "report_slave_id": 17, "read_file_record": 20,
+	"write_file_record": 21, "mask_write_register": 22,
+	"read_write_multiple_registers": 23, "read_fifo_queue": 24,
+	"encapsulated_interface_transport": 43,
+}
+
+// modbusFunc converts "modbus_func:<name|number>" to "modbus:function <n>".
+func (c *conv) modbusFunc(v string) {
+	v = strings.ToLower(strings.TrimSpace(v))
+	n, ok := modbusFunctions[v]
+	if !ok {
+		if n, ok = atoi(v); !ok || n < 0 || n > 255 {
+			c.fail(CodeSyntax, "invalid modbus_func %q", v)
+			return
+		}
+	}
+	c.keep(rawOpt{Name: "modbus", Value: fmt.Sprintf("function %d", n), HasValue: true})
+	c.note(CodeConfig, "needs app-layer.protocols.modbus enabled in suricata.yaml")
 }
