@@ -47,6 +47,7 @@ jobs:
       - run: cargo clippy -p suritap --all-targets -- -D warnings
         working-directory: tap
       - run: make tap-test
+      - run: make tap-kong-test
 
   web:
     runs-on: ubuntu-24.04

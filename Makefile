@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/jc-lab/suricontroller/pkg/version.Version=$(VERSION)
 GO      ?= go
 
-.PHONY: all build controller agent web proto test lint integration docker-agent docker-controller clean tap tap-test tap-integration traefik tap-traefik
+.PHONY: all build controller agent web proto test lint integration docker-agent docker-controller clean tap tap-test tap-integration traefik tap-traefik tap-kong-test tap-kong
 
 all: build
 
@@ -65,6 +65,16 @@ traefik:
 # and SURICATA_SRC); ./test/tap/traefik.sh --patch tests the patched build.
 tap-traefik:
 	./test/tap/traefik.sh
+
+# Kong plugin (adapters/kong): socket client test with the Kong image's
+# OpenResty against suritap-mockd (needs docker and a built mockd).
+tap-kong-test:
+	./test/tap/kong/transport.sh
+
+# Official Kong image + plugin + real Suricata end-to-end (needs docker,
+# SURICATA_PREFIX and SURICATA_SRC).
+tap-kong:
+	./test/tap/kong.sh
 
 docker-agent:
 	docker build -f deploy/agent/Dockerfile --build-arg VERSION=$(VERSION) -t suri-node-agent:dev .

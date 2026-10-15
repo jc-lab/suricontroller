@@ -40,6 +40,7 @@ var groups = map[string][]scenario{
 		{"body-streamed-timing", bodyStreamed},
 		{"body-marker-in-last-chunk", bodyLastChunk},
 		{"body-deep-marker", bodyDeep},
+		{"body-large-records", bodyLargeRecords},
 		{"response-body-drop", responseDrop},
 		{"raw-stream-drop", rawStream},
 		{"pgsql-query-drop", pgsqlDrop},
@@ -327,6 +328,27 @@ func bodyDeep(ctx context.Context, c *suritap.Client) (string, error) {
 		}
 	}
 	return "", errors.New("never dropped")
+}
+
+// bodyLargeRecords sends the whole body in one Inspect, i.e. in records of
+// the largest size the transport allows (each split into several
+// segments by the engine): ACKs must still come every ack-threshold bytes,
+// or Suricata prunes the uninspected body (§7.5).
+func bodyLargeRecords(ctx context.Context, c *suritap.Client) (string, error) {
+	conn, err := open(c, false)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close(true)
+	const total, at = 600 << 10, 300 << 10
+	body := bytes.Repeat([]byte("d"), total)
+	copy(body[at:], "EVIL-BODY-MARKER")
+	req := append([]byte(fmt.Sprintf("POST /upload HTTP/1.1\r\nHost: probe.example\r\nContent-Length: %d\r\n\r\n", total)), body...)
+	v, err := conn.Inspect(ctx, suritap.ToServer, req)
+	if err != nil {
+		return "", err
+	}
+	return "marker at 300 KiB of a body sent in one Inspect: " + describe(v), expect(v, suritap.Drop, 9000002)
 }
 
 func responseDrop(ctx context.Context, c *suritap.Client) (string, error) {

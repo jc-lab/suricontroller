@@ -1,6 +1,6 @@
 # suritap — TLS 종단 프록시 평문의 Suricata 검사
 
-TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 Suricata에 넘기고, 요청 단위 판정(pass/drop)을 돌려받는 구성 요소다. 전송은 두 가지다. 기본은 공유메모리이고, 공유메모리를 쓸 수 없는 클라이언트(Traefik Yaegi 플러그인, OpenResty/Kong Lua)를 위해 UNIX 스트림 소켓 전송도 있다. 이 문서는 1단계(전송·플러그인·클라이언트)와 2단계(Traefik 어댑터)의 설계, 프로토콜 명세, 검증 결과를 다룬다.
+TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 Suricata에 넘기고, 요청 단위 판정(pass/drop)을 돌려받는 구성 요소다. 전송은 두 가지다. 기본은 공유메모리이고, 공유메모리를 쓸 수 없는 클라이언트(Traefik Yaegi 플러그인, OpenResty/Kong Lua)를 위해 UNIX 스트림 소켓 전송도 있다. 이 문서는 1단계(전송·플러그인·클라이언트), 2단계(Traefik 어댑터), 3단계(Kong 어댑터)의 설계, 프로토콜 명세, 검증 결과를 다룬다.
 
 ## 1. 구성 요소
 
@@ -12,8 +12,9 @@ TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 Suric
 | `adapters/traefik-plugin` | Go (표준 라이브러리만) | **Traefik 플러그인**(Yaegi, 소켓 전송). 공식 Traefik 바이너리에 그대로 로드된다. HTTP 검사 로직은 패치 방식과 공유한다 | MPL-2.0 |
 | `adapters/traefik` | Go | 패치 방식 Traefik 어댑터(`suritaptraefik`). 플러그인의 HTTP 로직을 공유메모리 클라이언트로 쓰고, TLS 종단 TCP 라우터용 래퍼를 더한다 | MPL-2.0 |
 | `deploy/traefik` | patch / sh | 패치 방식용 Traefik v3.7.14 연결 패치와 빌드 스크립트 | — |
+| `adapters/kong` | Lua (OpenResty) | **Kong 플러그인** `suritap`과 짝 플러그인 `suritap-response`, 순수 Lua 소켓 전송 클라이언트 | MPL-2.0 |
 | `cmd/suritap-probe` | Go | 기능 검증(`check`), 벤치마크(`bench`, `httpbench`), 크래시 테스트(`hold`), 테스트 백엔드(`backend`) | MPL-2.0 |
-| `test/tap` | sh / yaml / Go | 실제 Suricata로 검증: 1단계 `run.sh`, Traefik `traefik.sh`, 테스트 룰·설정. `test/tap/yaegi`는 플러그인을 Traefik과 같은 방식으로 Yaegi에서 실행하는 하네스다 | — |
+| `test/tap` | sh / yaml / Go / Lua | 실제 Suricata로 검증: 1단계 `run.sh`, Traefik `traefik.sh`, Kong `kong.sh`, 테스트 룰·설정. `test/tap/yaegi`는 플러그인을 Traefik과 같은 방식으로 Yaegi에서 실행하는 하네스이고, `test/tap/kong/transport.sh`는 Kong 이미지의 OpenResty로 Lua 클라이언트를 검사한다 | — |
 
 Suricata 코드에 링크되는 것은 `suritap.so`뿐이다. 프록시는 공유메모리와 UNIX 소켓 너머에 있으므로 GPL과 무관하다.
 
@@ -22,7 +23,7 @@ Suricata 코드에 링크되는 것은 `suritap.so`뿐이다. 프록시는 공�
 | Go `pkg/suritap`, Rust `tap/suritap` | 공유메모리 |
 | Traefik 플러그인(Yaegi) | 소켓. Yaegi는 `unsafe`/`syscall` 없이는 mmap·SCM_RIGHTS를 쓸 수 없다 |
 | Traefik 패치 빌드 | 공유메모리 |
-| Kong(3단계, 예정) | 소켓(OpenResty cosocket) |
+| Kong 플러그인(Lua) | 소켓(OpenResty cosocket). Lua에서는 memfd·eventfd를 다룰 수 없다 |
 
 ## 2. 아키텍처
 
@@ -282,6 +283,8 @@ inline 모드는 검사가 끝난 세그먼트를 ACK와 무관하게 정리한�
 
 ACK 기준을 4~64 KiB로 낮추자, 300 KiB나 500 KiB 지점의 마커도 그 데이터를 실은 청크에서 바로 차단됐다. 그래서 기본값을 32 KiB로 바꿨다. 회귀 테스트는 `body-deep-marker`다.
 
+3단계에서 같은 문제가 다른 형태로 다시 나왔다. 엔진은 ACK 기준을 레코드가 끝난 뒤에만 확인했다. 그래서 64 KiB 레코드(32 KiB 세그먼트 두 개)로 바디를 보내면, 300 KiB 지점의 마커를 놓쳤다. Kong은 버퍼링한 바디를 한 번에 보내고, 소켓 전송의 레코드 상한이 64 KiB이기 때문에 드러났다. 지금은 세그먼트마다 확인한다. 회귀 테스트는 `body-large-records`이며, 600 KiB 바디를 Inspect 한 번으로 보낸다.
+
 ## 8. Traefik 어댑터 (2단계)
 
 ### 8.1 연결 방식
@@ -445,7 +448,108 @@ Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그
 
 해석 실행에서는 함수 호출과 `defer`가 비싸다. 요청마다 도는 경로(잠금 보조 함수 등)에 이것들을 넣었을 때 하네스 부하 테스트가 11k에서 9k req/s로 떨어졌고, 인라인으로 바꾸자 11k로 돌아왔다.
 
-## 9. 알려진 제약과 다음 단계
+## 9. Kong 어댑터 (3단계)
+
+### 9.1 구조
+
+Kong 플러그인은 순수 Lua로 작성했고, 소켓 전송(§3.6)을 OpenResty cosocket으로 쓴다. C 모듈이나 Kong 재빌드는 필요 없다.
+
+- **전송(`kong/plugins/suritap/transport.lua`)**
+  - cosocket은 만든 요청(또는 timer)에 묶이고, header_filter·body_filter·log 단계에서는 쓸 수 없다. 그래서 nginx 워커마다, Suricata 워커마다 timer 하나가 세션 소켓을 가진다. timer 안에서 writer 루프와 reader light thread가 돈다.
+  - 요청은 프레임을 큐에 넣고, 판정은 `ngx.semaphore`로 기다린다. 큐에 넣는 것은 yield하지 않으므로 모든 단계에서 쓸 수 있다. 판정을 기다리는 것은 yield가 가능한 단계(access, response)에서만 한다.
+  - 세션 관리는 Go 클라이언트와 같다.
+    - 세션이 열리는 동안 요청은 timeout까지만 기다린다.
+    - 워커 수가 바뀌면 이전 세션을 모두 닫는다.
+    - timeout된 판정 요청은 슬롯을 늦은 판정이 올 때까지 잡아 둔다. 판정이 5초 동안 없으면 세션을 다시 연다.
+    - 5분 동안 트래픽이 없으면 세션을 닫는다.
+    - worker가 종료 중(`ngx.worker.exiting()`)이면 timer를 끝낸다. nginx는 graceful shutdown 때 실행 중인 timer를 기다리기 때문이다.
+  - 세션당 큐는 8 MiB까지다. 넘친 페이로드는 버리고 GAP으로 보고한다.
+- **`suritap` 플러그인(PRIORITY 1500)**
+  - access 단계: Kong이 버퍼링한 요청을 HTTP/1.1로 정규화해 판정을 기다린다. drop이면 403과 `X-Suritap-Cid`를 준다. 인증 플러그인(jwt 1450, key-auth 1250 등)보다 먼저 돌아서, 인증이 거절할 요청도 검사한다.
+  - header_filter·body_filter 단계: 응답 detect. 응답을 기다리지 않고 스트리밍으로 보낸다.
+  - log 단계: 연결을 닫는다.
+- **`suritap-response` 플러그인(PRIORITY 1499, 설정 없음)**
+  - 응답 prevent. Kong의 buffered proxying이 응답 전체를 모은 뒤 response 단계에서 판정한다. drop이면 업스트림 헤더(Set-Cookie 등)를 지우고 403을 준다.
+  - Kong은 response 단계와 header/body filter를 한 플러그인에 함께 두는 것을 허용하지 않는다. 그래서 별도 플러그인이고, `suritap` 플러그인이 연 flow를 `kong.ctx.shared`로 이어받는다.
+
+### 9.2 설정
+
+```yaml
+# kong.conf: plugins = bundled,suritap,suritap-response
+#            lua_package_path = /path/to/adapters/kong/?.lua;;
+# (또는 luarocks make adapters/kong/kong-plugin-suritap-0.1.0-1.rockspec)
+routes:
+  - name: app
+    hosts: [app.example.com]
+    plugins:
+      - name: suritap
+        config:
+          socket_dir: /run/suritap
+          mode: prevent          # prevent | detect
+          response: detect       # off | detect | prevent
+          fail_policy: open      # open | closed
+          timeout: 100           # 판정 대기, 밀리초
+          max_request_body: 1048576
+          max_response_body: 1048576
+          endpoint: websecure    # EVE의 suritap.endpoint (기본: 라우트 이름)
+      # response: prevent일 때만
+      - name: suritap-response
+```
+
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `mode` | `prevent` | `prevent`: drop 판정이면 403. `detect`: 판정을 기다리지 않는다 |
+| `response` | `detect` | `off`, `detect`(filter 단계에서 스트리밍), `prevent`(`suritap-response` 필요, 응답 전체를 버퍼링한 뒤 판정) |
+| `fail_policy` | `open` | 판정을 받지 못했을 때(Suricata 없음, timeout, `error` 판정) 통과할지 503을 줄지 |
+| `timeout` | 100 | 판정 대기 시간(ms). 세션이 열리기를 기다리는 시간도 포함한다 |
+| `max_request_body` / `max_response_body` | 1 MiB | 검사할 바디 크기. 나머지는 GAP으로 보고한다 |
+| `socket_dir` / `name` / `endpoint` | `/run/suritap` / `kong` / 라우트 이름 | 소켓 위치, EVE의 `suritap.client` / `suritap.endpoint` |
+
+- **메타데이터:** 프로토콜, SNI, ALPN, `X-Request-Id`(없으면 Kong request id), 라우트 이름, 서비스 이름, 엔드포인트를 보낸다. 모두 EVE의 `suritap.*`에 남는다.
+- **주소:** 출발지는 `remote_addr:remote_port`(Kong의 `trusted_ips`/real IP 처리 결과), 목적지는 리스너 주소다.
+- **정규화:** `Expect` 헤더는 뺀다. nginx가 이미 `100 Continue`를 처리했다. 남겨 두면 Suricata(libhtp)가 그 응답을 기다리며 바디를 검사하지 않는다(실측).
+- **소켓 권한:** Kong 워커 사용자가 `worker-N.stream.sock`에 쓸 수 있어야 한다(`suritap.socket-mode` 또는 그룹).
+
+### 9.3 검증 (`test/tap/kong.sh`, Suricata 8.0.7 + 공식 `kong:3.9.1` 이미지)
+
+```sh
+test/tap/kong/transport.sh                                   # Lua 클라이언트 단독 → ALL PASSED
+SURICATA_PREFIX=... SURICATA_SRC=... test/tap/kong.sh        # E2E → ALL PASSED
+```
+
+- `transport.sh`: suritap-mockd와 판정을 보내지 않는 서버를 상대로 검사한다. 항목은 pass/drop, IPv6, 프레임 분할, 동시 요청 1000건, 워커당 세션 하나, timeout 시각 준수, 멈춘 세션 재연결이다.
+- `kong.sh`: DB-less 선언형 설정으로 Kong을 host 네트워크에 띄운다.
+
+| 항목 | 결과 |
+|---|---|
+| h2와 h1의 정상 요청 / URI 공격 | 200 / 403 |
+| 작은 바디 공격(h2), 600 KiB 바디의 300 KiB 지점 공격(h1) | 403. 차단된 요청은 백엔드에 닿지 않는다(Kong이 바디를 버퍼링) |
+| reject 룰(User-Agent) | 403 |
+| 응답 유출 룰: detect / prevent 라우트 | 200(EVE alert) / 403(업스트림 헤더 제거) |
+| suritap이 없는 라우트 | 그대로 통과 |
+| EVE 메타데이터 | `proxy=kong, endpoint, sni, alpn=h2, proto, route=app, service=backend` |
+| Suricata 중지 시 | fail-open은 200, fail-closed는 503 |
+| Kong 오류 로그 | 없음 |
+
+### 9.4 오버헤드 (`--bench`, GET 요청과 짧은 응답, 16 클라이언트, nginx 워커 2개, 워커 2개)
+
+같은 호스트에서 다른 작업이 돌던 조건이다(load average 약 6). 비율로 보는 것이 좋다.
+
+| | suritap 없음 | prevent (응답 detect) | prevent (응답 prevent) |
+|---|---|---|---|
+| HTTP/2 | 13.8k req/s, p50 1.1ms | 6.8k, p50 2.1ms, p99 7.2ms | 5.6k, p50 2.5ms, p99 8.5ms |
+| HTTP/1.1 | 19.9k, p50 0.76ms | 11.6k, p50 1.2ms, p99 3.6ms | 7.7k, p50 1.7ms, p99 6.8ms |
+
+- 응답 prevent는 Kong의 buffered proxying(내부 subrequest)을 쓰므로 비용이 더 든다. 응답을 스트리밍하지 못한다.
+
+### 9.5 제약
+
+- 응답 prevent는 응답 전체를 버퍼링한다. SSE나 long polling 라우트에는 `response: detect`를 쓴다.
+- 요청 바디는 Kong이 버퍼링한 뒤 한 번에 판정한다. `max_request_body`를 넘는 부분은 검사하지 않고 GAP으로 보고한다.
+- nginx가 거절하는 요청(루트 위로 올라가는 경로, `client_max_body_size` 초과 등)은 플러그인까지 오지 않는다.
+- nginx 워커마다 Suricata 워커 하나당 세션을 하나씩 연다. 그래서 `suritap.max-sessions`(Suricata 워커당 세션 상한, 기본 256)는 "Kong 인스턴스 수 × nginx 워커 수"보다 커야 한다.
+
+## 10. 알려진 제약과 다음 단계
 
 - 단일 IPS 인스턴스에서 Detect(shadow) 모드로 쓰면, 처음 would-drop이 난 뒤로는 그 연결이 더 검사되지 않는다(flow drop).
 - drop된 flow는 RST가 처리되지 않으므로 `flow-timeouts.tcp.established` 동안 엔진 메모리에 남는다. 구분자 덕분에 정확성 문제는 없다.
@@ -457,6 +561,5 @@ Yaegi 호환성은 `test/tap/yaegi`에서 따로 확인한다. Traefik 플러그
   - HTTP 라우터와 서비스 이름은 메타데이터에 없다. 패치 빌드는 미들웨어가 라우팅 전에 있고, 플러그인 API는 라우터 정보를 넘겨주지 않는다. 플러그인에서는 미들웨어마다 `endpoint`를 다르게 줘서 구분한다.
   - 패치는 Traefik 버전마다 따로 유지해야 한다. 플러그인은 버전과 무관하지만 TCP 라우터를 검사하지 못하고 처리량이 낮다.
 - 다음 단계:
-  - 3단계: Kong 어댑터(Lua/OpenResty, 소켓 전송을 cosocket으로 사용)
   - Traefik 플러그인의 해석 실행 비용 줄이기(요청당 할당·프레임 수 감소)
   - 5단계: suricontroller 통합(agent의 `tap` 인스턴스, 엔드포인트별 Off/Detect/Prevent, 이미지)

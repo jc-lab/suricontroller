@@ -688,9 +688,11 @@ impl Engine {
             );
             f.sent[d] += seg as u64;
             off += seg;
-        }
-        if f.sent[d] - f.acked[d] >= self.cfg.ack_threshold {
-            self.emit(insp, Some(&mut *out), session, cid, f, dir.other(), TH_ACK, None, false);
+            // Per segment, not per record: a large record must not leave
+            // more than ack_threshold unacknowledged (§7.5).
+            if f.sent[d] - f.acked[d] >= self.cfg.ack_threshold {
+                self.emit(insp, Some(&mut *out), session, cid, f, dir.other(), TH_ACK, None, false);
+            }
         }
         if want {
             let mut p = std::mem::take(&mut f.pending[d]);
