@@ -870,7 +870,7 @@ DesiredState(gen) 수신
 
 - 이미지는 **Alpine 3.24** 기반입니다. Suricata 8.0.7을 소스로 빌드하고(tarball SHA-256 고정, NFQ/AF_PACKET 포함), 같은 소스 트리로 suritap 캡처 플러그인(`/usr/lib/suricata/suritap.so`)을 빌드해 넣습니다. 여기에 `suri-node-agent`(static)와 `tini`가 들어갑니다. 플러그인은 정확히 같은 Suricata 빌드에만 로드되므로 패키지 대신 소스로 빌드합니다.
 - 첫 실행에서 `/etc/suricata` 볼륨이 비어 있으면 패키지 기본 설정으로 채웁니다.
-- multi-arch(amd64, arm64)로 빌드하고, `nft`/`iptables`는 fallback용으로 함께 넣습니다.
+- multi-arch(amd64, arm64)로 빌드하고, `nft`/`iptables`는 fallback용으로 함께 넣습니다. Suricata를 소스로 빌드하므로 CI는 아키텍처마다 네이티브 러너에서 빌드합니다. 이미지 태그의 `-suricata<버전>`은 Dockerfile에 고정한 `SURICATA_VERSION`을 따릅니다.
 
 ```yaml
 services:

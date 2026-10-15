@@ -5,8 +5,8 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
-  # Rebuild the agent image for the selected branch/tag when Alpine ships a new
-  # Suricata; it is a no-op if an image for that commit + Suricata already exists.
+  # Rebuild the agent image for the selected branch/tag; it is a no-op if an
+  # image for that commit + Suricata already exists (unless forced).
   workflow_dispatch:
     inputs:
       force:
@@ -131,8 +131,10 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Resolves the Suricata version the agent image will ship (it comes from the
-  # Alpine repo, so it can change without a commit) and decides what to build.
+  # Resolves the Suricata version the agent image ships (built from source, so
+  # it is the SURICATA_VERSION pinned in deploy/agent/Dockerfile together with
+  # the tarball hash and the suritap plugin built against it) and decides what
+  # to build.
   resolve:
     runs-on: ubuntu-24.04
     permissions:
@@ -147,15 +149,13 @@ jobs:
       - name: Resolve Suricata version
         id: suricata
         run: |
-          base=$(sed -nE 's/^FROM (alpine:[^ ]+).*/\1/p' deploy/agent/Dockerfile | tail -n1)
-          pkg=$(docker run --rm "$base" sh -c 'apk update -q >/dev/null && apk search -x suricata')
-          version=${pkg#suricata-}
-          if [[ ! $version =~ ^[0-9][^[:space:]]*-r[0-9]+$ ]]; then
-            echo "::error::unexpected apk output from $base: $pkg"; exit 1
+          version=$(sed -nE 's/^ARG SURICATA_VERSION=([^[:space:]]+)$/\1/p' deploy/agent/Dockerfile | head -n1)
+          if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::cannot read SURICATA_VERSION from deploy/agent/Dockerfile: '$version'"; exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=${version%-r*}" >> "$GITHUB_OUTPUT"
-          echo "Suricata in \`$base\`: \`$version\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "tag=$version" >> "$GITHUB_OUTPUT"
+          echo "Suricata (source build): \`$version\`" >> "$GITHUB_STEP_SUMMARY"
       - if: github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v4
         with:
@@ -235,7 +235,6 @@ jobs:
           file: deploy/${{ matrix.image == 'suri-node-agent' && 'agent' || 'controller' }}/Dockerfile
           platforms: ${{ matrix.platform }}
           build-contexts: binary=${{ steps.prep.outputs.bindir }}
-          build-args: ${{ matrix.image == 'suri-node-agent' && format('SURICATA_VERSION={0}', needs.resolve.outputs.suricata) || '' }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ env.PUSH }}
           cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.prep.outputs.pair }}
