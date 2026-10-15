@@ -31,3 +31,8 @@ pub mod sys;
 
 pub use client::{Client, ClientOptions, Conn, OpenParams};
 pub use proto::{Action, Alert, Dir, MetaTag, Reason, Verdict};
+
+/// Compiles the README example.
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDoctests;

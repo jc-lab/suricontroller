@@ -6,7 +6,7 @@ TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 Suric
 
 | 경로 | 언어 | 역할 | 라이선스 |
 |---|---|---|---|
-| `tap/suritap` | Rust | 프로토콜·공유메모리 링·패킷 합성 엔진·서버 워커·**Rust 클라이언트**(libsuritap 역할), `suritap-mockd` | MPL-2.0 |
+| `tap/suritap` | Rust | 프로토콜·공유메모리 링·패킷 합성 엔진·서버 워커·**Rust 클라이언트**(libsuritap 역할), `suritap-mockd`. crates.io의 [`suritap`](https://crates.io/crates/suritap)로 배포한다(`v*` 태그 push 때 CI가 태그 버전으로 게시) | MPL-2.0 |
 | `tap/suritap-plugin` | Rust (+ 얇은 C glue) | Suricata 8 capture plugin `suritap.so` | GPL-2.0-only |
 | `pkg/suritap` | Go | **Go 클라이언트**(libsuritap 역할) | MPL-2.0 |
 | `adapters/traefik-plugin` | Go (표준 라이브러리만) | **Traefik 플러그인**(Yaegi, 소켓 전송). 공식 Traefik 바이너리에 그대로 로드된다. HTTP 검사 로직은 패치 방식과 공유한다. 별도 저장소 [jc-lab/suritap-traefik](https://github.com/jc-lab/suritap-traefik)(모듈 `github.com/jc-lab/suritap-traefik`)의 submodule이다 | MPL-2.0 |
