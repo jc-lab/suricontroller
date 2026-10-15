@@ -18,7 +18,7 @@ local SuritapResponseHandler = {
 
 function SuritapResponseHandler:response()
   local st = common.state()
-  if not st or not st.conn or st.conf.response ~= "prevent" then
+  if not st or not st.conn or st.response ~= "prevent" then
     return
   end
   st.response_done = true

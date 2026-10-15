@@ -59,6 +59,24 @@ end
 check("1000 concurrent requests", bad == 0, bad)
 check("one session per Suricata worker", t.workers == 2 and t.sessions[0] and t.sessions[1], t.workers)
 
+-- The endpoint policy (mockd --policy-file) arrives with the sessions and
+-- follows file changes.
+local function wait_mode(ep, want)
+  for _ = 1, 400 do
+    if t:endpoint_mode(ep) == want then
+      return true
+    end
+    ngx.sleep(0.01)
+  end
+  return false
+end
+check("policy received", wait_mode("web", transport.MODE_DETECT), t:endpoint_mode("web"))
+check("unlisted endpoint has no mode", t:endpoint_mode("other") == nil)
+local f = assert(io.open(dir .. "/policy", "w"))
+f:write("web off\n")
+f:close()
+check("policy change received", wait_mode("web", transport.MODE_OFF), t:endpoint_mode("web"))
+
 -- A worker that never answers: verdicts time out on time, and after
 -- stuck_after without any verdict the session is re-opened.
 local silent = arg[2]

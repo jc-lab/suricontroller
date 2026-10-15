@@ -56,7 +56,7 @@ func gopath(t *testing.T) string {
 	return root
 }
 
-func startMockd(t *testing.T) (string, *exec.Cmd) {
+func startMockd(t *testing.T, extra ...string) (string, *exec.Cmd) {
 	bin := os.Getenv("SURITAP_MOCKD")
 	if bin == "" {
 		for _, p := range []string{"tap/target/release/suritap-mockd", "tap/target/debug/suritap-mockd"} {
@@ -71,7 +71,7 @@ func startMockd(t *testing.T) (string, *exec.Cmd) {
 	}
 	dir, _ := os.MkdirTemp("", "stap")
 	t.Cleanup(func() { os.RemoveAll(dir) })
-	cmd := exec.Command(bin, "--dir", dir, "--workers", "2")
+	cmd := exec.Command(bin, append([]string{"--dir", dir, "--workers", "2"}, extra...)...)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}

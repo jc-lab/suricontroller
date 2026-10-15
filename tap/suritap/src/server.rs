@@ -20,6 +20,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::engine::{Engine, EngineConfig, Flows, Inspector, Out};
+use crate::policy::Policy;
 use crate::proto::{self, Hello, Welcome};
 use crate::region::{Region, RegionLimits};
 use crate::ring::{Consumer, Producer, Record, HEADER};
@@ -57,6 +58,9 @@ pub struct WorkerConfig {
     pub batch: usize,
     /// Busy-poll the rings this long before sleeping.
     pub spin: Duration,
+    /// Endpoint policy file (see [`crate::policy`]), re-read when it
+    /// changes and pushed to every session; `None`: no policy.
+    pub policy_file: Option<PathBuf>,
     pub log: LogFn,
 }
 
@@ -73,6 +77,7 @@ impl WorkerConfig {
             engine: EngineConfig::default(),
             batch: 64,
             spin: Duration::ZERO,
+            policy_file: None,
             log: stderr_log,
         }
     }
@@ -128,6 +133,8 @@ struct Session {
     sock: OwnedFd,
     flows: Flows,
     link: Link,
+    /// Version of the policy delivered to the client (0: none yet).
+    policy_sent: u32,
 }
 
 /// An accepted connection waiting for HELLO.
@@ -173,6 +180,8 @@ pub struct Worker {
     busy_passes: u32,
     next_housekeep: Instant,
     failed: Vec<(u32, String, Level)>,
+    /// Size and modification time of the policy file when last read.
+    policy_seen: Option<(u64, SystemTime)>,
     pub stats: WorkerStats,
 }
 
@@ -212,8 +221,49 @@ impl Worker {
             busy_passes: 0,
             next_housekeep: Instant::now(),
             failed: Vec::new(),
+            policy_seen: None,
             stats: WorkerStats::default(),
         })
+    }
+
+    /// check_policy re-reads the policy file when it changed (missing file:
+    /// empty policy). An invalid file keeps the previous policy.
+    fn check_policy(&mut self) {
+        let Some(path) = &self.cfg.policy_file else { return };
+        let seen = std::fs::metadata(path)
+            .ok()
+            .map(|m| (m.len(), m.modified().unwrap_or(UNIX_EPOCH)));
+        let first = self.engine.policy().version == 0;
+        if !first && seen == self.policy_seen {
+            return;
+        }
+        let text = match seen {
+            Some(_) => match std::fs::read_to_string(path) {
+                Ok(t) => t,
+                Err(e) => {
+                    self.log(Level::Warning, &format!("policy file {}: {e}", path.display()));
+                    return;
+                }
+            },
+            None => String::new(),
+        };
+        self.policy_seen = seen;
+        let version = self.engine.policy().version.wrapping_add(1).max(1);
+        match Policy::parse(version, &text) {
+            Ok(p) => {
+                if self.cfg.index == 0 {
+                    self.log(
+                        Level::Info,
+                        &format!("endpoint policy v{version}: {} endpoints", p.len()),
+                    );
+                }
+                self.engine.set_policy(Arc::new(p));
+            }
+            Err(e) => self.log(
+                Level::Error,
+                &format!("policy file {}: {e}; keeping the previous policy", path.display()),
+            ),
+        }
     }
 
     pub fn breaker(&self) -> Breaker {
@@ -379,6 +429,7 @@ impl Worker {
     /// Keepalives for idle flows and expiry of stalled handshakes; runs on
     /// a worker-level timer so the hot loop reads the clock once per pass.
     fn housekeep<I: Inspector>(&mut self, insp: &mut I, now: Instant) {
+        self.check_policy();
         let Worker { sessions, engine, .. } = self;
         for s in sessions.iter_mut() {
             engine.housekeep(insp, &mut s.flows);
@@ -625,6 +676,7 @@ impl Worker {
             flows: Flows::new(id, &name),
             sock,
             link,
+            policy_sent: 0,
         };
         let (idx, gen) = self.sessions.insert(session);
         if self.ep.add(sock_raw, token(T_SOCK, idx, gen), SOCK_EVENTS).is_err() {
@@ -696,13 +748,29 @@ fn fatal(e: impl ToString) -> (String, Level) {
     (e.to_string(), Level::Warning)
 }
 
+/// deliver_policy sends the current endpoint policy when the client has not
+/// seen it. Like BYPASS it uses no verdict credit, so it may have to wait
+/// for room; it is retried on every pass until it goes out.
+fn deliver_policy(engine: &Engine, sent: &mut u32, out: &mut Out<'_>) {
+    let p = engine.policy();
+    if p.version != 0 && p.version != *sent && out.send_uncredited(proto::K_POLICY, &[p.encoded()]) {
+        *sent = p.version;
+    }
+}
+
 fn process_shm<I: Inspector>(engine: &mut Engine, insp: &mut I, s: &mut Session, batch: usize) -> ProcessResult {
-    let Session { flows, link, .. } = s;
+    let Session {
+        flows,
+        link,
+        policy_sent,
+        ..
+    } = s;
     let Link::Shm { c2s, s2c, s2c_bell, .. } = link else {
         unreachable!()
     };
     let bell = s2c_bell.as_raw_fd();
     let mut out = Out::Ring { ring: s2c, bell };
+    deliver_policy(engine, policy_sent, &mut out);
     let mut n = 0;
     while n < batch {
         let rec = match c2s.peek() {
@@ -731,7 +799,12 @@ fn process_stream<I: Inspector>(
     tok: u64,
 ) -> ProcessResult {
     let sock = s.sock.as_raw_fd();
-    let Session { flows, link, .. } = s;
+    let Session {
+        flows,
+        link,
+        policy_sent,
+        ..
+    } = s;
     let Link::Stream {
         inbuf,
         start,
@@ -752,6 +825,7 @@ fn process_stream<I: Inspector>(
             buf: outbuf,
             limit: STREAM_OUT_LIMIT,
         };
+        deliver_policy(engine, policy_sent, &mut out);
         while n < batch {
             let avail = &inbuf[*start..];
             if avail.len() < HEADER {
@@ -888,6 +962,100 @@ mod tests {
         let mut body = vec![0u8; len - HEADER];
         s.read_exact(&mut body).unwrap();
         (u16::from_le_bytes([h[4], h[5]]), body)
+    }
+
+    /// The endpoint policy reaches new sessions after WELCOME and every
+    /// session when the file changes; flows of Detect endpoints get passes
+    /// instead of drops (with the reason kept).
+    #[test]
+    fn endpoint_policy() {
+        use crate::policy::{Mode, Policy};
+        let dir = std::env::temp_dir().join(format!("stap-pol-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let pf = dir.join("policy");
+        std::fs::write(&pf, "web prevent\n").unwrap();
+        let mut cfg = WorkerConfig::new(dir.join("worker-0.sock"), 0, 1);
+        cfg.stream_path = Some(dir.join("worker-0.stream.sock"));
+        cfg.policy_file = Some(pf.clone());
+        let mut w = Worker::new(cfg).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let st = stop.clone();
+        let th = std::thread::spawn(move || {
+            while !st.load(Relaxed) {
+                w.run_once(&mut Marker, 10);
+            }
+            w.engine.stats.detect_passes
+        });
+
+        let mut s = UnixStream::connect(dir.join("worker-0.stream.sock")).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let hello = Hello {
+            pid: 1,
+            flags: 0,
+            name: "policy-test".into(),
+        }
+        .encode();
+        s.write_all(&hello).unwrap();
+        let mut wl = [0u8; proto::WELCOME_SIZE];
+        s.read_exact(&mut wl).unwrap();
+        let (k, b) = read_frame(&mut s);
+        assert_eq!(k, proto::K_POLICY);
+        let p = Policy::decode(&b).unwrap();
+        assert_eq!((p.version, p.mode(b"web")), (1, Some(Mode::Prevent)));
+
+        let attack = |s: &mut UnixStream, cid: u64, token: u32| {
+            let mut open = Open::new(
+                cid,
+                "203.0.113.1".parse().unwrap(),
+                1000,
+                "10.0.0.1".parse().unwrap(),
+                443,
+            )
+            .unwrap();
+            open.meta.push((proto::MetaTag::Endpoint as u8, b"web".to_vec()));
+            let mut ob = Vec::new();
+            open.encode(&mut ob).unwrap();
+            let mut batch = frame(proto::K_OPEN, 0, &[&ob]);
+            batch.extend(frame(
+                proto::K_DATA,
+                proto::F_WANT_VERDICT,
+                &[
+                    &proto::data_header(cid, Dir::ToServer, token),
+                    b"GET /EVIL HTTP/1.1\r\n\r\n",
+                ],
+            ));
+            s.write_all(&batch).unwrap();
+        };
+        attack(&mut s, 1, 1);
+        let (k, b) = read_frame(&mut s);
+        assert_eq!(k, proto::K_VERDICT);
+        assert_eq!(
+            Verdict::decode(&b).unwrap().action,
+            proto::Action::Drop,
+            "prevent endpoint"
+        );
+
+        // Switch the endpoint to detect (a different size, so the change is
+        // seen even within the file system's timestamp granularity).
+        std::fs::write(&pf, "web   detect\n").unwrap();
+        let (k, b) = read_frame(&mut s);
+        assert_eq!(k, proto::K_POLICY);
+        let p = Policy::decode(&b).unwrap();
+        assert_eq!((p.version, p.mode(b"web")), (2, Some(Mode::Detect)));
+        attack(&mut s, 2, 2);
+        let (k, b) = read_frame(&mut s);
+        assert_eq!(k, proto::K_VERDICT);
+        let v = Verdict::decode(&b).unwrap();
+        assert_eq!(
+            (v.action, v.reason),
+            (proto::Action::Pass, proto::Reason::Rule),
+            "detect endpoint"
+        );
+
+        drop(s);
+        stop.store(true, Relaxed);
+        assert_eq!(th.join().unwrap(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

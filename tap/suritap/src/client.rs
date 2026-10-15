@@ -25,6 +25,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering:
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::policy::{Mode, Policy};
 use crate::proto::{self, Dir, MetaTag, Open, Verdict, Welcome};
 use crate::region::Region;
 use crate::ring::{Consumer, Producer, Record, HEADER};
@@ -159,6 +160,8 @@ impl Semaphore {
     }
 }
 
+type PolicySlot = Arc<Mutex<Option<Arc<Policy>>>>;
+
 struct Session {
     sock: OwnedFd,
     c2s_bell: OwnedFd,
@@ -172,6 +175,8 @@ struct Session {
     dead: AtomicBool,
     bypassed: Mutex<HashSet<u64>>,
     flow_errors: Mutex<HashMap<u64, u32>>,
+    /// Receives the plugin's endpoint policy (shared with the client).
+    policy: PolicySlot,
     /// CLOSE records that did not fit in the ring yet: (cid, how). Flushed
     /// before any other record and whenever space frees up, so a closed
     /// connection is never leaked on the server.
@@ -184,7 +189,7 @@ struct Session {
 }
 
 impl Session {
-    fn connect(path: &Path, opts: &ClientOptions) -> io::Result<Arc<Session>> {
+    fn connect(path: &Path, opts: &ClientOptions, policy: PolicySlot) -> io::Result<Arc<Session>> {
         let region = Region::create(opts.c2s_size, opts.s2c_size)?;
         let sock = sys::seqpacket_connect(path)?;
         let hello = proto::Hello {
@@ -232,6 +237,7 @@ impl Session {
             dead: AtomicBool::new(false),
             bypassed: Mutex::new(HashSet::new()),
             flow_errors: Mutex::new(HashMap::new()),
+            policy,
             closes: Mutex::new(Vec::new()),
             worker_index: w.worker_index,
             worker_count: w.worker_count,
@@ -332,6 +338,13 @@ impl Session {
                         .lock()
                         .unwrap()
                         .insert(proto::get_u64(&b, 0), proto::get_u32(&b, 12));
+                }
+            }
+            proto::K_POLICY => {
+                let mut b = vec![0u8; r.len()];
+                r.copy_to(0, &mut b);
+                if let Ok(p) = Policy::decode(&b) {
+                    *self.policy.lock().unwrap() = Some(Arc::new(p));
                 }
             }
             _ => {}
@@ -468,6 +481,7 @@ struct Inner {
     opts: ClientOptions,
     slots: Vec<Mutex<Option<Arc<Session>>>>,
     next_cid: AtomicU64,
+    policy: PolicySlot,
 }
 
 impl Drop for Inner {
@@ -499,7 +513,8 @@ impl Client {
     /// are opened on first use.
     pub fn connect(dir: impl AsRef<Path>, opts: ClientOptions) -> io::Result<Client> {
         let dir = dir.as_ref().to_path_buf();
-        let first = Session::connect(&socket_path(&dir, 0), &opts)?;
+        let policy = PolicySlot::default();
+        let first = Session::connect(&socket_path(&dir, 0), &opts, policy.clone())?;
         let count = first.worker_count as usize;
         let slots: Vec<_> = (0..count).map(|_| Mutex::new(None)).collect();
         *slots[0].lock().unwrap() = Some(first);
@@ -513,8 +528,17 @@ impl Client {
                 opts,
                 slots,
                 next_cid: AtomicU64::new(mix(seed) | 1),
+                policy,
             }),
         })
+    }
+
+    /// The operator's mode for an endpoint from the plugin's endpoint
+    /// policy; `None` when it does not list the endpoint (or no policy
+    /// arrived yet) and the caller's own setting applies. The last policy
+    /// is kept across reconnects.
+    pub fn endpoint_mode(&self, endpoint: &str) -> Option<Mode> {
+        self.inner.policy.lock().unwrap().as_ref()?.mode(endpoint.as_bytes())
     }
 
     pub fn worker_count(&self) -> usize {
@@ -528,7 +552,11 @@ impl Client {
                 return Ok(s.clone());
             }
         }
-        let s = Session::connect(&socket_path(&self.inner.dir, idx), &self.inner.opts)?;
+        let s = Session::connect(
+            &socket_path(&self.inner.dir, idx),
+            &self.inner.opts,
+            self.inner.policy.clone(),
+        )?;
         if s.worker_index as usize != idx {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -717,11 +745,20 @@ mod tests {
     }
 
     fn serve(dir: &Path, workers: u16) -> (Arc<AtomicBool>, Vec<std::thread::JoinHandle<()>>) {
+        serve_with(dir, workers, None)
+    }
+
+    fn serve_with(
+        dir: &Path,
+        workers: u16,
+        policy: Option<PathBuf>,
+    ) -> (Arc<AtomicBool>, Vec<std::thread::JoinHandle<()>>) {
         let stop = Arc::new(AtomicBool::new(false));
         let mut handles = Vec::new();
         for i in 0..workers {
             let mut cfg = WorkerConfig::new(socket_path(dir, i as usize), i, workers);
             cfg.engine.max_segment = 4096;
+            cfg.policy_file = policy.clone();
             let mut w = Worker::new(cfg).unwrap();
             let stop = stop.clone();
             handles.push(std::thread::spawn(move || {
@@ -747,6 +784,26 @@ mod tests {
     fn rand_seed() -> u64 {
         static C: AtomicU64 = AtomicU64::new(1);
         C.fetch_add(1, Relaxed)
+    }
+
+    #[test]
+    fn endpoint_policy() {
+        let dir = tempdir();
+        let pf = dir.join("policy");
+        std::fs::write(&pf, "web detect\n").unwrap();
+        let (stop, handles) = serve_with(&dir, 1, Some(pf));
+        let client = Client::connect(&dir, ClientOptions::default()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while client.endpoint_mode("web").is_none() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(client.endpoint_mode("web"), Some(Mode::Detect));
+        assert_eq!(client.endpoint_mode("other"), None);
+        stop.store(true, Relaxed);
+        for h in handles {
+            h.join().unwrap();
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

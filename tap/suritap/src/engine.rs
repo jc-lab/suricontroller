@@ -39,6 +39,7 @@ use std::ptr::{self, NonNull};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::policy::{Mode, Policy};
 use crate::proto::{self, Action, Alert, Dir, MetaTag, Open, Reason, MAX_ALERTS};
 use crate::ring::{Producer, Record, HEADER};
 use crate::sys;
@@ -272,6 +273,9 @@ pub struct EngineStats {
     pub engine_failures: u64,
     pub bypasses: u64,
     pub keepalives: u64,
+    /// Drop verdicts turned into passes because the endpoint is in Off or
+    /// Detect mode.
+    pub detect_passes: u64,
 }
 
 /// A fatal session error.
@@ -306,7 +310,7 @@ impl Out<'_> {
     /// FLOW_ERROR). It is dropped unless half of the ring (or buffer) — the
     /// part the client's verdict credits may use — stays free, so
     /// uncredited records can never make a credited VERDICT overflow.
-    fn send_uncredited(&mut self, kind: u16, parts: &[&[u8]]) -> bool {
+    pub(crate) fn send_uncredited(&mut self, kind: u16, parts: &[&[u8]]) -> bool {
         let body: usize = parts.iter().map(|p| p.len()).sum();
         let room = match self {
             Out::Ring { ring, .. } => ring.available() >= ring.need(body) + ring.capacity() / 2,
@@ -455,6 +459,8 @@ pub struct Engine {
     /// Engine clock (ms since `epoch`), refreshed by [`Engine::tick`].
     now: u64,
     total_flows: usize,
+    /// Endpoint modes; flows of Off/Detect endpoints are never blocked.
+    policy: Arc<Policy>,
     pub stats: EngineStats,
 }
 
@@ -487,12 +493,34 @@ impl Engine {
             epoch: Instant::now(),
             now: 0,
             total_flows: 0,
+            policy: Arc::new(Policy::default()),
             stats: EngineStats::default(),
         }
     }
 
     pub fn config(&self) -> &EngineConfig {
         &self.cfg
+    }
+
+    /// Replaces the endpoint policy (affects later verdicts).
+    pub fn set_policy(&mut self, p: Arc<Policy>) {
+        self.policy = p;
+    }
+
+    pub fn policy(&self) -> &Arc<Policy> {
+        &self.policy
+    }
+
+    /// lenient reports whether flows with this metadata must not be
+    /// blocked (endpoint in Off or Detect mode).
+    fn lenient(&self, meta: &FlowMeta) -> bool {
+        if self.policy.is_empty() {
+            return false;
+        }
+        let Some((_, ep)) = meta.tags.iter().find(|(t, _)| *t == MetaTag::Endpoint as u8) else {
+            return false;
+        };
+        matches!(self.policy.mode(ep), Some(Mode::Off | Mode::Detect))
     }
 
     /// Refreshes the engine clock; call once per processing pass rather
@@ -704,7 +732,8 @@ impl Engine {
                 p.reason = Reason::Flow as u8;
                 p.drop_reason = f.dropped_reason;
             }
-            return self.verdict(out, cid, token, dir, p);
+            let lenient = self.lenient(&f.meta);
+            return self.verdict(out, cid, token, dir, p, lenient);
         }
         Ok(())
     }
@@ -833,7 +862,18 @@ impl Engine {
         }
     }
 
-    fn verdict(&mut self, out: &mut Out<'_>, cid: u64, token: u32, dir: Dir, p: Pending) -> Result<(), Error> {
+    /// verdict reports the outcome of a verdict request. lenient: the
+    /// endpoint must not be blocked, so a drop is reported as a pass (the
+    /// reason still says why it would have been dropped).
+    fn verdict(
+        &mut self,
+        out: &mut Out<'_>,
+        cid: u64,
+        token: u32,
+        dir: Dir,
+        p: Pending,
+        lenient: bool,
+    ) -> Result<(), Error> {
         let mut alerts = [Alert::default(); MAX_ALERTS];
         let (mut n, mut total) = (0, 0);
         if let Some(acc) = &p.alerts {
@@ -854,6 +894,12 @@ impl Engine {
             (Action::Error, Reason::Engine)
         } else {
             (Action::Pass, Reason::None)
+        };
+        let action = if action == Action::Drop && lenient {
+            self.stats.detect_passes += 1;
+            Action::Pass
+        } else {
+            action
         };
         if action == Action::Drop {
             self.stats.drops += 1;

@@ -59,6 +59,11 @@ func (s shmTransport) Open(_ context.Context, src, dst plugin.Addr, meta []plugi
 	return shmConn{c}, nil
 }
 
+func (s shmTransport) EndpointMode(endpoint string) (plugin.EndpointMode, bool) {
+	m, ok := s.t.EndpointMode(endpoint)
+	return plugin.EndpointMode(m), ok
+}
+
 func (s shmTransport) Close() error { return nil }
 
 type shmConn struct{ c *suritap.Conn }

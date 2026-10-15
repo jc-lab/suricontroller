@@ -22,6 +22,7 @@ const (
 	kBypass    = 0x82
 	kPong      = 0x83
 	kFlowError = 0x84
+	kPolicy    = 0x85
 
 	fWantVerdict = 1
 

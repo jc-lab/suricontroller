@@ -50,7 +50,7 @@ impl Inspector for Marker {
 
 fn usage() -> ! {
     eprintln!(
-        "usage: suritap-mockd --dir DIR [--workers N] [--marker STR] [--pcap FILE] [--spin-us N] [--max-segment N]"
+        "usage: suritap-mockd --dir DIR [--workers N] [--marker STR] [--pcap FILE] [--spin-us N] [--max-segment N] [--policy-file FILE]"
     );
     std::process::exit(2);
 }
@@ -62,6 +62,7 @@ fn main() {
     let mut pcap: Option<PathBuf> = None;
     let mut spin = 0u64;
     let mut max_segment = 32 * 1024;
+    let mut policy_file: Option<PathBuf> = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut val = || args.next().unwrap_or_else(|| usage());
@@ -72,6 +73,7 @@ fn main() {
             "--pcap" => pcap = Some(val().into()),
             "--spin-us" => spin = val().parse().unwrap_or_else(|_| usage()),
             "--max-segment" => max_segment = val().parse().unwrap_or_else(|_| usage()),
+            "--policy-file" => policy_file = Some(val().into()),
             _ => usage(),
         }
     }
@@ -92,6 +94,7 @@ fn main() {
         cfg.spin = Duration::from_micros(spin);
         cfg.stream_path = Some(dir.join(format!("worker-{i}.stream.sock")));
         cfg.engine.max_segment = max_segment;
+        cfg.policy_file = policy_file.clone();
         let mut w = Worker::new(cfg).expect("listen");
         let mut insp = Marker {
             marker: marker.clone(),

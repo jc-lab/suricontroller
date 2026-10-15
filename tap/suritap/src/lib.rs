@@ -21,6 +21,7 @@
 pub mod client;
 pub mod engine;
 pub mod pcap;
+pub mod policy;
 pub mod proto;
 pub mod region;
 pub mod ring;

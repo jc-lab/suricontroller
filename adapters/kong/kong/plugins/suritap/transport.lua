@@ -32,7 +32,7 @@ local MAGIC = 0x50415453
 local VERSION = 1
 local HELLO_SIZE = 64
 local K_OPEN, K_DATA, K_GAP, K_CLOSE = 1, 2, 3, 5
-local K_VERDICT, K_FLOW_ERROR = 0x81, 0x84
+local K_VERDICT, K_FLOW_ERROR, K_POLICY = 0x81, 0x84, 0x85
 local F_WANT_VERDICT = 1
 local MAX_INFLIGHT = 1024 -- STREAM_MAX_INFLIGHT
 local MAX_META = 2048
@@ -47,6 +47,8 @@ _M.max_queue = 8 * 1024 * 1024 -- bytes queued per session before payload is dro
 
 _M.META = { sni = 1, alpn = 2, route = 4, request_id = 5, endpoint = 6, service = 7, user = 8, proto = 9, proxy = 10 }
 _M.PASS, _M.DROP, _M.ERROR = 0, 1, 2
+-- Endpoint modes of the POLICY record.
+_M.MODE_OFF, _M.MODE_DETECT, _M.MODE_PREVENT = 1, 2, 3
 _M.REASONS = { [0] = "none", "rule", "policy", "flow", "unknown-flow", "protocol", "engine" }
 
 -- Little-endian encoding into a scratch buffer: one string per frame,
@@ -182,6 +184,27 @@ local function open_frame(cid, src_ip, src_port, dst_ip, dst_port, meta)
 end
 
 local EMPTY = {}
+
+-- decode_policy parses a POLICY body buf[i..j]: version:u32 count:u16
+-- rsv:u16, then per endpoint mode:u8 len:u8 name[len].
+local function decode_policy(buf, i, j)
+  local n = get_u16(buf, i + 4)
+  local p = {}
+  local o = i + 8
+  for _ = 1, n do
+    if o + 1 > j then
+      return nil
+    end
+    local mode, len = byte(buf, o, o + 1)
+    o = o + 2
+    if o + len - 1 > j or mode < 1 or mode > 3 then
+      return nil
+    end
+    p[sub(buf, o, o + len - 1)] = mode
+    o = o + len
+  end
+  return p
+end
 
 -- decode_verdict reads the VERDICT body starting at buf[i].
 local function decode_verdict(buf, i, len)
@@ -321,6 +344,11 @@ local function reader(s, sock)
           s.last_verdict = now()
         elseif kind == K_FLOW_ERROR and len >= 20 then
           log(DEBUG, "suritap: flow error ", get_u32(buf, pos + 16))
+        elseif kind == K_POLICY and len >= 16 then
+          local p = decode_policy(buf, pos + 8, pos + len - 1)
+          if p then
+            s.t.policy = p
+          end
         end
         pos = pos + len
       end
@@ -508,6 +536,37 @@ local function start(t, idx)
     return nil, "timer: " .. tostring(err)
   end
   return s
+end
+
+-- endpoint_mode returns the operator's mode for an endpoint (MODE_*) from
+-- the plugin's policy, or nil when it is not listed or none arrived yet.
+-- Without a session it starts opening one, so that policy changes arrive
+-- even when every request is skipped (endpoint off). The last policy is
+-- kept across reconnects.
+function Transport:endpoint_mode(endpoint)
+  local sessions = self.sessions
+  local live = false
+  if sessions then
+    for i = 0, self.workers - 1 do
+      local s = sessions[i]
+      if s and s.ready and not s.dead then
+        live = true
+        break
+      end
+    end
+  end
+  if not live and now() >= self.retry_at then
+    if sessions then
+      local s0 = sessions[0]
+      if not s0 or s0.dead then -- not being opened either
+        sessions[0] = start(self, 0)
+      end
+    elseif not self.probe then
+      self.probe = start(self, 0)
+    end
+  end
+  local p = self.policy
+  return p and p[endpoint]
 end
 
 -- session returns a ready session for cid, opening one when needed and

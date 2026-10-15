@@ -98,7 +98,10 @@ type Tap struct {
 	mu       sync.Mutex
 	client   *suritap.Client
 	retryAt  time.Time
+	dialing  bool
 	dialFunc func() (*suritap.Client, error)
+	// policy is the last endpoint policy seen, kept while reconnecting.
+	policy atomic.Pointer[suritap.Policy]
 
 	Stats Stats
 }
@@ -200,6 +203,60 @@ func (t *Tap) openRaw(src, dst netip.AddrPort, meta []suritap.Meta) (*suritap.Co
 		t.reset(c)
 	}
 	return conn, err
+}
+
+// EndpointMode returns the operator's mode for an endpoint from the
+// plugin's policy (false: not listed, the entry point's settings apply).
+// Without a client it connects in the background, so that policy changes
+// arrive even while every connection is skipped (endpoint off).
+func (t *Tap) EndpointMode(endpoint string) (suritap.EndpointMode, bool) {
+	t.mu.Lock()
+	c := t.client
+	dial := c == nil && !t.dialing && !time.Now().Before(t.retryAt)
+	if dial {
+		t.dialing = true
+	}
+	t.mu.Unlock()
+	if c != nil {
+		if p := c.Policy(); p != nil {
+			t.policy.Store(p)
+		}
+	}
+	if dial {
+		go func() {
+			_, _ = t.conn()
+			t.mu.Lock()
+			t.dialing = false
+			t.mu.Unlock()
+		}()
+	}
+	p := t.policy.Load()
+	if p == nil {
+		return 0, false
+	}
+	m, ok := p.Modes[endpoint]
+	return m, ok
+}
+
+// modes returns the effective request and response modes: the endpoint
+// policy when it lists the entry point, else the settings. Detect never
+// blocks, so it also turns response prevent into detect.
+func (t *Tap) modes() (mode, mode) {
+	req, resp := t.s.mode, t.s.response
+	if m, ok := t.EndpointMode(t.entryPoint); ok {
+		switch m {
+		case suritap.ModeOff:
+			return modeOff, modeOff
+		case suritap.ModeDetect:
+			req = modeDetect
+			if resp == modePrevent {
+				resp = modeDetect
+			}
+		case suritap.ModePrevent:
+			req = modePrevent
+		}
+	}
+	return req, resp
 }
 
 // verdict sends data and reports whether the traffic must be blocked.

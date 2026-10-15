@@ -92,6 +92,7 @@ type session struct {
 
 	bypassed   sync.Map // cid -> struct{}
 	flowErrors sync.Map // cid -> uint32
+	onPolicy   func(*Policy)
 
 	// CLOSE records that did not fit yet; flushed before any other record
 	// and whenever ring space frees up.
@@ -103,7 +104,7 @@ type session struct {
 	spin                     time.Duration
 }
 
-func dialSession(path string, o *Options) (*session, error) {
+func dialSession(path string, o *Options, onPolicy func(*Policy)) (*session, error) {
 	reg, err := newRegion(o.C2SSize, o.S2CSize)
 	if err != nil {
 		return nil, err
@@ -173,6 +174,7 @@ func dialSession(path string, o *Options) (*session, error) {
 		workerCount: int(w.workerCount),
 		maxPayload:  min(int(w.maxPayload), o.C2SSize/4-recHeader-dataFixed),
 		spin:        o.Spin,
+		onPolicy:    onPolicy,
 	}
 	go s.readLoop()
 	go s.watch()
@@ -309,6 +311,10 @@ func (s *session) dispatch(r record) {
 	case kFlowError:
 		if len(r.body) >= smallBody {
 			s.flowErrors.Store(binary.LittleEndian.Uint64(r.body), binary.LittleEndian.Uint32(r.body[12:]))
+		}
+	case kPolicy:
+		if p, ok := decodePolicy(r.body); ok && s.onPolicy != nil {
+			s.onPolicy(p)
 		}
 	}
 }
@@ -484,7 +490,10 @@ type Client struct {
 	slots   []*session
 	nextCID atomic.Uint64
 	closed  atomic.Bool
+	policy  atomic.Pointer[Policy]
 }
+
+func (c *Client) setPolicy(p *Policy) { c.policy.Store(p) }
 
 func mix(x uint64) uint64 {
 	x ^= x >> 33
@@ -498,11 +507,12 @@ func mix(x uint64) uint64 {
 // worker count; other sessions are opened on first use.
 func Dial(dir string, opts Options) (*Client, error) {
 	opts.defaults()
-	first, err := dialSession(SocketPath(dir, 0), &opts)
+	c := &Client{dir: dir, opts: opts}
+	first, err := dialSession(SocketPath(dir, 0), &c.opts, c.setPolicy)
 	if err != nil {
 		return nil, err
 	}
-	c := &Client{dir: dir, opts: opts, slots: make([]*session, first.workerCount)}
+	c.slots = make([]*session, first.workerCount)
 	c.slots[0] = first
 	c.nextCID.Store(mix(uint64(time.Now().UnixNano())) | 1)
 	return c, nil
@@ -524,7 +534,7 @@ func (c *Client) session(idx int) (*session, error) {
 		go s.destroy()
 		c.slots[idx] = nil
 	}
-	s, err := dialSession(SocketPath(c.dir, idx), &c.opts)
+	s, err := dialSession(SocketPath(c.dir, idx), &c.opts, c.setPolicy)
 	if err != nil {
 		return nil, err
 	}

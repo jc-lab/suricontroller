@@ -21,6 +21,9 @@
 //!   idle-ms: 100               # sleep slice (housekeeping interval)
 //!   discriminator: yes         # per-connection VLAN ids in the flow key
 //!   keepalive: auto            # seconds; auto = flow-timeouts.tcp.established / 3
+//!   policy-file: /run/suri-agent/tap/policy
+//!                              # endpoint modes pushed to clients (see
+//!                              # suritap::policy); re-read when it changes
 //! ```
 //!
 //! The discriminator needs `vlan.use-for-tracking` (default on); EVE
@@ -55,6 +58,7 @@ pub struct Config {
     pub idle_ms: i32,
     pub discriminator: bool,
     pub keepalive: Duration,
+    pub policy_file: Option<PathBuf>,
 }
 
 fn get(key: &str) -> Option<String> {
@@ -164,6 +168,9 @@ impl Config {
             idle_ms: get_num("idle-ms", 100i32)?.clamp(1, 1000),
             discriminator,
             keepalive,
+            policy_file: get("policy-file")
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| PathBuf::from(s.trim())),
         })
     }
 }

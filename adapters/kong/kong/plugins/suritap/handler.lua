@@ -73,11 +73,26 @@ end
 function SuritapHandler:access(conf)
   local route = kong.router.get_route()
   local endpoint = conf.endpoint or (route and route.name) or "kong"
-  local prevent = conf.mode == "prevent"
+  local t = transport.get(conf.socket_dir, conf.name)
+
+  -- The operator's endpoint policy (pushed by the plugin) overrides the
+  -- configured modes; detect never blocks, so it also turns response
+  -- prevent into detect.
+  local prevent, response = conf.mode == "prevent", conf.response
+  local pm = t:endpoint_mode(endpoint)
+  if pm == transport.MODE_OFF then
+    return
+  elseif pm == transport.MODE_DETECT then
+    prevent = false
+    if response == "prevent" then
+      response = "detect"
+    end
+  elseif pm == transport.MODE_PREVENT then
+    prevent = true
+  end
 
   local version = ngx.req.http_version() or 1.1
   local var = ngx.var
-  local t = transport.get(conf.socket_dir, conf.name)
   local conn, err = t:open(var.remote_addr, tonumber(var.remote_port),
     var.server_addr, tonumber(var.server_port), request_meta(endpoint, route, version), conf.timeout / 1000)
   if not conn then
@@ -87,7 +102,7 @@ function SuritapHandler:access(conf)
     end
     return
   end
-  local st = { conn = conn, conf = conf, endpoint = endpoint }
+  local st = { conn = conn, conf = conf, endpoint = endpoint, response = response }
   common.set_state(st)
 
   local body, total = read_body(conf.max_request_body)
@@ -110,7 +125,7 @@ function SuritapHandler:access(conf)
     st.conn = nil
     return common.blocked_response(conn.cid, v and v.action == transport.DROP)
   end
-  if conf.response == "off" then
+  if response == "off" then
     conn:close(false)
     st.conn = nil
   end
@@ -119,7 +134,7 @@ end
 -- header_filter and body_filter stream the response (detect).
 function SuritapHandler:header_filter(conf)
   local st = common.state()
-  if not st or not st.conn or conf.response ~= "detect" then
+  if not st or not st.conn or st.response ~= "detect" then
     return
   end
   local status = ngx.status
@@ -140,7 +155,7 @@ end
 
 function SuritapHandler:body_filter(conf)
   local st = common.state()
-  if not st or not st.conn or conf.response ~= "detect" or st.no_body then
+  if not st or not st.conn or st.response ~= "detect" or st.no_body then
     return
   end
   local data, eof = ngx.arg[1], ngx.arg[2]
@@ -164,7 +179,7 @@ function SuritapHandler:log(conf)
   if not st or not st.conn then
     return
   end
-  if conf.response == "prevent" and not st.response_done and not warned_companion and ngx.status < 500 then
+  if st.response == "prevent" and not st.response_done and not warned_companion and ngx.status < 500 then
     warned_companion = true
     kong.log.warn("suritap: response: prevent needs the suritap-response plugin on the same route; responses are not inspected")
   end

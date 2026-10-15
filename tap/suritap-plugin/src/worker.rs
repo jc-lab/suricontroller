@@ -168,6 +168,7 @@ struct Counters {
     errors: u16,
     bypasses: u16,
     keepalives: u16,
+    detect_passes: u16,
 }
 
 impl Counters {
@@ -188,6 +189,7 @@ impl Counters {
             errors: reg("errors"),
             bypasses: reg("bypasses"),
             keepalives: reg("keepalives"),
+            detect_passes: reg("detect_passes"),
         }
     }
 }
@@ -213,6 +215,7 @@ impl Ctx {
             );
             ffi::StatsSetUI64(tv, c.bypasses, s.bypasses);
             ffi::StatsSetUI64(tv, c.keepalives, s.keepalives);
+            ffi::StatsSetUI64(tv, c.detect_passes, s.detect_passes);
         }
     }
 }
@@ -268,6 +271,7 @@ extern "C" fn thread_init(tv: *mut ThreadVars, initdata: *const c_void, data: *m
     };
     wc.batch = cfg.batch;
     wc.spin = cfg.spin;
+    wc.policy_file = cfg.policy_file.clone();
     wc.log = log::server;
     let worker = match Worker::new(wc) {
         Ok(w) => w,

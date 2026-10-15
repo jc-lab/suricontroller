@@ -37,6 +37,9 @@ pub const K_VERDICT: u16 = 0x81;
 pub const K_BYPASS: u16 = 0x82;
 pub const K_PONG: u16 = 0x83;
 pub const K_FLOW_ERROR: u16 = 0x84;
+/// Endpoint modes (`policy::Policy::encoded`), sent after WELCOME and when
+/// the policy changes.
+pub const K_POLICY: u16 = 0x85;
 
 /// DATA flag: answer with a VERDICT covering everything sent so far in
 /// this direction.

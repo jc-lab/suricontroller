@@ -15,7 +15,8 @@ cleanup() {
     rm -rf "${D:?}" "${S:?}"
 }
 trap cleanup EXIT
-"$MOCKD" --dir "$D" --workers 2 >"$D/mockd.log" 2>&1 &
+printf 'web detect\n' >"$D/policy"
+"$MOCKD" --dir "$D" --workers 2 --policy-file "$D/policy" >"$D/mockd.log" 2>&1 &
 PIDS+=($!)
 python3 "$ROOT/test/tap/kong/silent_server.py" "$S" &
 PIDS+=($!)

@@ -39,14 +39,14 @@ func startMockd(t *testing.T, workers string) string {
 	return dir
 }
 
-func startMockdCmd(t *testing.T, workers string) (string, *exec.Cmd) {
+func startMockdCmd(t *testing.T, workers string, extra ...string) (string, *exec.Cmd) {
 	bin := mockd(t)
 	// Keep the socket path short (sun_path is 108 bytes).
 	dir, err := os.MkdirTemp("", "stap")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(bin, "--dir", dir, "--workers", workers, "--max-segment", "4096")
+	cmd := exec.Command(bin, append([]string{"--dir", dir, "--workers", workers, "--max-segment", "4096"}, extra...)...)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -248,5 +248,43 @@ func TestServerGoneFailsFast(t *testing.T) {
 	}
 	if time.Since(start) > time.Second {
 		t.Fatal("did not fail fast")
+	}
+}
+
+// The endpoint policy of the plugin reaches the client and follows file
+// changes; endpoints it does not list are unknown.
+func TestEndpointPolicy(t *testing.T) {
+	pf := filepath.Join(t.TempDir(), "policy")
+	if err := os.WriteFile(pf, []byte("websecure prevent\napi detect\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir, _ := startMockdCmd(t, "2", "--policy-file", pf)
+	c, err := Dial(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	waitMode := func(ep string, want EndpointMode) {
+		t.Helper()
+		for range 300 {
+			if m, ok := c.EndpointMode(ep); ok && m == want {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		m, ok := c.EndpointMode(ep)
+		t.Fatalf("%s: mode %v (%v), want %v", ep, m, ok, want)
+	}
+	waitMode("websecure", ModePrevent)
+	waitMode("api", ModeDetect)
+	if _, ok := c.EndpointMode("other"); ok {
+		t.Fatal("unlisted endpoint has a mode")
+	}
+	if err := os.WriteFile(pf, []byte("websecure off\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	waitMode("websecure", ModeOff)
+	if _, ok := c.EndpointMode("api"); ok {
+		t.Fatal("removed endpoint still has a mode")
 	}
 }

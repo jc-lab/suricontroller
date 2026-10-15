@@ -28,14 +28,20 @@ func WrapConn(ctx context.Context, router string, conn WriteCloser) WriteCloser 
 // writes (upstream to client) follow the response mode. A drop closes the
 // connection.
 func (t *Tap) WrapConn(router string, conn WriteCloser) WriteCloser {
+	m, resp := t.modes()
+	if m == modeOff {
+		return conn
+	}
 	t.Stats.Requests.Add(1)
-	return &tapConn{WriteCloser: conn, t: t, router: router}
+	return &tapConn{WriteCloser: conn, t: t, router: router, mode: m, response: resp}
 }
 
 type tapConn struct {
 	WriteCloser
 	t      *Tap
 	router string
+	// Effective modes, fixed when the connection is accepted.
+	mode, response mode
 
 	once    sync.Once
 	sc      *suritap.Conn
@@ -96,7 +102,7 @@ func (c *tapConn) Read(p []byte) (int, error) {
 		return 0, errBlocked
 	}
 	n, err := c.WriteCloser.Read(p)
-	if n > 0 && c.check(c.t.s.mode, suritap.ToServer, p[:n], "tcp stream") {
+	if n > 0 && c.check(c.mode, suritap.ToServer, p[:n], "tcp stream") {
 		return c.block()
 	}
 	if err == io.EOF && c.sc != nil && !c.eofSent.Swap(true) {
@@ -109,7 +115,7 @@ func (c *tapConn) Write(p []byte) (int, error) {
 	if c.blocked.Load() {
 		return 0, errBlocked
 	}
-	if len(p) > 0 && c.check(c.t.s.response, suritap.ToClient, p, "tcp stream response") {
+	if len(p) > 0 && c.check(c.response, suritap.ToClient, p, "tcp stream response") {
 		return c.block()
 	}
 	return c.WriteCloser.Write(p)
