@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"syscall"
 	"testing"
@@ -57,8 +58,13 @@ func startMockdCmd(t *testing.T, workers string, extra ...string) (string, *exec
 		_ = cmd.Wait()
 		os.RemoveAll(dir)
 	})
-	for range 100 {
-		if _, err := os.Stat(SocketPath(dir, 0)); err == nil {
+	// Every worker listens on its own socket: wait for the last one.
+	n, err := strconv.Atoi(workers)
+	if err != nil || n < 1 {
+		t.Fatalf("workers %q", workers)
+	}
+	for range 250 {
+		if _, err := os.Stat(SocketPath(dir, n-1)); err == nil {
 			return dir, cmd
 		}
 		time.Sleep(20 * time.Millisecond)

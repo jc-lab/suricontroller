@@ -26,6 +26,13 @@ cleanup() {
 	set +e
 	if [ -n "${KEEP:-}" ]; then log "keeping $WORK and container $CONTAINER"; return; fi
 	docker logs "$CONTAINER" > "$WORK/agent.log" 2>&1
+	if [ "${RESULT:-fail}" != ok ]; then
+		# On CI the work directory is gone after the job: show the essentials.
+		log "nftables ruleset in the agent container:"
+		docker exec "$CONTAINER" nft list ruleset 2>&1 | sed 's/^/    /'
+		log "agent log (warnings, errors, firewall):"
+		grep -iE 'level=(WARN|ERROR)|firewall|nft|queue|restored|apply' "$WORK/agent.log" | tail -60 | sed 's/^/    /'
+	fi
 	docker rm -f "$CONTAINER" >/dev/null 2>&1
 	[ -n "$CTL_PID" ] && kill "$CTL_PID" 2>/dev/null && wait "$CTL_PID" 2>/dev/null
 	if [ "${RESULT:-fail}" = ok ]; then
