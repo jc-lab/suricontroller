@@ -69,6 +69,11 @@ type Agent struct {
 	clockOffset time.Duration
 	// statusNow requests an immediate status report.
 	statusNow chan struct{}
+
+	// Cached result of the NFQUEUE support probe (see queueSupport).
+	queueMu  sync.Mutex
+	queueErr error
+	queueAt  time.Time
 }
 
 // LoadKey loads the agent key, creating it on first start.
@@ -150,7 +155,7 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 	}
 	a.rec = reconcile.New(reconcile.Deps{
 		Config: cfg, State: a.st, Engine: a.eng, EngineInfo: a.engInfo, Firewall: a.fw, HostKey: a.hostKey.Key, Logger: log,
-		Report: a.report,
+		Report: a.report, QueueSupport: a.queueSupport,
 		OnInstances: func(insts []reconcile.Instance) {
 			out := make([]collector.Instance, len(insts))
 			for i, in := range insts {
@@ -382,11 +387,43 @@ func (a *Agent) statusLoop(ctx context.Context, sess *conn.Session, interval tim
 
 func (a *Agent) interfaces() []*agentv1.InterfaceInfo {
 	var out []*agentv1.InterfaceInfo
+	// Without kernel NFQUEUE support IPS cannot work: report it as not
+	// allowed so that the controller offers IDS only (warning
+	// nfqueue_unsupported says what to install).
+	queueOK := a.queueSupport(context.Background()) == nil
 	for _, ifc := range a.cfg.Interfaces {
 		st := platform.Interface(ifc.Name)
-		out = append(out, &agentv1.InterfaceInfo{Name: ifc.Name, IpsAllowed: a.cfg.IPSAllowed(ifc.Name), Present: st.Present, Up: st.Up, Addresses: st.Addresses})
+		out = append(out, &agentv1.InterfaceInfo{Name: ifc.Name, IpsAllowed: a.cfg.IPSAllowed(ifc.Name) && queueOK, Present: st.Present, Up: st.Up, Addresses: st.Addresses})
 	}
 	return out
+}
+
+// queueSupport reports (cached for 5 minutes) a kernel that cannot steer
+// traffic to NFQUEUE, e.g. OpenWrt without kmod-nft-queue. It is nil when IPS
+// is disabled, the backend cannot probe, or the probe failed for another
+// reason (then applying reports the actual error).
+func (a *Agent) queueSupport(ctx context.Context) error {
+	pr, ok := a.fw.(firewall.Prober)
+	if !a.cfg.IPS.Enabled || !ok {
+		return nil
+	}
+	a.queueMu.Lock()
+	defer a.queueMu.Unlock()
+	if !a.queueAt.IsZero() && time.Since(a.queueAt) < 5*time.Minute {
+		return a.queueErr
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	err := pr.ProbeQueue(ctx)
+	if err != nil && !errors.Is(err, firewall.ErrQueueUnsupported) {
+		a.log.Warn("NFQUEUE support probe failed", "err", err)
+		err = nil
+	}
+	if err != nil && a.queueErr == nil {
+		a.log.Warn("IPS unavailable", "err", err)
+	}
+	a.queueErr, a.queueAt = err, time.Now()
+	return err
 }
 
 // MinSuricataVersion is the oldest supported Suricata release.
@@ -421,6 +458,9 @@ func (a *Agent) warnings() []*agentv1.Warning {
 	}
 	if a.cfg.IPS.Enabled && a.fw.Name() == "none" {
 		ws = append(ws, &agentv1.Warning{Code: "no_firewall", Message: "IPS is allowed but no firewall backend is available to steer traffic to NFQUEUE"})
+	}
+	if err := a.queueSupport(context.Background()); err != nil {
+		ws = append(ws, &agentv1.Warning{Code: "nfqueue_unsupported", Message: "IPS is unavailable: " + err.Error()})
 	}
 	for _, ifc := range a.interfaces() {
 		if !ifc.Present {

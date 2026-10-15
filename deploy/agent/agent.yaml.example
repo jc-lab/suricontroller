@@ -21,7 +21,7 @@ interfaces:
   - name: wan
     ips: false                           # per-interface override of ips.enabled
 
-ips:
+ips:                                     # needs kernel NFQUEUE support (OpenWrt: kmod-nft-queue kmod-nfnetlink-queue)
   enabled: true                          # false: the controller can only set IDS mode
   queues: "0"                            # NFQUEUE number or range, e.g. "0-3"
   fail_open: true                        # let traffic pass when Suricata is down

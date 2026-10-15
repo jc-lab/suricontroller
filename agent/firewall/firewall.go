@@ -5,6 +5,7 @@ package firewall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -46,6 +47,37 @@ type Backend interface {
 	Check(ctx context.Context, p Plan) (bool, error)
 	// Remove deletes everything the agent installed.
 	Remove(ctx context.Context) error
+}
+
+// Prober is implemented by backends that can check whether the kernel
+// supports steering traffic to NFQUEUE, before anything is applied.
+type Prober interface {
+	// ProbeQueue returns an error wrapping ErrQueueUnsupported (with what to
+	// install) when the kernel lacks NFQUEUE steering support.
+	ProbeQueue(ctx context.Context) error
+}
+
+// ErrQueueUnsupported reports a kernel without NFQUEUE steering support.
+var ErrQueueUnsupported = errors.New("the kernel lacks NFQUEUE support")
+
+const (
+	nftQueueHint = "load the nft_queue and nfnetlink_queue kernel modules (OpenWrt: opkg install kmod-nft-queue kmod-nfnetlink-queue)"
+	iptQueueHint = "load the xt_NFQUEUE and nfnetlink_queue kernel modules (OpenWrt: opkg install kmod-ipt-nfqueue iptables-mod-nfqueue kmod-nfnetlink-queue)"
+)
+
+// missingSupport reports kernel or extension errors that mean "this
+// expression/target is not available" (module not loaded or not built).
+func missingSupport(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, s := range []string{"No such file or directory", "Operation not supported", "No chain/target/match by that name", "Couldn't load target"} {
+		if strings.Contains(msg, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // New returns the backend by name ("auto" picks nftables, then iptables).
@@ -137,6 +169,30 @@ func (n *Nftables) Script(p Plan) string {
 // Apply implements Backend.
 func (n *Nftables) Apply(ctx context.Context, p Plan) error {
 	_, err := n.Exec.Run(ctx, "nft", []string{"-f", "-"}, []byte(n.Script(p)))
+	if err != nil && !p.Empty() && missingSupport(err) {
+		// nft blames the table line ("did you mean table 'fw4'?") when the
+		// kernel rejects the queue statements.
+		return fmt.Errorf("%w (%s): %v", ErrQueueUnsupported, nftQueueHint, err)
+	}
+	return err
+}
+
+// probeScript has one queue rule in a throwaway table; it is only checked
+// (nft -c sends it to the kernel and aborts the transaction).
+const probeScript = `table inet suricontroller_probe {
+	chain probe {
+		type filter hook forward priority filter + 10; policy accept;
+		meta mark 0x5c7a9e01 queue num 0 bypass
+	}
+}
+`
+
+// ProbeQueue implements Prober.
+func (n *Nftables) ProbeQueue(ctx context.Context) error {
+	_, err := n.Exec.Run(ctx, "nft", []string{"-c", "-f", "-"}, []byte(probeScript))
+	if missingSupport(err) {
+		return fmt.Errorf("%w (%s): %v", ErrQueueUnsupported, nftQueueHint, err)
+	}
 	return err
 }
 
@@ -213,6 +269,9 @@ func (t *Iptables) Apply(ctx context.Context, p Plan) error {
 		for _, ifc := range p.Interfaces {
 			for _, dir := range []string{"-i", "-o"} {
 				if err := run(append([]string{"-A", ChainName, dir, ifc}, t.target(p)...)...); err != nil {
+					if missingSupport(err) {
+						return fmt.Errorf("%w (%s): %v", ErrQueueUnsupported, iptQueueHint, err)
+					}
 					return err
 				}
 			}
@@ -226,6 +285,27 @@ func (t *Iptables) Apply(ctx context.Context, p Plan) error {
 		}
 	}
 	return nil
+}
+
+const probeChain = "SURICONTROLLER_PROBE"
+
+// ProbeQueue implements Prober: an NFQUEUE rule in a throwaway chain that
+// nothing jumps to.
+func (t *Iptables) ProbeQueue(ctx context.Context) error {
+	run := func(args ...string) error {
+		_, err := t.Exec.Run(ctx, "iptables", append([]string{"-w"}, args...), nil)
+		return err
+	}
+	_ = run("-N", probeChain)
+	defer func() {
+		_ = run("-F", probeChain)
+		_ = run("-X", probeChain)
+	}()
+	err := run("-A", probeChain, "-j", "NFQUEUE", "--queue-num", "0", "--queue-bypass")
+	if missingSupport(err) {
+		return fmt.Errorf("%w (%s): %v", ErrQueueUnsupported, iptQueueHint, err)
+	}
+	return err
 }
 
 // Check implements Backend.
