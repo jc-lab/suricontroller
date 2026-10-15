@@ -28,6 +28,31 @@ bin/snort2suricata -o community.rules community.rules
 - **approx**: 의미가 달라지는 부분이 있습니다. 출력에 `# snort2suricata: approx: <이유>` 주석이 붙습니다.
 - **failed**: Suricata에 대응 기능이 없습니다. 출력에서 빠지고 `-rejected`에 이유와 함께 기록됩니다.
 
+## 컨트롤러에서 동기화
+
+컨트롤러에는 `snort` rule provider가 있습니다. 첫 실행 때 비활성 상태로 만들어지며, 웹 UI의 Rules > Providers에서 oinkcode를 입력하고 켜면 됩니다.
+
+| 옵션 | 값 | 설명 |
+|---|---|---|
+| `oinkcode` | 40자리 16진수 | snort.org 계정의 oinkcode. API와 UI에는 `********`로 표시됩니다. |
+| `ruleset` | `auto`(기본), `registered`, `lightspd`, `community` | `auto`는 oinkcode가 있으면 `registered`, 없으면 `community`를 씁니다. `registered`는 `snortrules-snapshot-<버전>`이고, snort.org가 oinkcode 계정의 구독에 맞는 룰을 줍니다. Subscriber는 최신 룰, Registered는 30일 지난 룰입니다. `lightspd`는 Talos LightSPD 패키지(약 150MB)입니다. |
+| `policy` | `connectivity`, `balanced`(기본), `security`, `max-detect`, `all` | Talos IPS 정책입니다. 정책에 없는 룰은 주석 처리해서 쓰므로 `enable.conf`로 켤 수 있습니다. 커뮤니티 룰셋에는 적용하지 않습니다. |
+| `approx` | `include`(기본), `exclude` | 근사 변환 룰을 포함할지 고릅니다. 포함할 때는 `# snort2suricata: approx:` 주석이 붙습니다. |
+| `snort_version` | 기본 `3.9.0.0` | 스냅샷 파일 이름을 고릅니다. Snort 3 스냅샷은 버전과 관계없이 text 룰이 같습니다. `2.x`를 주면 Snort 2 룰을 받습니다. |
+
+provider 디렉터리(`snort/`)에는 원본 파일마다 변환한 `.rules`와 `snort2suricata-report.txt`가 들어갑니다. 리포트에는 쓰지 않은 룰과 그 이유가 있습니다. Suricata에 대응 기능이 없는 룰, 기본 `suricata.yaml`에서 꺼진 modbus/dnp3가 필요한 룰, `approx: exclude`로 뺀 룰입니다. 노드는 룰 하나만 로드에 실패해도 `suricata -T` 검증 전체가 실패하므로, 기본 설정에서 로드되지 않는 룰은 쓰지 않습니다. modbus/dnp3 룰은 해당 프로토콜을 켠 뒤 리포트에 있는 변환 결과를 local 룰로 추가하면 됩니다.
+
+2026-10-15 실제 snort.org에서 받은 결과입니다(Suricata 8.0.7, 기본 `suricata.yaml`).
+
+| ruleset / policy | 활성 | 비활성(주석) | 미기록 | 로드 |
+|---|---|---|---|---|
+| registered / balanced | 9,874 (flowbits용 noalert 44 포함) | 37,515 | 466 | 오류·경고 0 |
+| registered / max-detect | 38,969 | 8,420 | 466 | 오류 0, Suricata SYN-only 경고 1 |
+| lightspd / balanced | 9,874 | 37,515 | 445 | 오류·경고 0 |
+| community | 4,013 | 0 | 4 | 오류·경고 0 |
+
+ET Open과 registered/balanced를 함께 처리한 결과(활성 62,653개)도 오류·경고 없이 로드됩니다.
+
 ## 변환 규칙
 
 | Snort | Suricata | 근거 |

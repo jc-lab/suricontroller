@@ -476,7 +476,7 @@ type ruleService struct{ s *Server }
 func (r *ruleService) providerProto(p *store.Provider) *apiv1.Provider {
 	return &apiv1.Provider{
 		Name: p.Name, Type: p.Type, Enabled: p.Enabled, IntervalSeconds: uint32(p.Interval / time.Second),
-		Options: p.Options, LastFetchAt: ts(p.LastFetchAt), LastSuccessAt: ts(p.LastSuccessAt),
+		Options: rules.RedactOptions(p.Options), LastFetchAt: ts(p.LastFetchAt), LastSuccessAt: ts(p.LastSuccessAt),
 		LastError: p.LastError, LastCommit: p.LastCommit, Fetches: r.s.Rules.Fetches(p.Type),
 	}
 }

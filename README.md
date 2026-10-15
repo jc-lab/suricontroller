@@ -14,6 +14,7 @@ Suricata를 여러 노드(OpenWRT 라우터, 서버, 엔드포인트)에 배포�
 - **인터페이스별 모드**: Off / IDS(af-packet) / IPS(NFQUEUE)를 정합니다. 관리 대상 인터페이스와 IPS 허용 여부는 에이전트 쪽에서 결정합니다.
 - **룰/설정의 git 관리**: go-git을 씁니다.
   - ET Open을 주기적으로 받아오고, local 룰은 UI에서 편집합니다.
+  - Snort 룰셋(oinkcode가 있으면 계정 구독에 맞는 Registered/Subscriber 룰, 없으면 커뮤니티 룰)을 받아 Suricata 룰로 변환해 동기화합니다([docs/snort2suricata.md](docs/snort2suricata.md)).
   - disable/enable/drop/modify는 suricata-update와 같은 결과를 내도록 Go로 포팅했습니다(golden test로 검증).
   - 배포 정책은 auto(최신 커밋 추적), pinned(특정 commit 고정·롤백), paused(배포 중지) 중에서 고릅니다.
 - **노드별 버전 관리와 검증**: 노드는 받은 설정을 `suricata -T`로 검증한 뒤 적용합니다. 실패하면 롤백하고 원인을 보고합니다. 룰만 바뀐 경우에는 재시작 없이 reload합니다.

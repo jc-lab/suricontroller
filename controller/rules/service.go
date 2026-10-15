@@ -60,6 +60,8 @@ func New(cfg Config) *Service {
 				DefaultOptions: map[string]string{"suricata_version": DefaultSuricataVersion}},
 			{Name: TypeLocal},
 			{Name: TypeURL, Fetcher: &URL{Client: cfg.HTTPClient}, DefaultInterval: 24 * time.Hour},
+			{Name: TypeSnort, Fetcher: &Snort{Client: cfg.HTTPClient}, DefaultInterval: 24 * time.Hour,
+				DefaultOptions: snortDefaults(), Validate: ValidateSnortOptions},
 		}
 	}
 	s := &Service{cfg: cfg, log: cfg.Logger.With("component", "rules"), types: map[string]TypeInfo{}, now: time.Now}
@@ -69,11 +71,17 @@ func New(cfg Config) *Service {
 	return s
 }
 
-// Init creates the default providers (et-open enabled, local) when missing.
+func snortDefaults() map[string]string {
+	return map[string]string{"ruleset": SnortAuto, "policy": "balanced", "snort_version": DefaultSnortVersion}
+}
+
+// Init creates the default providers (et-open enabled, local, snort
+// disabled until an administrator enables it) when missing.
 func (s *Service) Init(ctx context.Context) error {
 	defaults := []*store.Provider{
 		{Name: "et-open", Type: TypeETOpen, Enabled: !s.cfg.DisableETOpen, Interval: 24 * time.Hour, Options: map[string]string{"suricata_version": DefaultSuricataVersion}},
 		{Name: "local", Type: TypeLocal, Enabled: true},
+		{Name: "snort", Type: TypeSnort, Enabled: false, Interval: 24 * time.Hour, Options: snortDefaults()},
 	}
 	for _, d := range defaults {
 		if _, ok := s.types[d.Type]; !ok {
@@ -101,7 +109,8 @@ func (s *Service) List(ctx context.Context) ([]*store.Provider, error) {
 }
 
 // Update changes provider settings. Nil arguments are left unchanged;
-// options are merged (empty values delete a key).
+// options are merged (empty values delete a key). A secret option sent
+// back as MaskedSecret keeps its stored value.
 func (s *Service) Update(ctx context.Context, name string, enabled *bool, interval *time.Duration, options map[string]string) (*store.Provider, error) {
 	p, err := s.cfg.Store.GetProvider(ctx, name)
 	if errors.Is(err, store.ErrNotFound) {
@@ -119,18 +128,28 @@ func (s *Service) Update(ctx context.Context, name string, enabled *bool, interv
 		}
 		p.Interval = *interval
 	}
+	changed := false
 	for k, v := range options {
+		if SecretOptions[k] && v == MaskedSecret {
+			continue
+		}
 		if p.Options == nil {
 			p.Options = map[string]string{}
 		}
+		changed = true
 		if v == "" {
 			delete(p.Options, k)
 		} else {
-			p.Options[k] = v
+			p.Options[k] = strings.TrimSpace(v)
+		}
+	}
+	if t, ok := s.types[p.Type]; ok && t.Validate != nil {
+		if err := t.Validate(p.Options); err != nil {
+			return nil, err
 		}
 	}
 	// A changed source must be downloaded again.
-	if len(options) > 0 {
+	if changed {
 		p.Checksum = ""
 	}
 	return p, s.cfg.Store.PutProvider(ctx, p)
