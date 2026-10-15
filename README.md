@@ -101,13 +101,15 @@ make integration   # Docker + 실제 Suricata E2E (IDS 경보, IPS 차단, 검�
 | 경로 | 내용 |
 |---|---|
 | `proto/` | 에이전트 프로토콜(`agent/v1`), 관리 API(`api/v1`) |
-| `pkg/` | 공용 패키지: sshkey, noiseconn, wire, bundle, ruleset, yamlmerge, overlay, ringqueue |
+| `pkg/` | 공용 패키지: sshkey, noiseconn, wire, bundle, ruleset, snortconv, yamlmerge, overlay, ringqueue |
 | `controller/` | embed 가능한 컨트롤러 |
 | `agent/` | 노드 에이전트 |
 | `web/` | 웹 UI (`web/ui` 소스, `web/dist` 빌드 결과) |
 | `cmd/` | 실행 파일 |
 | `deploy/` | Dockerfile, docker-compose |
 | `test/` | 통합 테스트 |
+
+Snort 2/3 룰을 Suricata 룰로 바꾸는 `snort2suricata`(`cmd/snort2suricata`)는 [docs/snort2suricata.md](docs/snort2suricata.md)를 참고하세요.
 
 ## 라이선스
 
