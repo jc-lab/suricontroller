@@ -4,7 +4,7 @@ local transport = require "kong.plugins.suritap.transport"
 
 local ngx = ngx
 local kong = kong
-local fmt, concat, sort = string.format, table.concat, table.sort
+local fmt, concat, sub = string.format, table.concat, string.sub
 
 local _M = {
   TO_SERVER = 0,
@@ -59,64 +59,83 @@ end
 
 -- Framing headers are written by the callers. Expect is dropped: nginx
 -- already answered "100 Continue", and Suricata would otherwise hold the
--- request body back waiting for that interim response.
+-- request body back waiting for that interim response. Keys are the
+-- lower-case names of ngx.req/resp.get_headers.
 local SKIP = { ["content-length"] = true, ["transfer-encoding"] = true, trailer = true, expect = true }
 
-local function header_lines(b, headers, skip)
-  local names = {}
-  for k in pairs(headers) do
-    local l = k:lower()
-    if not SKIP[l] and l ~= skip then
-      names[#names + 1] = k
+-- One reusable buffer for serializing heads (no per-line strings).
+local sb = require("string.buffer").new(4096)
+
+local function header_lines(headers, skip, lower)
+  for k, v in pairs(headers) do
+    if lower then
+      k = k:lower()
     end
-  end
-  sort(names)
-  for _, k in ipairs(names) do
-    local v = headers[k]
-    if type(v) == "table" then
-      for _, x in ipairs(v) do
-        b[#b + 1] = k .. ": " .. x .. "\r\n"
+    if not SKIP[k] and k ~= skip then
+      if type(v) == "table" then
+        for i = 1, #v do
+          sb:put(k, ": ", v[i], "\r\n")
+        end
+      else
+        sb:put(k, ": ", v, "\r\n")
       end
-    else
-      b[#b + 1] = k .. ": " .. tostring(v) .. "\r\n"
     end
   end
 end
 
--- request_head serializes the request line and headers as HTTP/1.1.
-function _M.request_head(length)
-  local b = { ngx.req.get_method(), " ", ngx.var.request_uri, " HTTP/1.1\r\n" }
-  local host = ngx.var.http_host or ngx.var.host
-  if host and host ~= "" then
-    b[#b + 1] = "Host: " .. host .. "\r\n"
+-- Header lines the request head gets from us (framing) or must not carry
+-- (Expect, see SKIP), removed from raw HTTP/1.x headers.
+local RAW_SKIP = [[^(?:content-length|transfer-encoding|trailer|expect)[ \t]*:[^\n]*\n]]
+
+-- request_head serializes the request line and headers as HTTP/1.1. For
+-- HTTP/1.x it reuses the client's raw header block (exact bytes, cheaper
+-- than building a table); HTTP/2 and 3 headers are serialized from the
+-- parsed table.
+function _M.request_head(length, version)
+  sb:reset()
+  sb:put(ngx.req.get_method(), " ", ngx.var.request_uri, " HTTP/1.1\r\n")
+  if version < 2 then
+    local raw = ngx.re.gsub(ngx.req.raw_header(true), RAW_SKIP, "", "jom")
+    -- Without the blank line ending the block: framing follows.
+    if sub(raw, -4) == "\r\n\r\n" then
+      sb:put(sub(raw, 1, -3))
+    elseif sub(raw, -2) == "\n\n" then
+      sb:put(sub(raw, 1, -2))
+    else
+      sb:put(raw)
+    end
+  else
+    local host = ngx.var.host
+    if host and host ~= "" then
+      sb:put("host: ", host, "\r\n")
+    end
+    header_lines(ngx.req.get_headers(0), "host")
   end
-  header_lines(b, ngx.req.get_headers(0, true), "host")
   if length > 0 then
-    b[#b + 1] = "Content-Length: " .. length .. "\r\n"
+    sb:put("content-length: ", length, "\r\n")
   end
-  b[#b + 1] = "\r\n"
-  return concat(b)
+  sb:put("\r\n")
+  return sb:tostring()
 end
 
 -- response_head serializes the status line and headers; length < 0 means
--- chunked, nil means no body.
-function _M.response_head(status, headers, length)
-  local b = { fmt("HTTP/1.1 %d %s\r\n", status, STATUS_TEXT[status] or "Status") }
-  header_lines(b, headers, nil)
+-- chunked, nil means no body. lower: header names may not be lower case.
+function _M.response_head(status, headers, length, lower)
+  sb:reset()
+  sb:put("HTTP/1.1 ", status, " ", STATUS_TEXT[status] or "Status", "\r\n")
+  header_lines(headers, nil, lower)
   if length and length >= 0 then
-    b[#b + 1] = "Content-Length: " .. length .. "\r\n"
+    sb:put("content-length: ", length, "\r\n")
   elseif length then
-    b[#b + 1] = "Transfer-Encoding: chunked\r\n"
+    sb:put("transfer-encoding: chunked\r\n")
   end
-  b[#b + 1] = "\r\n"
-  return concat(b)
+  sb:put("\r\n")
+  return sb:tostring()
 end
 
-function _M.chunk(data)
-  if data == "" then
-    return ""
-  end
-  return fmt("%x\r\n", #data) .. data .. "\r\n"
+-- chunk_prefix is the chunk-size line for n bytes of chunked body.
+function _M.chunk_prefix(n)
+  return fmt("%x\r\n", n)
 end
 
 -- verdict sends data on st.conn and reports whether the traffic must be
@@ -142,9 +161,14 @@ function _M.verdict(st, prevent, dir, data)
   return false, v
 end
 
--- state returns the per-request state shared by both plugins.
+-- state returns the per-request state shared by both plugins (in ngx.ctx:
+-- cheaper than kong.ctx.shared, which goes through metamethods).
 function _M.state()
-  return kong.ctx.shared.suritap
+  return ngx.ctx.suritap_state
+end
+
+function _M.set_state(st)
+  ngx.ctx.suritap_state = st
 end
 
 return _M

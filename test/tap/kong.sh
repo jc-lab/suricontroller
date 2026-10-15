@@ -7,7 +7,7 @@
 # KONG_IMAGE Kong image (default kong:3.9.1); runs with host networking as
 #            the current user so that it can reach the worker sockets
 # WORK       scratch directory (default /tmp/suritap-kong)
-# PORT_BASE  local ports PORT_BASE+43 (Kong), +80/+81 (backend); default 38500
+# PORT_BASE  local ports PORT_BASE+43 (Kong), +80/+81 (backend); default 29500 (below the ephemeral port range)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -22,7 +22,7 @@ for a in "$@"; do
     esac
 done
 IMAGE="${KONG_IMAGE:-kong:3.9.1}"
-PORT_BASE="${PORT_BASE:-38500}"
+PORT_BASE="${PORT_BASE:-29500}"
 P_HTTP=$((PORT_BASE + 80)) P_TCP=$((PORT_BASE + 81)) P_KONG=$((PORT_BASE + 43))
 CONTAINER="suritap-kong-test-$$"
 

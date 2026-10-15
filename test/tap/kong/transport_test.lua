@@ -19,7 +19,7 @@ local function check(name, cond, ...)
 end
 
 local t = transport.get(dir, "resty-test")
-local meta = { { transport.META.proxy, "test" }, { transport.META.sni, "app.example" } }
+local meta = { transport.META.proxy, "test", transport.META.sni, "app.example" }
 
 local function inspect(data, timeout, src)
   local c, err = t:open(src or "203.0.113.7", 40000, "10.0.0.1", 443, meta, timeout or 2)

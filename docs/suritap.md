@@ -542,6 +542,24 @@ SURICATA_PREFIX=... SURICATA_SRC=... test/tap/kong.sh        # E2E → ALL PASSE
 
 - 응답 prevent는 Kong의 buffered proxying(내부 subrequest)을 쓰므로 비용이 더 든다. 응답을 스트리밍하지 못한다.
 
+처리량은 호스트 부하에 따라 크게 흔들렸다. 그래서 플러그인 비용은 nginx 워커 CPU 시간(`/proc/<pid>/stat`)을 요청 수로 나눠 쟀다. 조건은 suritap-mockd 상대, Kong과 mockd, 부하 생성기를 서로 다른 코어에 고정, 4만 요청 × 5회 번갈아 측정한 중앙값이다.
+
+| 요청당 워커 CPU | suritap 없음 | prevent(응답 detect), 최적화 전 | 최적화 후 |
+|---|---|---|---|
+| HTTP/2 | 약 81µs | 131µs (+49µs) | 115µs (+34µs) |
+| HTTP/1.1 | 약 94µs | 160µs (+66µs) | 149µs (+55µs) |
+
+- **소켓 전송 자체는 작다.** Lua 클라이언트만 따로 돌리면 nginx 워커 하나당 약 11.5만 req/s가 나오고, 요청당 약 8.5µs다. 판정을 기다리지 않는 detect도 prevent와 비용이 비슷했다. 그래서 FFI로 memfd 공유메모리를 쓰는 안은 택하지 않았다.
+  - 얻을 수 있는 몫이 작다.
+  - LuaJIT은 링에 필요한 원자 연산(완전 펜스)을 낼 수 없다.
+  - nginx 이벤트 루프는 Lua에서 eventfd를 기다릴 수 없다.
+- **perf로 보니 비용은 대부분 메모리 할당과 GC다**(`lj_str_new`, `lj_alloc_free`, `gc_sweep`, `propagatemark`). Kong의 Lua 힙이 커서 할당한 바이트마다 GC 비용이 크다. 그래서 할당을 줄였다.
+  - 프레임을 FFI 스크래치 버퍼에 써서 프레임당 문자열 하나만 만든다.
+  - 판정은 받은 버퍼에서 바로 해석한다.
+  - HTTP/1.x는 원본 헤더 블록(`ngx.req.raw_header`)을 그대로 쓰고, 헤더 직렬화는 `string.buffer`를 재사용한다.
+  - semaphore를 재사용하고, 메타데이터는 플랫 배열로 만든다.
+  - 응답 chunk 틀은 조각으로 넘겨 본문을 복사하지 않는다.
+
 ### 9.5 제약
 
 - 응답 prevent는 응답 전체를 버퍼링한다. SSE나 long polling 라우트에는 `response: detect`를 쓴다.

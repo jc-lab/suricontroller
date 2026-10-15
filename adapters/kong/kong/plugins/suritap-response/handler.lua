@@ -28,7 +28,7 @@ function SuritapResponseHandler:response()
   local body = kong.service.response.get_raw_body() or ""
   local data, rest
   if ngx.req.get_method() == "HEAD" or status == 204 or status == 304 then
-    data, rest = common.response_head(status, headers, nil), 0
+    data, rest = common.response_head(status, headers, nil, true), 0
   else
     local length = #body
     rest = 0
@@ -36,13 +36,13 @@ function SuritapResponseHandler:response()
       rest = length - conf.max_response_body
       body = sub(body, 1, conf.max_response_body)
     end
-    data = common.response_head(status, headers, length) .. body
+    data = common.response_head(status, headers, length, true) .. body
   end
   local blocked, v
   if rest > 0 then
     -- Inspect the first max_response_body bytes; the rest is a gap.
     st.conn:send(TO_CLIENT, data)
-    st.conn.gaps[TO_CLIENT] = st.conn.gaps[TO_CLIENT] + rest
+    st.conn:add_gap(TO_CLIENT, rest)
     blocked, v = common.verdict(st, true, TO_CLIENT, "")
   else
     blocked, v = common.verdict(st, true, TO_CLIENT, data)

@@ -49,19 +49,29 @@ _M.META = { sni = 1, alpn = 2, route = 4, request_id = 5, endpoint = 6, service 
 _M.PASS, _M.DROP, _M.ERROR = 0, 1, 2
 _M.REASONS = { [0] = "none", "rule", "policy", "flow", "unknown-flow", "protocol", "engine" }
 
--- Little-endian encoding. Connection ids stay below 2^53 (Lua numbers).
+-- Little-endian encoding into a scratch buffer: one string per frame,
+-- no intermediate pieces (small strings are interned and collected, which
+-- dominated the plugin's cost). Connection ids stay below 2^53.
 
-local function u16(n)
-  return char(band(n, 0xff), band(rshift(n, 8), 0xff))
+local SCRATCH = 8 + 56 + MAX_META + 64
+local sc = ffi.new("uint8_t[?]", SCRATCH)
+
+local function w16(o, v)
+  sc[o] = band(v, 0xff)
+  sc[o + 1] = band(rshift(v, 8), 0xff)
 end
 
-local function u32(n)
-  return char(band(n, 0xff), band(rshift(n, 8), 0xff), band(rshift(n, 16), 0xff), band(rshift(n, 24), 0xff))
+local function w32(o, v)
+  sc[o] = band(v, 0xff)
+  sc[o + 1] = band(rshift(v, 8), 0xff)
+  sc[o + 2] = band(rshift(v, 16), 0xff)
+  sc[o + 3] = band(rshift(v, 24), 0xff)
 end
 
-local function u64(n)
+local function w64(o, n)
   local hi = floor(n / 4294967296)
-  return u32(n - hi * 4294967296) .. u32(hi)
+  w32(o, n - hi * 4294967296)
+  w32(o + 4, hi)
 end
 
 local function get_u16(s, i)
@@ -74,14 +84,33 @@ local function get_u32(s, i)
   return a + b * 256 + c * 65536 + d * 16777216
 end
 
-local function frame_head(kind, flags, body_len)
-  return u32(8 + body_len) .. u16(kind) .. u16(flags)
+-- data_head returns the frame header and DATA prefix (24 bytes) for a
+-- payload of n bytes.
+local function data_head(cid, dir, token, flags, n)
+  w32(0, 24 + n)
+  w16(4, K_DATA)
+  w16(6, flags)
+  w64(8, cid)
+  w32(16, dir) -- dir and three reserved bytes
+  w32(20, token)
+  return ffi.string(sc, 24)
+end
+
+-- small_frame returns a GAP/EOF/CLOSE frame (header + 16-byte body).
+local function small_frame(kind, cid, x, word)
+  w32(0, 24)
+  w16(4, kind)
+  w16(6, 0)
+  w64(8, cid)
+  w32(16, x)
+  w32(20, word)
+  return ffi.string(sc, 24)
 end
 
 local addr_buf = ffi.new("uint8_t[16]")
 
 -- parse_ip returns the 4 or 16 address bytes, or nil.
-local function parse_ip(ip)
+local function parse_ip_uncached(ip)
   if not ip then
     return nil
   end
@@ -97,49 +126,81 @@ local function parse_ip(ip)
   end
   return nil
 end
+-- Addresses repeat (listeners, clients): cache the encodings.
+local ip_cache, ip_cache_n = {}, 0
+
+local function parse_ip(ip)
+  if not ip then
+    return nil
+  end
+  local b = ip_cache[ip]
+  if b == nil then
+    b = parse_ip_uncached(ip) or false
+    if ip_cache_n >= 4096 then
+      ip_cache, ip_cache_n = {}, 0
+    end
+    ip_cache[ip] = b
+    ip_cache_n = ip_cache_n + 1
+  end
+  return b or nil
+end
 _M.parse_ip = parse_ip
 
-local function pad(s, n)
-  return s .. string.rep("\0", n - #s)
-end
-
-local function encode_open(cid, src_ip, src_port, dst_ip, dst_port, meta)
-  local family = #src_ip == 4 and 4 or 6
-  local b = {
-    u64(cid), char(family, 0), u16(0), u32(0),
-    u16(src_port), u16(dst_port), u32(0),
-    pad(src_ip, 16), pad(dst_ip, 16),
-  }
-  local total = 0
-  for i = 1, #meta do
-    local tag, v = meta[i][1], meta[i][2]
-    if v and v ~= "" then
+-- open_frame encodes an OPEN frame; meta is a flat list tag, value, ...
+local function open_frame(cid, src_ip, src_port, dst_ip, dst_port, meta)
+  ffi.fill(sc, 64)
+  w16(4, K_OPEN)
+  w64(8, cid)
+  sc[16] = #src_ip == 4 and 4 or 6
+  w16(24, src_port)
+  w16(26, dst_port)
+  ffi.copy(sc + 32, src_ip, #src_ip)
+  ffi.copy(sc + 48, dst_ip, #dst_ip)
+  local o = 64
+  for i = 1, #meta - 1, 2 do
+    local v = meta[i + 1]
+    if v ~= nil and type(v) ~= "string" then
       v = tostring(v)
-      if #v > 1024 then
-        v = sub(v, 1, 1024)
+    end
+    if v and v ~= "" then
+      local n = #v
+      if n > 1024 then
+        n = 1024
       end
-      if total + 4 + #v > MAX_META then
+      if o - 64 + 4 + n > MAX_META then
         break
       end
-      total = total + 4 + #v
-      b[#b + 1] = char(tag, 0) .. u16(#v) .. v
+      sc[o] = meta[i]
+      sc[o + 1] = 0
+      w16(o + 2, n)
+      ffi.copy(sc + o + 4, v, n)
+      o = o + 4 + n
     end
   end
-  return concat(b)
+  w32(0, o)
+  return ffi.string(sc, o)
 end
 
-local function decode_verdict(body)
-  local v = { action = byte(body, 14), reason = byte(body, 15), sids = {} }
-  if v.action > _M.ERROR then
-    v.action = _M.ERROR
+local EMPTY = {}
+
+-- decode_verdict reads the VERDICT body starting at buf[i].
+local function decode_verdict(buf, i, len)
+  local action = byte(buf, i + 13)
+  if action > _M.ERROR then
+    action = _M.ERROR
   end
-  local n = byte(body, 16)
-  for i = 0, n - 1 do
-    local off = 25 + i * 16
-    if off + 3 > #body then
-      break
+  local v = { action = action, reason = byte(buf, i + 14), sids = EMPTY }
+  local n = byte(buf, i + 15)
+  if n > 0 then
+    local sids = {}
+    for k = 0, n - 1 do
+      local off = 24 + k * 16
+      if off + 4 > len then
+        break
+      end
+      sids[#sids + 1] = get_u32(buf, i + off)
     end
-    v.sids[#v.sids + 1] = get_u32(body, off)
+    v.sids = sids
   end
   return v
 end
@@ -213,75 +274,69 @@ function Session:push(size, ...)
   return true
 end
 
--- recv reads exactly n bytes. Reads time out every second so that a dead
--- session is noticed; a timeout returns the bytes read so far, which are
--- kept (dropping them would break the framing).
-local function recv(s, sock, n)
-  local got = nil
-  while true do
-    local data, err, partial = sock:receive(n - (got and #got or 0))
-    if data then
-      return got and got .. data or data
-    end
-    if err ~= "timeout" then
-      return nil, err
-    end
-    if partial and partial ~= "" then
-      got = got and got .. partial or partial
-    end
-    if s.dead then
-      return nil, "closed"
-    end
-  end
-end
-
+-- reader parses verdicts from whatever the socket has (one receiveany
+-- per batch instead of two receives per frame). Reads time out every
+-- second so that a dead session is noticed.
 local function reader(s, sock)
+  local buf, pos = "", 1
   while true do
-    local head, err = recv(s, sock, 8)
-    if not head then
-      s:fail("session closed: " .. err)
-      return
-    end
-    do
-      local len = get_u32(head, 1)
-      local kind = get_u16(head, 5)
-      if len < 8 or len > 1048576 then
-        s:fail("bad frame from server")
+    local data, err = sock:receiveany(65536)
+    if not data then
+      if err ~= "timeout" then
+        s:fail("session closed: " .. err)
         return
       end
-      local body = ""
-      if len > 8 then
-        body, err = recv(s, sock, len - 8)
-        if not body then
-          s:fail("session closed: " .. err)
+      if s.dead then
+        return
+      end
+    else
+      if pos > #buf then
+        buf, pos = data, 1
+      else
+        buf, pos = sub(buf, pos) .. data, 1
+      end
+      while #buf - pos + 1 >= 8 do
+        local len = get_u32(buf, pos)
+        if len < 8 or len > 1048576 then
+          s:fail("bad frame from server")
           return
         end
-      end
-      if kind == K_VERDICT and #body >= 24 then
-        local token = get_u32(body, 9)
-        local w = s.waiting[token]
-        if w ~= nil then
-          s.waiting[token] = nil
-          s.inflight = s.inflight - 1
-          if w then
-            w.body = body
-            w.sema:post(1)
-          else
-            s.abandoned = s.abandoned - 1
-          end
+        if #buf - pos + 1 < len then
+          break
         end
-        s.last_verdict = now()
-      elseif kind == K_FLOW_ERROR then
-        log(DEBUG, "suritap: flow error ", get_u32(body, 9))
+        local kind = get_u16(buf, pos + 4)
+        if kind == K_VERDICT and len >= 32 then
+          local token = get_u32(buf, pos + 16)
+          local w = s.waiting[token]
+          if w ~= nil then
+            s.waiting[token] = nil
+            s.inflight = s.inflight - 1
+            if w then
+              w.v = decode_verdict(buf, pos + 8, len - 8)
+              w.sema:post(1)
+            else
+              s.abandoned = s.abandoned - 1
+            end
+          end
+          s.last_verdict = now()
+        elseif kind == K_FLOW_ERROR and len >= 20 then
+          log(DEBUG, "suritap: flow error ", get_u32(buf, pos + 16))
+        end
+        pos = pos + len
       end
     end
   end
 end
 
 local function handshake(sock, name)
-  local hello = u32(MAGIC) .. u16(VERSION) .. u16(HELLO_SIZE) .. u32(ngx.worker.pid())
-    .. u32(1) .. pad(sub(name, 1, 32), 32)
-  hello = pad(hello, HELLO_SIZE)
+  ffi.fill(sc, HELLO_SIZE)
+  w32(0, MAGIC)
+  w16(4, VERSION)
+  w16(6, HELLO_SIZE)
+  w32(8, ngx.worker.pid())
+  w32(12, 1) -- socket transport
+  ffi.copy(sc + 16, name, math.min(#name, 32))
+  local hello = ffi.string(sc, HELLO_SIZE)
   local ok, err = sock:send(hello)
   if not ok then
     return nil, "hello: " .. err
@@ -510,8 +565,28 @@ end
 local Conn = {}
 Conn.__index = Conn
 
--- open announces a connection. src/dst are {ip, port}; meta is a list of
--- {tag, value}. timeout (seconds) bounds waiting for a session.
+-- Semaphores of finished verdict waits are reused (each new one is a
+-- cdata object with a finalizer).
+local sema_pool = {}
+
+local function get_sema()
+  local n = #sema_pool
+  if n > 0 then
+    local sema = sema_pool[n]
+    sema_pool[n] = nil
+    return sema
+  end
+  return semaphore.new(0)
+end
+
+local function put_sema(sema)
+  if sema:count() == 0 and #sema_pool < 256 then
+    sema_pool[#sema_pool + 1] = sema
+  end
+end
+
+-- open announces a connection; meta is a flat list tag, value, ...
+-- timeout (seconds) bounds waiting for a session.
 function Transport:open(src_ip, src_port, dst_ip, dst_port, meta, timeout)
   local sb, db = parse_ip(src_ip), parse_ip(dst_ip)
   if not sb then
@@ -526,40 +601,72 @@ function Transport:open(src_ip, src_port, dst_ip, dst_port, meta, timeout)
   if not s then
     return nil, err
   end
-  local body = encode_open(cid, sb, src_port or 0, db, dst_port or 0, meta or {})
-  if not s:push(8 + #body, frame_head(K_OPEN, 0, #body), body) then
+  local frame = open_frame(cid, sb, src_port or 0, db, dst_port or 0, meta or EMPTY)
+  if not s:push(#frame, frame) then
     return nil, "queue full"
   end
-  return setmetatable({ s = s, cid = cid, gaps = { [0] = 0, 0 } }, Conn)
+  -- gap0/gap1: payload of each direction not sent, reported as a GAP
+  -- before more payload of that direction.
+  return setmetatable({ s = s, cid = cid, gap0 = 0, gap1 = 0 }, Conn)
 end
 
-local function data_head(cid, dir, token)
-  return u64(cid) .. char(dir, 0, 0, 0) .. u32(token)
+-- add_gap records n bytes of dir that were not sent.
+function Conn:add_gap(dir, n)
+  if dir == 0 then
+    self.gap0 = self.gap0 + n
+  else
+    self.gap1 = self.gap1 + n
+  end
 end
 
 -- flush_gap queues the pending gap of dir; false when there is no room.
 function Conn:flush_gap(dir)
-  local n = self.gaps[dir]
+  local n = dir == 0 and self.gap0 or self.gap1
   if n == 0 then
     return true
   end
-  local b = u64(self.cid) .. char(dir, 0, 0, 0) .. u32(n)
-  if not self.s:push(24, frame_head(K_GAP, 0, 16), b) then
+  if not self.s:push(24, small_frame(K_GAP, self.cid, dir, n)) then
     return false
   end
-  self.gaps[dir] = 0
+  if dir == 0 then
+    self.gap0 = 0
+  else
+    self.gap1 = 0
+  end
   return true
 end
 
--- queue sends data as DATA frames (the last one with token when given).
+-- queue sends pre .. data .. suf as DATA frames (the last one with token
+-- when given); pre and suf (optional) avoid copying data for framing.
 -- Data that does not fit is reported as a gap.
-function Conn:queue(dir, data, token)
+function Conn:queue(dir, data, token, pre, suf)
   local s = self.s
+  local total = #data + (pre and #pre or 0) + (suf and #suf or 0)
   if not self:flush_gap(dir) then
-    self.gaps[dir] = self.gaps[dir] + #data
+    self:add_gap(dir, total)
     return false
   end
-  local len, mp = #data, s.max_payload
+  local mp = s.max_payload
+  local flags, tok = 0, 0
+  if token then
+    flags, tok = F_WANT_VERDICT, token
+  end
+  if total <= mp then
+    local ok
+    if pre then
+      ok = s:push(24 + total, data_head(self.cid, dir, tok, flags, total), pre, data, suf)
+    else
+      ok = s:push(24 + total, data_head(self.cid, dir, tok, flags, total), data)
+    end
+    if not ok then
+      self:add_gap(dir, total)
+    end
+    return ok
+  end
+  if pre then
+    data = pre .. data .. (suf or "")
+  end
+  local len = #data
   local i = 1
   repeat
     local j = i + mp - 1
@@ -568,12 +675,12 @@ function Conn:queue(dir, data, token)
       j = len
     end
     local n = j - i + 1
-    local flags, tok = 0, 0
-    if last and token then
-      flags, tok = F_WANT_VERDICT, token
+    local f, t = 0, 0
+    if last then
+      f, t = flags, tok
     end
-    if not s:push(24 + n, frame_head(K_DATA, flags, 16 + n), data_head(self.cid, dir, tok), n == len and data or sub(data, i, j)) then
-      self.gaps[dir] = self.gaps[dir] + (len - i + 1)
+    if not s:push(24 + n, data_head(self.cid, dir, t, f, n), sub(data, i, j)) then
+      self:add_gap(dir, len - i + 1)
       return false
     end
     i = j + 1
@@ -581,12 +688,13 @@ function Conn:queue(dir, data, token)
   return true
 end
 
--- send streams data without waiting (works in every phase).
-function Conn:send(dir, data)
-  if self.closed or data == "" then
+-- send streams data without waiting (works in every phase); pre and suf
+-- are optional framing around data (chunked encoding).
+function Conn:send(dir, data, pre, suf)
+  if self.closed or (data == "" and not pre and not suf) then
     return true
   end
-  return self:queue(dir, data, nil)
+  return self:queue(dir, data, nil, pre, suf)
 end
 
 -- inspect sends data and waits (yieldable phases only) for the verdict
@@ -601,24 +709,27 @@ function Conn:inspect(dir, data, timeout)
     if s.abandoned >= MAX_INFLIGHT / 2 then
       s:fail("Suricata worker stopped answering")
     end
-    self.gaps[dir] = self.gaps[dir] + #data
+    self:add_gap(dir, #data)
     return nil, "too many requests in flight"
   end
   s.next_token = s.next_token % 4294967295 + 1 -- 1..2^32-1 (0: no verdict)
   local token = s.next_token
-  local w = { sema = semaphore.new(0) }
+  local w = { sema = get_sema() }
   s.waiting[token] = w
   s.inflight = s.inflight + 1
   if not self:queue(dir, data, token) then
     s.waiting[token] = nil
     s.inflight = s.inflight - 1
+    put_sema(w.sema)
     return nil, "queue full"
   end
   local ok, err = w.sema:wait(timeout)
-  if ok and w.body then
-    return decode_verdict(w.body)
+  if ok and w.v then
+    put_sema(w.sema)
+    return w.v
   end
   if w.dead then
+    put_sema(w.sema)
     return nil, "unavailable"
   end
   if s.waiting[token] == w then
@@ -638,8 +749,7 @@ function Conn:close(reset)
     return
   end
   self.closed = true
-  local b = u64(self.cid) .. char(reset and 1 or 0, 0, 0, 0) .. u32(0)
-  self.s:push(24, frame_head(K_CLOSE, 0, 16), b)
+  self.s:push(24, small_frame(K_CLOSE, self.cid, reset and 1 or 0, 0))
 end
 
 _M.Transport = Transport

@@ -10,7 +10,7 @@
 # TRAEFIK  Traefik binary (default: official v3.7.14 downloaded into WORK, or
 #          bin/traefik-suritap with --patch, built when missing)
 # WORK     scratch directory (default /tmp/suritap-traefik)
-# PORT_BASE  local ports PORT_BASE+43..45 (Traefik), +80/+81 (backend); default 38400
+# PORT_BASE  local ports PORT_BASE+43..45 (Traefik), +80/+81 (backend); default 29400 (below the ephemeral port range)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -32,7 +32,7 @@ else
     TRAEFIK="${TRAEFIK:-$WORK/traefik-official}"
 fi
 PLUGIN_MODULE=github.com/jc-lab/suricontroller/adapters/traefik-plugin
-PORT_BASE="${PORT_BASE:-38400}"
+PORT_BASE="${PORT_BASE:-29400}"
 P_HTTP=$((PORT_BASE + 80)) P_TCP=$((PORT_BASE + 81))
 P_SECURE=$((PORT_BASE + 43)) P_STRICT=$((PORT_BASE + 44)) P_PLAIN=$((PORT_BASE + 45))
 

@@ -25,18 +25,22 @@ local SuritapHandler = {
   VERSION = "0.1.0",
 }
 
-local function request_meta(endpoint)
-  local route = kong.router.get_route()
+local PROTO = { [1.0] = "HTTP/1.0", [1.1] = "HTTP/1.1", [2.0] = "HTTP/2.0", [3.0] = "HTTP/3.0" }
+
+local function request_meta(endpoint, route, version)
   local service = kong.router.get_service()
+  local var = ngx.var
+  local rid = var.http_x_request_id
+  -- Flat tag, value list (one table per request).
   return {
-    { META.proto, fmt("HTTP/%.1f", ngx.req.http_version() or 1.1) },
-    { META.sni, ngx.var.ssl_server_name },
-    { META.alpn, ngx.var.ssl_alpn_protocol },
-    { META.request_id, ngx.var.http_x_request_id or ngx.var.kong_request_id },
-    { META.route, route and (route.name or route.id) },
-    { META.service, service and (service.name or service.id) },
-    { META.proxy, "kong" },
-    { META.endpoint, endpoint },
+    META.proto, PROTO[version] or fmt("HTTP/%.1f", version),
+    META.sni, var.ssl_server_name,
+    META.alpn, var.ssl_alpn_protocol,
+    META.request_id, rid or var.kong_request_id,
+    META.route, route and (route.name or route.id),
+    META.service, service and (service.name or service.id),
+    META.proxy, "kong",
+    META.endpoint, endpoint,
   }
 end
 
@@ -71,9 +75,11 @@ function SuritapHandler:access(conf)
   local endpoint = conf.endpoint or (route and route.name) or "kong"
   local prevent = conf.mode == "prevent"
 
+  local version = ngx.req.http_version() or 1.1
+  local var = ngx.var
   local t = transport.get(conf.socket_dir, conf.name)
-  local conn, err = t:open(ngx.var.remote_addr, tonumber(ngx.var.remote_port),
-    ngx.var.server_addr, tonumber(ngx.var.server_port), request_meta(endpoint), conf.timeout / 1000)
+  local conn, err = t:open(var.remote_addr, tonumber(var.remote_port),
+    var.server_addr, tonumber(var.server_port), request_meta(endpoint, route, version), conf.timeout / 1000)
   if not conn then
     common.log_unavailable(endpoint, err)
     if conf.fail_policy == "closed" and prevent then
@@ -82,15 +88,18 @@ function SuritapHandler:access(conf)
     return
   end
   local st = { conn = conn, conf = conf, endpoint = endpoint }
-  kong.ctx.shared.suritap = st
+  common.set_state(st)
 
   local body, total = read_body(conf.max_request_body)
-  local data = common.request_head(total) .. body
+  local data = common.request_head(total, version)
+  if total > 0 then
+    data = data .. body
+  end
   local blocked, v
   if total > #body then
     -- Inspect what was read; the rest is reported as a gap.
     conn:send(TO_SERVER, data)
-    conn.gaps[TO_SERVER] = conn.gaps[TO_SERVER] + (total - #body)
+    conn:add_gap(TO_SERVER, total - #body)
     blocked, v = common.verdict(st, prevent, TO_SERVER, "")
   else
     blocked, v = common.verdict(st, prevent, TO_SERVER, data)
@@ -114,13 +123,13 @@ function SuritapHandler:header_filter(conf)
     return
   end
   local status = ngx.status
-  local headers = ngx.resp.get_headers(0, true)
+  local headers = ngx.resp.get_headers(0)
   local length = -1
   if ngx.req.get_method() == "HEAD" or status == 204 or status == 304 then
     length = nil
     st.no_body = true
   else
-    local cl = headers["Content-Length"] or headers["content-length"]
+    local cl = headers["content-length"]
     if cl then
       length = tonumber(cl) or -1
     end
@@ -136,7 +145,11 @@ function SuritapHandler:body_filter(conf)
   end
   local data, eof = ngx.arg[1], ngx.arg[2]
   if data and data ~= "" then
-    st.conn:send(TO_CLIENT, st.chunked and common.chunk(data) or data)
+    if st.chunked then
+      st.conn:send(TO_CLIENT, data, common.chunk_prefix(#data), "\r\n")
+    else
+      st.conn:send(TO_CLIENT, data)
+    end
   end
   if eof and st.chunked and not st.ended then
     st.ended = true
