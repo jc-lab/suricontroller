@@ -22,10 +22,15 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
     go build -trimpath -ldflags "-s -w -X github.com/jc-lab/suricontroller/pkg/version.Version=${VERSION}" \
     -o /out/suri-controller ./cmd/suri-controller
 
+# The binary that goes into the image. CI replaces this stage with its prebuilt
+# binary (--build-context binary=<dir>) so the image and the release share it.
+FROM scratch AS binary
+COPY --from=build /out/suri-controller /suri-controller
+
 FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata tini && adduser -D -H -u 10001 suri \
  && mkdir -p /var/lib/suricontroller && chown suri /var/lib/suricontroller
-COPY --from=build /out/suri-controller /usr/bin/suri-controller
+COPY --from=binary /suri-controller /usr/bin/suri-controller
 USER suri
 ENV SURICONTROLLER_DATA_DIR=/var/lib/suricontroller SURICONTROLLER_LISTEN=:8080
 VOLUME ["/var/lib/suricontroller"]

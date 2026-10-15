@@ -13,6 +13,11 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
     go build -trimpath -ldflags "-s -w -X github.com/jc-lab/suricontroller/pkg/version.Version=${VERSION}" \
     -o /out/suri-node-agent ./cmd/suri-node-agent
 
+# The binary that goes into the image. CI replaces this stage with its prebuilt
+# binary (--build-context binary=<dir>) so the image and the release share it.
+FROM scratch AS binary
+COPY --from=build /out/suri-node-agent /suri-node-agent
+
 FROM alpine:3.24
 # Exact apk version to install (e.g. 8.0.7-r0); empty installs the repo's current
 # one. CI pins it so the image tag and the layer cache follow the Suricata release.
@@ -22,7 +27,7 @@ RUN apk add --no-cache suricata${SURICATA_VERSION:+=$SURICATA_VERSION} tini nfta
  && mkdir -p /usr/share/suri-agent/suricata /etc/suri-agent /var/lib/suri-agent /var/log/suricata \
  && cp -a /etc/suricata/. /usr/share/suri-agent/suricata/ \
  && mkdir -p /etc/suricata/rules.local
-COPY --from=build /out/suri-node-agent /usr/bin/suri-node-agent
+COPY --from=binary /suri-node-agent /usr/bin/suri-node-agent
 COPY deploy/agent/agent.yaml.example /usr/share/suri-agent/agent.yaml.example
 COPY deploy/agent/entrypoint.sh /usr/bin/suri-agent-entrypoint
 VOLUME ["/etc/suri-agent", "/etc/suricata", "/var/lib/suri-agent", "/var/log/suricata"]

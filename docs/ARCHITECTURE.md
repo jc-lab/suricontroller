@@ -860,7 +860,7 @@ DesiredState(gen) 수신
 
 - 이미지는 **Alpine 3.24** 기반입니다. `suricata` 8.0.7(NFQ/AF_PACKET 포함), `suri-node-agent`(static), `tini`를 넣습니다.
 - 첫 실행에서 `/etc/suricata` 볼륨이 비어 있으면 패키지 기본 설정으로 채웁니다.
-- multi-arch(amd64, arm64, armv7)로 빌드하고, `nft`/`iptables`는 fallback용으로 함께 넣습니다.
+- multi-arch(amd64, arm64)로 빌드하고, `nft`/`iptables`는 fallback용으로 함께 넣습니다.
 
 ```yaml
 services:

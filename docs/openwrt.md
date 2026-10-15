@@ -4,7 +4,7 @@
 
 ## 요구 사항
 
-- **아키텍처**: x86_64, aarch64, armv7. docker 이미지는 Alpine 기반입니다.
+- **아키텍처**: x86_64, aarch64, docker 이미지는 Alpine 기반입니다.
 - **저장 공간**: overlay 외에 USB나 eMMC 같은 저장 공간이 필요합니다. docker 이미지와 Suricata 룰 때문입니다.
 - **메모리**: 1GB 이상을 권장합니다. 실제로 필요한 양은 룰셋 크기에 따라 달라집니다.
   - ET Open 전체를 쓰면 IDS 인스턴스 하나에 수백 MB가 듭니다.

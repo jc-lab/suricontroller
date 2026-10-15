@@ -47,6 +47,12 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 1
 
   integration:
     runs-on: ubuntu-24.04
@@ -58,6 +64,48 @@ jobs:
           go-version-file: go.mod
       - run: sudo modprobe nfnetlink_queue nft_queue || true
       - run: make integration
+
+  # Builds each binary exactly once per architecture. The images and the release
+  # both ship these very files, so their hashes match. Pure Go (CGO_ENABLED=0),
+  # so every target cross-compiles on one runner.
+  binaries:
+    needs: [web]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: web/dist
+      - name: Build
+        run: |
+          version=$(git describe --tags --always)
+          ldflags="-s -w -X github.com/jc-lab/suricontroller/pkg/version.Version=$version"
+          out="$RUNNER_TEMP/bin"
+          for platform in linux/amd64 linux/arm64; do
+            IFS=/ read -r os arch <<<"$platform"
+            for cmd in suri-controller suri-node-agent; do
+              CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
+                go build -trimpath -ldflags "$ldflags" -o "$out/${os}_${arch}/$cmd" "./cmd/$cmd"
+            done
+          done
+          {
+            echo "Binaries \`$version\`:"
+            echo '```'
+            (cd "$out" && sha256sum -- */*)
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binaries
+          path: ${{ runner.temp }}/bin
+          if-no-files-found: error
+          retention-days: 1
 
   # Resolves the Suricata version the agent image will ship (it comes from the
   # Alpine repo, so it can change without a commit) and decides what to build.
@@ -113,7 +161,7 @@ jobs:
   # Each platform is built natively on its own runner (amd64 / arm64) and pushed
   # by digest; images-merge then stitches the digests into one multi-arch tag.
   images:
-    needs: [resolve, go, web]
+    needs: [resolve, go, binaries]
     if: needs.resolve.outputs.images != '[]'
     strategy:
       fail-fast: false
@@ -132,14 +180,17 @@ jobs:
       PUSH: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
-          fetch-depth: 0
+          name: binaries
+          path: ${{ runner.temp }}/bin
       - name: Prepare
         id: prep
         run: |
-          echo "version=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+          chmod +x "$RUNNER_TEMP"/bin/*/*
           platform='${{ matrix.platform }}'
           echo "pair=${platform//\//-}" >> "$GITHUB_OUTPUT"
+          echo "bindir=$RUNNER_TEMP/bin/${platform//\//_}" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v6
         with:
@@ -157,9 +208,8 @@ jobs:
           context: .
           file: deploy/${{ matrix.image == 'suri-node-agent' && 'agent' || 'controller' }}/Dockerfile
           platforms: ${{ matrix.platform }}
-          build-args: |
-            VERSION=${{ steps.prep.outputs.version }}
-            ${{ matrix.image == 'suri-node-agent' && format('SURICATA_VERSION={0}', needs.resolve.outputs.suricata) || '' }}
+          build-contexts: binary=${{ steps.prep.outputs.bindir }}
+          build-args: ${{ matrix.image == 'suri-node-agent' && format('SURICATA_VERSION={0}', needs.resolve.outputs.suricata) || '' }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ env.PUSH }}
           cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.prep.outputs.pair }}
@@ -233,3 +283,51 @@ jobs:
           docker buildx imagetools create "${tags[@]}" "${annotations[@]}" "${refs[@]}"
       - name: Inspect
         run: docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
+
+  # On a v* tag push, attach the binaries (the same files baked into the
+  # images) to a GitHub release.
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [go, web, integration, binaries]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: binaries
+          path: ${{ runner.temp }}/bin
+      - name: Package
+        run: |
+          version=$GITHUB_REF_NAME
+          out="$RUNNER_TEMP/dist"
+          mkdir -p "$out"
+          for dir in "$RUNNER_TEMP"/bin/*/; do
+            platform=$(basename "$dir")
+            for cmd in suri-controller suri-node-agent; do
+              name="${cmd}_${version}_${platform}"
+              mkdir -p "$out/$name"
+              install -m 0755 "$dir/$cmd" "$out/$name/$cmd"
+              cp LICENSE README.md "$out/$name/"
+              if [[ $cmd == suri-node-agent ]]; then
+                cp deploy/agent/agent.yaml.example "$out/$name/"
+              fi
+              tar -C "$out" -czf "$out/$name.tar.gz" "$name"
+              rm -rf "${out:?}/$name"
+            done
+          done
+          (cd "$out" && sha256sum -- *.tar.gz > SHA256SUMS)
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$GITHUB_REF_NAME
+          # Re-runs replace the assets of the existing release.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$RUNNER_TEMP"/dist/* --clobber
+          else
+            flags=()
+            if [[ $tag == *-* ]]; then flags+=(--prerelease); fi
+            gh release create "$tag" "$RUNNER_TEMP"/dist/* --verify-tag --generate-notes "${flags[@]}"
+          fi
