@@ -1,0 +1,144 @@
+%YAML 1.1
+---
+# Suricata configuration for the suritap phase-1 tests. run.sh replaces
+# @DIR@, @PLUGIN@, @ETC@ and @RULES@.
+
+vars:
+  address-groups:
+    # Only the proxy listeners are "home": every client (even an internal
+    # one) is then external and inbound web rules apply.
+    HOME_NET: "[10.0.0.0/24,2001:db8:1::/64]"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    # Plaintext arrives with the TLS listener's port.
+    HTTP_PORTS: "[80,443,8080,8443]"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+    SIP_PORTS: "[5060, 5061]"
+
+default-log-dir: @DIR@/log
+default-rule-path: @RULES@
+rule-files:
+  - tap.rules
+classification-file: @ETC@/classification.config
+reference-config-file: @ETC@/reference.config
+
+plugins:
+  - @PLUGIN@
+
+suritap:
+  socket-dir: @DIR@/run
+  socket-mode: "0660"
+  threads: 2
+  ips: yes
+  max-segment: 32kb
+  ack-threshold: 32kb
+  idle-ms: 100
+
+exception-policy: auto
+
+stream:
+  memcap: 256mb
+  checksum-validation: yes
+  inline: auto
+  # Stop inspecting a direction after 1 MiB; suritap tells the proxy (BYPASS).
+  bypass: yes
+  reassembly:
+    memcap: 512mb
+    depth: 1mb
+
+flow-timeouts:
+  tcp:
+    new: 10
+    established: 120
+    closed: 2
+    bypassed: 30
+    emergency-new: 5
+    emergency-established: 30
+    emergency-closed: 1
+    emergency-bypassed: 10
+
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+      libhtp:
+        default-config:
+          personality: IDS
+          request-body-limit: 1mb
+          response-body-limit: 1mb
+          request-body-minimal-inspect-size: 32kb
+          request-body-inspect-window: 4kb
+          response-body-minimal-inspect-size: 40kb
+          response-body-inspect-window: 16kb
+    http2:
+      enabled: yes
+    tls:
+      enabled: yes
+    pgsql:
+      enabled: yes
+
+detect:
+  profile: medium
+  sgh-mpm-context: auto
+
+unix-command:
+  enabled: yes
+  filename: @DIR@/run/suricata-command.socket
+
+outputs:
+  - fast:
+      enabled: yes
+      filename: fast.log
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            tagged-packets: no
+        - drop:
+            alerts: yes
+        - http:
+            extended: yes
+        - pgsql:
+            enabled: yes
+        - flow
+  - stats:
+      enabled: yes
+      filename: stats.log
+      append: no
+      interval: 2
+      totals: yes
+      threads: yes
+
+logging:
+  default-log-level: info
+  outputs:
+    - console:
+        enabled: yes
+    - file:
+        enabled: yes
+        level: info
+        filename: @DIR@/log/suricata.log

@@ -1,0 +1,20 @@
+[package]
+name = "suritap"
+description = "Client library and protocol for suritap: TLS-terminating proxies hand plaintext to the Suricata suritap capture plugin and get per-request verdicts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+readme = "README.md"
+documentation = "https://docs.rs/suritap"
+keywords = ["suricata", "ids", "ips", "proxy", "shared-memory"]
+categories = ["network-programming", "api-bindings"]
+include = ["src/**", "examples/**", "README.md", "Cargo.toml"]
+
+[dependencies]
+libc.workspace = true
+
+[[bin]]
+name = "suritap-mockd"
+path = "src/bin/suritap-mockd.rs"

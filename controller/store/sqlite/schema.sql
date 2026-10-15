@@ -14,7 +14,8 @@ CREATE TABLE nodes (
     desired_error   TEXT NOT NULL DEFAULT '',
     applied         TEXT,
     last_report     TEXT,
-    last_report_at  INTEGER NOT NULL DEFAULT 0
+    last_report_at  INTEGER NOT NULL DEFAULT 0,
+    endpoint_modes  TEXT
 );
 
 CREATE TABLE apply_history (

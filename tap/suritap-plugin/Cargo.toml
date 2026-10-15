@@ -1,0 +1,21 @@
+[package]
+name = "suritap-plugin"
+description = "Suricata capture plugin that inspects plaintext from TLS-terminating proxies over suritap shared memory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+# Loaded into Suricata and built against its internal headers.
+license = "GPL-2.0-only"
+publish = false
+
+[lib]
+name = "suritap_plugin"
+crate-type = ["cdylib"]
+
+[dependencies]
+libc.workspace = true
+suritap = { path = "../suritap" }
+
+[build-dependencies]
+cc = "1"

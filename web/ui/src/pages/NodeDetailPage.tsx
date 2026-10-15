@@ -27,6 +27,7 @@ import { OnlineBadge, SyncBadge } from "../components/badges";
 import { useDeleteNode, useToggleNode } from "../components/nodeMutations";
 import { OverviewPanel } from "./node/OverviewPanel";
 import { InterfacesPanel } from "./node/InterfacesPanel";
+import { TapPanel } from "./node/TapPanel";
 import { InstancesPanel } from "./node/InstancesPanel";
 import { DeployPanel } from "./node/DeployPanel";
 import { NodeLogsPanel } from "./node/NodeLogsPanel";
@@ -175,6 +176,7 @@ export default function NodeDetailPage() {
         <Tabs.List mb="md">
           <Tabs.Tab value="overview">Overview</Tabs.Tab>
           <Tabs.Tab value="interfaces">Interfaces ({n.interfaces.length})</Tabs.Tab>
+          {n.tap && <Tabs.Tab value="tap">Proxy endpoints ({n.tap.endpoints.length})</Tabs.Tab>}
           <Tabs.Tab value="instances">Instances ({n.instances.length})</Tabs.Tab>
           <Tabs.Tab value="deploy">Deploy &amp; history</Tabs.Tab>
           <Tabs.Tab value="logs">Logs</Tabs.Tab>
@@ -185,6 +187,9 @@ export default function NodeDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="interfaces">
           <InterfacesPanel node={n} />
+        </Tabs.Panel>
+        <Tabs.Panel value="tap">
+          <TapPanel node={n} />
         </Tabs.Panel>
         <Tabs.Panel value="instances">
           <InstancesPanel node={n} />

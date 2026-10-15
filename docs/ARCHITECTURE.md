@@ -716,6 +716,14 @@ interfaces:                        # 이 목록 밖의 인터페이스는 contro
   - name: eth1
     ips: false                     # 인터페이스별 override (기본값은 ips.enabled)
 
+tap:                               # (선택) suritap: TLS 종단 프록시의 평문 검사
+  enabled: true
+  socket_dir: /run/suritap         # 프록시와 공유
+  endpoints:                       # controller가 Off / Detect / Prevent를 정할 수 있는 엔드포인트
+    - name: websecure
+    - name: admin
+      prevent: false
+
 ips:
   enabled: true                    # false → 모든 인터페이스 IDS만 가능
   queues: "0-1"
@@ -727,6 +735,7 @@ suricata:
   allow_lua: false                            # true 일 때만 lua 룰/출력 허용
   instances:                                  # 인스턴스별 로그 디렉터리 (default-log-dir 로 강제)
     ids: { log_dir: /var/log/suricata/ids }
+    tap: { log_dir: /var/log/suricata/tap }
     ips: { log_dir: /var/log/suricata/ips }
 
 logs:
@@ -778,6 +787,7 @@ logs:
 | IPS만 | `ips` 1개: NFQ (queue 0..N) |
 | 혼합 | `ids` + `ips` 2개. 룰셋을 두 번 로드하므로 메모리가 약 2배 (Status에 메모리 사용량 표시) |
 | 전부 Off | 엔진 중지 |
+| `tap.enabled` | 위와 별도로 `tap` 1개: suritap 캡처 플러그인(`--capture-plugin=suritap`). 프록시 엔드포인트 모드와 무관하게 실행되고, 모드는 정책 파일로만 바뀐다(재시작 없음, [suritap.md](suritap.md) §10) |
 
 - **IPS 방화벽 (nftables)**: 전용 테이블을 씁니다.
   ```
@@ -858,9 +868,9 @@ DesiredState(gen) 수신
 
 ### 6.9 Docker 배포
 
-- 이미지는 **Alpine 3.24** 기반입니다. `suricata` 8.0.7(NFQ/AF_PACKET 포함), `suri-node-agent`(static), `tini`를 넣습니다.
+- 이미지는 **Alpine 3.24** 기반입니다. Suricata 8.0.7을 소스로 빌드하고(tarball SHA-256 고정, NFQ/AF_PACKET 포함), 같은 소스 트리로 suritap 캡처 플러그인(`/usr/lib/suricata/suritap.so`)을 빌드해 넣습니다. 여기에 `suri-node-agent`(static)와 `tini`가 들어갑니다. 플러그인은 정확히 같은 Suricata 빌드에만 로드되므로 패키지 대신 소스로 빌드합니다.
 - 첫 실행에서 `/etc/suricata` 볼륨이 비어 있으면 패키지 기본 설정으로 채웁니다.
-- multi-arch(amd64, arm64)로 빌드하고, `nft`/`iptables`는 fallback용으로 함께 넣습니다.
+- multi-arch(amd64, arm64)로 빌드하고, `nft`/`iptables`는 fallback용으로 함께 넣습니다. Suricata를 소스로 빌드하므로 CI는 아키텍처마다 네이티브 러너에서 빌드합니다. 이미지 태그의 `-suricata<버전>`은 Dockerfile에 고정한 `SURICATA_VERSION`을 따릅니다.
 
 ```yaml
 services:
@@ -875,6 +885,7 @@ services:
       - ./suricata:/etc/suricata   # 사용자 base 설정, 로컬 룰
       - ./data:/var/lib/suri-agent # 상태/릴리스
       - /var/log/suricata:/var/log/suricata   # 로그 위치 (호스트의 Elastic Agent 등이 함께 읽을 수 있음)
+      - /run/suritap:/run/suritap             # suritap 소켓 (tap.enabled, 프록시와 공유)
 ```
 
 - 첫 실행: `docker run … suri-node-agent keygen --node-id router-01`을 실행하면 공개키 라인이 출력됩니다. 이 라인을 controller UI에 등록합니다. 등록되지 않은 키의 접속은 거부됩니다.
@@ -997,6 +1008,19 @@ services:
   - `-T` 실패 시 기존 설정 유지
   - pin 롤백
   - controller 없이 재부팅했을 때 IPS 복원
+
+### 8.2 suritap (TLS 종단 프록시 평문 검사)
+
+TLS 종단 프록시가 평문을 공유메모리(또는 UNIX 스트림 소켓)로 Suricata capture plugin에 넘기고 판정을 받는 확장입니다.
+
+| 단계 | 상태 | 내용 |
+|---|---|---|
+| 1 | 완료 | Rust 플러그인, Go/Rust 클라이언트, 실제 Suricata 8.0.7 검증 스크립트 |
+| 2 | 완료 | Traefik 플러그인(Yaegi, 소켓 전송)과 패치 빌드(공유메모리, HTTP transaction tap, TLS 종단 TCP stream tap, v3.7.14 패치) |
+| 3 | 완료 | Kong 플러그인(Lua, 소켓 전송을 cosocket으로, 응답 prevent는 짝 플러그인 `suritap-response`) |
+| 5 | 완료 | 이 컨트롤러와 통합: agent의 `tap` 인스턴스, 엔드포인트별 Off/Detect/Prevent(controller → agent 정책 파일 → 플러그인 POLICY → 어댑터), 소스 빌드 Suricata + 플러그인 이미지 |
+
+설계, 명세, 검증 결과는 [suritap.md](suritap.md)를 참고하세요.
 
 ## 9. 테스트 전략
 

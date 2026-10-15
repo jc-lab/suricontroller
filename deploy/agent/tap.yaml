@@ -1,0 +1,27 @@
+# Suricata settings for the suritap instance only (agent.yaml tap.config),
+# merged over suricata.yaml. See docs/suritap.md §5.3.
+vars:
+  address-groups:
+    # Set HOME_NET to the proxy listener addresses: clients, internal ones
+    # included, are then EXTERNAL and inbound web rules apply.
+    # HOME_NET: "[192.0.2.10/32]"
+  port-groups:
+    # Plaintext arrives on the TLS listener ports.
+    HTTP_PORTS: "[80,443,8080,8443]"
+
+# Proxies send many requests over one connection (keepalive, HTTP/2):
+# inspect them all.
+stream:
+  bypass: no
+  reassembly:
+    depth: 0
+
+app-layer:
+  protocols:
+    http:
+      libhtp:
+        default-config:
+          # Body rules match once this much body arrived or the request
+          # ended.
+          request-body-minimal-inspect-size: 32kb
+          request-body-inspect-window: 4kb

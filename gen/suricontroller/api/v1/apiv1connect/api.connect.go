@@ -74,6 +74,9 @@ const (
 	// NodeServiceSetInterfaceModesProcedure is the fully-qualified name of the NodeService's
 	// SetInterfaceModes RPC.
 	NodeServiceSetInterfaceModesProcedure = "/suricontroller.api.v1.NodeService/SetInterfaceModes"
+	// NodeServiceSetEndpointModesProcedure is the fully-qualified name of the NodeService's
+	// SetEndpointModes RPC.
+	NodeServiceSetEndpointModesProcedure = "/suricontroller.api.v1.NodeService/SetEndpointModes"
 	// NodeServiceListApplyHistoryProcedure is the fully-qualified name of the NodeService's
 	// ListApplyHistory RPC.
 	NodeServiceListApplyHistoryProcedure = "/suricontroller.api.v1.NodeService/ListApplyHistory"
@@ -388,6 +391,8 @@ type NodeServiceClient interface {
 	UpdateNode(context.Context, *connect.Request[v1.UpdateNodeRequest]) (*connect.Response[v1.UpdateNodeResponse], error)
 	DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error)
 	SetInterfaceModes(context.Context, *connect.Request[v1.SetInterfaceModesRequest]) (*connect.Response[v1.SetInterfaceModesResponse], error)
+	// Sets the suritap endpoint modes (Off / Detect / Prevent) of a node.
+	SetEndpointModes(context.Context, *connect.Request[v1.SetEndpointModesRequest]) (*connect.Response[v1.SetEndpointModesResponse], error)
 	ListApplyHistory(context.Context, *connect.Request[v1.ListApplyHistoryRequest]) (*connect.Response[v1.ListApplyHistoryResponse], error)
 }
 
@@ -438,6 +443,12 @@ func NewNodeServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(nodeServiceMethods.ByName("SetInterfaceModes")),
 			connect.WithClientOptions(opts...),
 		),
+		setEndpointModes: connect.NewClient[v1.SetEndpointModesRequest, v1.SetEndpointModesResponse](
+			httpClient,
+			baseURL+NodeServiceSetEndpointModesProcedure,
+			connect.WithSchema(nodeServiceMethods.ByName("SetEndpointModes")),
+			connect.WithClientOptions(opts...),
+		),
 		listApplyHistory: connect.NewClient[v1.ListApplyHistoryRequest, v1.ListApplyHistoryResponse](
 			httpClient,
 			baseURL+NodeServiceListApplyHistoryProcedure,
@@ -455,6 +466,7 @@ type nodeServiceClient struct {
 	updateNode        *connect.Client[v1.UpdateNodeRequest, v1.UpdateNodeResponse]
 	deleteNode        *connect.Client[v1.DeleteNodeRequest, v1.DeleteNodeResponse]
 	setInterfaceModes *connect.Client[v1.SetInterfaceModesRequest, v1.SetInterfaceModesResponse]
+	setEndpointModes  *connect.Client[v1.SetEndpointModesRequest, v1.SetEndpointModesResponse]
 	listApplyHistory  *connect.Client[v1.ListApplyHistoryRequest, v1.ListApplyHistoryResponse]
 }
 
@@ -488,6 +500,11 @@ func (c *nodeServiceClient) SetInterfaceModes(ctx context.Context, req *connect.
 	return c.setInterfaceModes.CallUnary(ctx, req)
 }
 
+// SetEndpointModes calls suricontroller.api.v1.NodeService.SetEndpointModes.
+func (c *nodeServiceClient) SetEndpointModes(ctx context.Context, req *connect.Request[v1.SetEndpointModesRequest]) (*connect.Response[v1.SetEndpointModesResponse], error) {
+	return c.setEndpointModes.CallUnary(ctx, req)
+}
+
 // ListApplyHistory calls suricontroller.api.v1.NodeService.ListApplyHistory.
 func (c *nodeServiceClient) ListApplyHistory(ctx context.Context, req *connect.Request[v1.ListApplyHistoryRequest]) (*connect.Response[v1.ListApplyHistoryResponse], error) {
 	return c.listApplyHistory.CallUnary(ctx, req)
@@ -503,6 +520,8 @@ type NodeServiceHandler interface {
 	UpdateNode(context.Context, *connect.Request[v1.UpdateNodeRequest]) (*connect.Response[v1.UpdateNodeResponse], error)
 	DeleteNode(context.Context, *connect.Request[v1.DeleteNodeRequest]) (*connect.Response[v1.DeleteNodeResponse], error)
 	SetInterfaceModes(context.Context, *connect.Request[v1.SetInterfaceModesRequest]) (*connect.Response[v1.SetInterfaceModesResponse], error)
+	// Sets the suritap endpoint modes (Off / Detect / Prevent) of a node.
+	SetEndpointModes(context.Context, *connect.Request[v1.SetEndpointModesRequest]) (*connect.Response[v1.SetEndpointModesResponse], error)
 	ListApplyHistory(context.Context, *connect.Request[v1.ListApplyHistoryRequest]) (*connect.Response[v1.ListApplyHistoryResponse], error)
 }
 
@@ -549,6 +568,12 @@ func NewNodeServiceHandler(svc NodeServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(nodeServiceMethods.ByName("SetInterfaceModes")),
 		connect.WithHandlerOptions(opts...),
 	)
+	nodeServiceSetEndpointModesHandler := connect.NewUnaryHandler(
+		NodeServiceSetEndpointModesProcedure,
+		svc.SetEndpointModes,
+		connect.WithSchema(nodeServiceMethods.ByName("SetEndpointModes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	nodeServiceListApplyHistoryHandler := connect.NewUnaryHandler(
 		NodeServiceListApplyHistoryProcedure,
 		svc.ListApplyHistory,
@@ -569,6 +594,8 @@ func NewNodeServiceHandler(svc NodeServiceHandler, opts ...connect.HandlerOption
 			nodeServiceDeleteNodeHandler.ServeHTTP(w, r)
 		case NodeServiceSetInterfaceModesProcedure:
 			nodeServiceSetInterfaceModesHandler.ServeHTTP(w, r)
+		case NodeServiceSetEndpointModesProcedure:
+			nodeServiceSetEndpointModesHandler.ServeHTTP(w, r)
 		case NodeServiceListApplyHistoryProcedure:
 			nodeServiceListApplyHistoryHandler.ServeHTTP(w, r)
 		default:
@@ -602,6 +629,10 @@ func (UnimplementedNodeServiceHandler) DeleteNode(context.Context, *connect.Requ
 
 func (UnimplementedNodeServiceHandler) SetInterfaceModes(context.Context, *connect.Request[v1.SetInterfaceModesRequest]) (*connect.Response[v1.SetInterfaceModesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("suricontroller.api.v1.NodeService.SetInterfaceModes is not implemented"))
+}
+
+func (UnimplementedNodeServiceHandler) SetEndpointModes(context.Context, *connect.Request[v1.SetEndpointModesRequest]) (*connect.Response[v1.SetEndpointModesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("suricontroller.api.v1.NodeService.SetEndpointModes is not implemented"))
 }
 
 func (UnimplementedNodeServiceHandler) ListApplyHistory(context.Context, *connect.Request[v1.ListApplyHistoryRequest]) (*connect.Response[v1.ListApplyHistoryResponse], error) {

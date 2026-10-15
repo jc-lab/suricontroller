@@ -2,8 +2,10 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +37,7 @@ func TestNodes(t *testing.T) {
 	got, err := s.UpdateNode(ctx, "router-01", func(n *store.Node) error {
 		n.Hello = &agentv1.Hello{NodeId: "router-01", AgentVersion: "1.0"}
 		n.InterfaceModes = map[string]agentv1.InterfaceMode{"br-lan": agentv1.InterfaceMode_INTERFACE_MODE_IPS}
+		n.EndpointModes = map[string]agentv1.EndpointMode{"websecure": agentv1.EndpointMode_ENDPOINT_MODE_DETECT}
 		n.Desired = &agentv1.DesiredState{Generation: 3}
 		n.LastSeenAt = now
 		return nil
@@ -50,6 +53,7 @@ func TestNodes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Hello.GetAgentVersion() != "1.0" || got.InterfaceModes["br-lan"] != agentv1.InterfaceMode_INTERFACE_MODE_IPS ||
+		got.EndpointModes["websecure"] != agentv1.EndpointMode_ENDPOINT_MODE_DETECT ||
 		got.Desired.GetGeneration() != 3 || !got.LastSeenAt.Equal(now) || got.LogPolicy != nil {
 		t.Fatalf("unexpected node %+v", got)
 	}
@@ -148,5 +152,41 @@ func TestReopenKeepsData(t *testing.T) {
 	var v int
 	if ok, err := s.GetSetting(context.Background(), "k", &v); !ok || err != nil || v != 42 {
 		t.Fatalf("v=%d ok=%v err=%v", v, ok, err)
+	}
+}
+
+// A version 1 database (before tap endpoint modes) is migrated in place.
+func TestMigrateFromVersion1(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v1.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1 := strings.Replace(schema, ",\n    endpoint_modes  TEXT\n", "\n", 1)
+	if v1 == schema {
+		t.Fatal("could not derive the version 1 schema")
+	}
+	if _, err := db.Exec(v1 + "; PRAGMA user_version = 1;"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO nodes (id, public_key, fingerprint, enabled, created_at, updated_at) VALUES ('n1', 'k', 'f', 1, 0, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	if _, err := s.UpdateNode(ctx, "n1", func(n *store.Node) error {
+		n.EndpointModes = map[string]agentv1.EndpointMode{"api": agentv1.EndpointMode_ENDPOINT_MODE_PREVENT}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n, err := s.GetNode(ctx, "n1")
+	if err != nil || n.EndpointModes["api"] != agentv1.EndpointMode_ENDPOINT_MODE_PREVENT {
+		t.Fatalf("after migration: %+v %v", n, err)
 	}
 }

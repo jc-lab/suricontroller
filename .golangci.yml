@@ -21,6 +21,13 @@ linters:
           deny:
             - pkg: github.com/jc-lab/suricontroller/controller
               desc: the agent must not depend on controller packages
+        adapters:
+          files: ["**/adapters/**"]
+          deny:
+            - pkg: github.com/jc-lab/suricontroller/controller
+              desc: proxy adapters must not depend on the controller
+            - pkg: github.com/jc-lab/suricontroller/agent
+              desc: proxy adapters must not depend on the agent
         pkg:
           files: ["**/pkg/**"]
           deny:

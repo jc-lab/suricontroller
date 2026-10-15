@@ -969,6 +969,153 @@ func (x *NodeInterface) GetAppliedMode() v1.InterfaceMode {
 	return v1.InterfaceMode(0)
 }
 
+// NodeTapEndpoint is a suritap proxy endpoint declared by the agent.
+type NodeTapEndpoint struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	PreventAllowed bool                   `protobuf:"varint,2,opt,name=prevent_allowed,json=preventAllowed,proto3" json:"prevent_allowed,omitempty"`
+	Description    string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	// Desired mode set by the administrator.
+	Mode v1.EndpointMode `protobuf:"varint,4,opt,name=mode,proto3,enum=suricontroller.agent.v1.EndpointMode" json:"mode,omitempty"`
+	// Mode currently applied on the node.
+	AppliedMode   v1.EndpointMode `protobuf:"varint,5,opt,name=applied_mode,json=appliedMode,proto3,enum=suricontroller.agent.v1.EndpointMode" json:"applied_mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NodeTapEndpoint) Reset() {
+	*x = NodeTapEndpoint{}
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeTapEndpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeTapEndpoint) ProtoMessage() {}
+
+func (x *NodeTapEndpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeTapEndpoint.ProtoReflect.Descriptor instead.
+func (*NodeTapEndpoint) Descriptor() ([]byte, []int) {
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *NodeTapEndpoint) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *NodeTapEndpoint) GetPreventAllowed() bool {
+	if x != nil {
+		return x.PreventAllowed
+	}
+	return false
+}
+
+func (x *NodeTapEndpoint) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *NodeTapEndpoint) GetMode() v1.EndpointMode {
+	if x != nil {
+		return x.Mode
+	}
+	return v1.EndpointMode(0)
+}
+
+func (x *NodeTapEndpoint) GetAppliedMode() v1.EndpointMode {
+	if x != nil {
+		return x.AppliedMode
+	}
+	return v1.EndpointMode(0)
+}
+
+type NodeTap struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	SocketDir     string                 `protobuf:"bytes,2,opt,name=socket_dir,json=socketDir,proto3" json:"socket_dir,omitempty"`
+	PluginPresent bool                   `protobuf:"varint,3,opt,name=plugin_present,json=pluginPresent,proto3" json:"plugin_present,omitempty"`
+	Endpoints     []*NodeTapEndpoint     `protobuf:"bytes,4,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NodeTap) Reset() {
+	*x = NodeTap{}
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodeTap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodeTap) ProtoMessage() {}
+
+func (x *NodeTap) ProtoReflect() protoreflect.Message {
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodeTap.ProtoReflect.Descriptor instead.
+func (*NodeTap) Descriptor() ([]byte, []int) {
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *NodeTap) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *NodeTap) GetSocketDir() string {
+	if x != nil {
+		return x.SocketDir
+	}
+	return ""
+}
+
+func (x *NodeTap) GetPluginPresent() bool {
+	if x != nil {
+		return x.PluginPresent
+	}
+	return false
+}
+
+func (x *NodeTap) GetEndpoints() []*NodeTapEndpoint {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
 type NodeDeployState struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	DesiredGeneration uint64                 `protobuf:"varint,1,opt,name=desired_generation,json=desiredGeneration,proto3" json:"desired_generation,omitempty"`
@@ -989,7 +1136,7 @@ type NodeDeployState struct {
 
 func (x *NodeDeployState) Reset() {
 	*x = NodeDeployState{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[15]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1001,7 +1148,7 @@ func (x *NodeDeployState) String() string {
 func (*NodeDeployState) ProtoMessage() {}
 
 func (x *NodeDeployState) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[15]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1014,7 +1161,7 @@ func (x *NodeDeployState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeDeployState.ProtoReflect.Descriptor instead.
 func (*NodeDeployState) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{15}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *NodeDeployState) GetDesiredGeneration() uint64 {
@@ -1108,13 +1255,14 @@ type Node struct {
 	LogSources    []*v1.LogSource        `protobuf:"bytes,17,rep,name=log_sources,json=logSources,proto3" json:"log_sources,omitempty"`
 	LogQueue      *v1.LogQueueStats      `protobuf:"bytes,18,opt,name=log_queue,json=logQueue,proto3" json:"log_queue,omitempty"`
 	Deploy        *NodeDeployState       `protobuf:"bytes,19,opt,name=deploy,proto3" json:"deploy,omitempty"`
+	Tap           *NodeTap               `protobuf:"bytes,20,opt,name=tap,proto3" json:"tap,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Node) Reset() {
 	*x = Node{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[16]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1126,7 +1274,7 @@ func (x *Node) String() string {
 func (*Node) ProtoMessage() {}
 
 func (x *Node) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[16]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1139,7 +1287,7 @@ func (x *Node) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Node.ProtoReflect.Descriptor instead.
 func (*Node) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{16}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Node) GetId() string {
@@ -1275,6 +1423,13 @@ func (x *Node) GetDeploy() *NodeDeployState {
 	return nil
 }
 
+func (x *Node) GetTap() *NodeTap {
+	if x != nil {
+		return x.Tap
+	}
+	return nil
+}
+
 type ListNodesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1283,7 +1438,7 @@ type ListNodesRequest struct {
 
 func (x *ListNodesRequest) Reset() {
 	*x = ListNodesRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[17]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1295,7 +1450,7 @@ func (x *ListNodesRequest) String() string {
 func (*ListNodesRequest) ProtoMessage() {}
 
 func (x *ListNodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[17]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1308,7 +1463,7 @@ func (x *ListNodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodesRequest.ProtoReflect.Descriptor instead.
 func (*ListNodesRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{17}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{19}
 }
 
 type ListNodesResponse struct {
@@ -1320,7 +1475,7 @@ type ListNodesResponse struct {
 
 func (x *ListNodesResponse) Reset() {
 	*x = ListNodesResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[18]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1332,7 +1487,7 @@ func (x *ListNodesResponse) String() string {
 func (*ListNodesResponse) ProtoMessage() {}
 
 func (x *ListNodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[18]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1345,7 +1500,7 @@ func (x *ListNodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNodesResponse.ProtoReflect.Descriptor instead.
 func (*ListNodesResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{18}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListNodesResponse) GetNodes() []*Node {
@@ -1364,7 +1519,7 @@ type GetNodeRequest struct {
 
 func (x *GetNodeRequest) Reset() {
 	*x = GetNodeRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[19]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1376,7 +1531,7 @@ func (x *GetNodeRequest) String() string {
 func (*GetNodeRequest) ProtoMessage() {}
 
 func (x *GetNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[19]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1389,7 +1544,7 @@ func (x *GetNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{19}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetNodeRequest) GetId() string {
@@ -1408,7 +1563,7 @@ type GetNodeResponse struct {
 
 func (x *GetNodeResponse) Reset() {
 	*x = GetNodeResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[20]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1420,7 +1575,7 @@ func (x *GetNodeResponse) String() string {
 func (*GetNodeResponse) ProtoMessage() {}
 
 func (x *GetNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[20]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1433,7 +1588,7 @@ func (x *GetNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{20}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetNodeResponse) GetNode() *Node {
@@ -1453,7 +1608,7 @@ type AddNodeRequest struct {
 
 func (x *AddNodeRequest) Reset() {
 	*x = AddNodeRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[21]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1465,7 +1620,7 @@ func (x *AddNodeRequest) String() string {
 func (*AddNodeRequest) ProtoMessage() {}
 
 func (x *AddNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[21]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1478,7 +1633,7 @@ func (x *AddNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddNodeRequest.ProtoReflect.Descriptor instead.
 func (*AddNodeRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{21}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *AddNodeRequest) GetPublicKey() string {
@@ -1504,7 +1659,7 @@ type AddNodeResponse struct {
 
 func (x *AddNodeResponse) Reset() {
 	*x = AddNodeResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[22]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1516,7 +1671,7 @@ func (x *AddNodeResponse) String() string {
 func (*AddNodeResponse) ProtoMessage() {}
 
 func (x *AddNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[22]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1529,7 +1684,7 @@ func (x *AddNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddNodeResponse.ProtoReflect.Descriptor instead.
 func (*AddNodeResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{22}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AddNodeResponse) GetNode() *Node {
@@ -1550,7 +1705,7 @@ type UpdateNodeRequest struct {
 
 func (x *UpdateNodeRequest) Reset() {
 	*x = UpdateNodeRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[23]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1562,7 +1717,7 @@ func (x *UpdateNodeRequest) String() string {
 func (*UpdateNodeRequest) ProtoMessage() {}
 
 func (x *UpdateNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[23]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1575,7 +1730,7 @@ func (x *UpdateNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateNodeRequest.ProtoReflect.Descriptor instead.
 func (*UpdateNodeRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{23}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *UpdateNodeRequest) GetId() string {
@@ -1608,7 +1763,7 @@ type UpdateNodeResponse struct {
 
 func (x *UpdateNodeResponse) Reset() {
 	*x = UpdateNodeResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[24]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1620,7 +1775,7 @@ func (x *UpdateNodeResponse) String() string {
 func (*UpdateNodeResponse) ProtoMessage() {}
 
 func (x *UpdateNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[24]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1633,7 +1788,7 @@ func (x *UpdateNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateNodeResponse.ProtoReflect.Descriptor instead.
 func (*UpdateNodeResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{24}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *UpdateNodeResponse) GetNode() *Node {
@@ -1652,7 +1807,7 @@ type DeleteNodeRequest struct {
 
 func (x *DeleteNodeRequest) Reset() {
 	*x = DeleteNodeRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[25]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1664,7 +1819,7 @@ func (x *DeleteNodeRequest) String() string {
 func (*DeleteNodeRequest) ProtoMessage() {}
 
 func (x *DeleteNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[25]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1677,7 +1832,7 @@ func (x *DeleteNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNodeRequest.ProtoReflect.Descriptor instead.
 func (*DeleteNodeRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{25}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DeleteNodeRequest) GetId() string {
@@ -1695,7 +1850,7 @@ type DeleteNodeResponse struct {
 
 func (x *DeleteNodeResponse) Reset() {
 	*x = DeleteNodeResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[26]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1707,7 +1862,7 @@ func (x *DeleteNodeResponse) String() string {
 func (*DeleteNodeResponse) ProtoMessage() {}
 
 func (x *DeleteNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[26]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1720,7 +1875,7 @@ func (x *DeleteNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNodeResponse.ProtoReflect.Descriptor instead.
 func (*DeleteNodeResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{26}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{28}
 }
 
 type SetInterfaceModesRequest struct {
@@ -1733,7 +1888,7 @@ type SetInterfaceModesRequest struct {
 
 func (x *SetInterfaceModesRequest) Reset() {
 	*x = SetInterfaceModesRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[27]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1745,7 +1900,7 @@ func (x *SetInterfaceModesRequest) String() string {
 func (*SetInterfaceModesRequest) ProtoMessage() {}
 
 func (x *SetInterfaceModesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[27]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1758,7 +1913,7 @@ func (x *SetInterfaceModesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetInterfaceModesRequest.ProtoReflect.Descriptor instead.
 func (*SetInterfaceModesRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{27}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *SetInterfaceModesRequest) GetId() string {
@@ -1784,7 +1939,7 @@ type SetInterfaceModesResponse struct {
 
 func (x *SetInterfaceModesResponse) Reset() {
 	*x = SetInterfaceModesResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[28]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1796,7 +1951,7 @@ func (x *SetInterfaceModesResponse) String() string {
 func (*SetInterfaceModesResponse) ProtoMessage() {}
 
 func (x *SetInterfaceModesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[28]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1809,10 +1964,106 @@ func (x *SetInterfaceModesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetInterfaceModesResponse.ProtoReflect.Descriptor instead.
 func (*SetInterfaceModesResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{28}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SetInterfaceModesResponse) GetNode() *Node {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+type SetEndpointModesRequest struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Id            string                     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Modes         map[string]v1.EndpointMode `protobuf:"bytes,2,rep,name=modes,proto3" json:"modes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=suricontroller.agent.v1.EndpointMode"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetEndpointModesRequest) Reset() {
+	*x = SetEndpointModesRequest{}
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetEndpointModesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetEndpointModesRequest) ProtoMessage() {}
+
+func (x *SetEndpointModesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetEndpointModesRequest.ProtoReflect.Descriptor instead.
+func (*SetEndpointModesRequest) Descriptor() ([]byte, []int) {
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *SetEndpointModesRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SetEndpointModesRequest) GetModes() map[string]v1.EndpointMode {
+	if x != nil {
+		return x.Modes
+	}
+	return nil
+}
+
+type SetEndpointModesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Node          *Node                  `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetEndpointModesResponse) Reset() {
+	*x = SetEndpointModesResponse{}
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetEndpointModesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetEndpointModesResponse) ProtoMessage() {}
+
+func (x *SetEndpointModesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetEndpointModesResponse.ProtoReflect.Descriptor instead.
+func (*SetEndpointModesResponse) Descriptor() ([]byte, []int) {
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *SetEndpointModesResponse) GetNode() *Node {
 	if x != nil {
 		return x.Node
 	}
@@ -1830,7 +2081,7 @@ type ApplyHistoryEntry struct {
 
 func (x *ApplyHistoryEntry) Reset() {
 	*x = ApplyHistoryEntry{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[29]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1842,7 +2093,7 @@ func (x *ApplyHistoryEntry) String() string {
 func (*ApplyHistoryEntry) ProtoMessage() {}
 
 func (x *ApplyHistoryEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[29]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1855,7 +2106,7 @@ func (x *ApplyHistoryEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyHistoryEntry.ProtoReflect.Descriptor instead.
 func (*ApplyHistoryEntry) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{29}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ApplyHistoryEntry) GetId() int64 {
@@ -1889,7 +2140,7 @@ type ListApplyHistoryRequest struct {
 
 func (x *ListApplyHistoryRequest) Reset() {
 	*x = ListApplyHistoryRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[30]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1901,7 +2152,7 @@ func (x *ListApplyHistoryRequest) String() string {
 func (*ListApplyHistoryRequest) ProtoMessage() {}
 
 func (x *ListApplyHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[30]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1914,7 +2165,7 @@ func (x *ListApplyHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApplyHistoryRequest.ProtoReflect.Descriptor instead.
 func (*ListApplyHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{30}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListApplyHistoryRequest) GetId() string {
@@ -1940,7 +2191,7 @@ type ListApplyHistoryResponse struct {
 
 func (x *ListApplyHistoryResponse) Reset() {
 	*x = ListApplyHistoryResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[31]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1952,7 +2203,7 @@ func (x *ListApplyHistoryResponse) String() string {
 func (*ListApplyHistoryResponse) ProtoMessage() {}
 
 func (x *ListApplyHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[31]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1965,7 +2216,7 @@ func (x *ListApplyHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApplyHistoryResponse.ProtoReflect.Descriptor instead.
 func (*ListApplyHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{31}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListApplyHistoryResponse) GetEntries() []*ApplyHistoryEntry {
@@ -1988,7 +2239,7 @@ type Commit struct {
 
 func (x *Commit) Reset() {
 	*x = Commit{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[32]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2000,7 +2251,7 @@ func (x *Commit) String() string {
 func (*Commit) ProtoMessage() {}
 
 func (x *Commit) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[32]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2013,7 +2264,7 @@ func (x *Commit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Commit.ProtoReflect.Descriptor instead.
 func (*Commit) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{32}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *Commit) GetId() string {
@@ -2065,7 +2316,7 @@ type ListCommitsRequest struct {
 
 func (x *ListCommitsRequest) Reset() {
 	*x = ListCommitsRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[33]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2077,7 +2328,7 @@ func (x *ListCommitsRequest) String() string {
 func (*ListCommitsRequest) ProtoMessage() {}
 
 func (x *ListCommitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[33]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2090,7 +2341,7 @@ func (x *ListCommitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommitsRequest.ProtoReflect.Descriptor instead.
 func (*ListCommitsRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{33}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ListCommitsRequest) GetRepo() Repo {
@@ -2131,7 +2382,7 @@ type ListCommitsResponse struct {
 
 func (x *ListCommitsResponse) Reset() {
 	*x = ListCommitsResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[34]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2143,7 +2394,7 @@ func (x *ListCommitsResponse) String() string {
 func (*ListCommitsResponse) ProtoMessage() {}
 
 func (x *ListCommitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[34]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2156,7 +2407,7 @@ func (x *ListCommitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCommitsResponse.ProtoReflect.Descriptor instead.
 func (*ListCommitsResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{34}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListCommitsResponse) GetCommits() []*Commit {
@@ -2186,7 +2437,7 @@ type FileChangeStat struct {
 
 func (x *FileChangeStat) Reset() {
 	*x = FileChangeStat{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[35]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2198,7 +2449,7 @@ func (x *FileChangeStat) String() string {
 func (*FileChangeStat) ProtoMessage() {}
 
 func (x *FileChangeStat) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[35]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2211,7 +2462,7 @@ func (x *FileChangeStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileChangeStat.ProtoReflect.Descriptor instead.
 func (*FileChangeStat) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{35}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *FileChangeStat) GetPath() string {
@@ -2252,7 +2503,7 @@ type GetCommitRequest struct {
 
 func (x *GetCommitRequest) Reset() {
 	*x = GetCommitRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[36]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2264,7 +2515,7 @@ func (x *GetCommitRequest) String() string {
 func (*GetCommitRequest) ProtoMessage() {}
 
 func (x *GetCommitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[36]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2277,7 +2528,7 @@ func (x *GetCommitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCommitRequest.ProtoReflect.Descriptor instead.
 func (*GetCommitRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{36}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetCommitRequest) GetRepo() Repo {
@@ -2304,7 +2555,7 @@ type GetCommitResponse struct {
 
 func (x *GetCommitResponse) Reset() {
 	*x = GetCommitResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[37]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2316,7 +2567,7 @@ func (x *GetCommitResponse) String() string {
 func (*GetCommitResponse) ProtoMessage() {}
 
 func (x *GetCommitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[37]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2329,7 +2580,7 @@ func (x *GetCommitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCommitResponse.ProtoReflect.Descriptor instead.
 func (*GetCommitResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{37}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetCommitResponse) GetCommit() *Commit {
@@ -2357,7 +2608,7 @@ type TreeEntry struct {
 
 func (x *TreeEntry) Reset() {
 	*x = TreeEntry{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[38]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2369,7 +2620,7 @@ func (x *TreeEntry) String() string {
 func (*TreeEntry) ProtoMessage() {}
 
 func (x *TreeEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[38]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2382,7 +2633,7 @@ func (x *TreeEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TreeEntry.ProtoReflect.Descriptor instead.
 func (*TreeEntry) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{38}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *TreeEntry) GetPath() string {
@@ -2419,7 +2670,7 @@ type ListTreeRequest struct {
 
 func (x *ListTreeRequest) Reset() {
 	*x = ListTreeRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[39]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2431,7 +2682,7 @@ func (x *ListTreeRequest) String() string {
 func (*ListTreeRequest) ProtoMessage() {}
 
 func (x *ListTreeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[39]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2444,7 +2695,7 @@ func (x *ListTreeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTreeRequest.ProtoReflect.Descriptor instead.
 func (*ListTreeRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{39}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListTreeRequest) GetRepo() Repo {
@@ -2485,7 +2736,7 @@ type ListTreeResponse struct {
 
 func (x *ListTreeResponse) Reset() {
 	*x = ListTreeResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[40]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2497,7 +2748,7 @@ func (x *ListTreeResponse) String() string {
 func (*ListTreeResponse) ProtoMessage() {}
 
 func (x *ListTreeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[40]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2510,7 +2761,7 @@ func (x *ListTreeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTreeResponse.ProtoReflect.Descriptor instead.
 func (*ListTreeResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{40}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListTreeResponse) GetCommit() string {
@@ -2538,7 +2789,7 @@ type ReadFileRequest struct {
 
 func (x *ReadFileRequest) Reset() {
 	*x = ReadFileRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[41]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2550,7 +2801,7 @@ func (x *ReadFileRequest) String() string {
 func (*ReadFileRequest) ProtoMessage() {}
 
 func (x *ReadFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[41]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2563,7 +2814,7 @@ func (x *ReadFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadFileRequest.ProtoReflect.Descriptor instead.
 func (*ReadFileRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{41}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ReadFileRequest) GetRepo() Repo {
@@ -2597,7 +2848,7 @@ type ReadFileResponse struct {
 
 func (x *ReadFileResponse) Reset() {
 	*x = ReadFileResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[42]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2609,7 +2860,7 @@ func (x *ReadFileResponse) String() string {
 func (*ReadFileResponse) ProtoMessage() {}
 
 func (x *ReadFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[42]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2622,7 +2873,7 @@ func (x *ReadFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadFileResponse.ProtoReflect.Descriptor instead.
 func (*ReadFileResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{42}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ReadFileResponse) GetCommit() string {
@@ -2650,7 +2901,7 @@ type FileChange struct {
 
 func (x *FileChange) Reset() {
 	*x = FileChange{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[43]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2662,7 +2913,7 @@ func (x *FileChange) String() string {
 func (*FileChange) ProtoMessage() {}
 
 func (x *FileChange) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[43]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2675,7 +2926,7 @@ func (x *FileChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileChange.ProtoReflect.Descriptor instead.
 func (*FileChange) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{43}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *FileChange) GetPath() string {
@@ -2711,7 +2962,7 @@ type WriteFilesRequest struct {
 
 func (x *WriteFilesRequest) Reset() {
 	*x = WriteFilesRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[44]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2723,7 +2974,7 @@ func (x *WriteFilesRequest) String() string {
 func (*WriteFilesRequest) ProtoMessage() {}
 
 func (x *WriteFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[44]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2736,7 +2987,7 @@ func (x *WriteFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteFilesRequest.ProtoReflect.Descriptor instead.
 func (*WriteFilesRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{44}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *WriteFilesRequest) GetRepo() Repo {
@@ -2776,7 +3027,7 @@ type WriteFilesResponse struct {
 
 func (x *WriteFilesResponse) Reset() {
 	*x = WriteFilesResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[45]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2788,7 +3039,7 @@ func (x *WriteFilesResponse) String() string {
 func (*WriteFilesResponse) ProtoMessage() {}
 
 func (x *WriteFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[45]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2801,7 +3052,7 @@ func (x *WriteFilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteFilesResponse.ProtoReflect.Descriptor instead.
 func (*WriteFilesResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{45}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *WriteFilesResponse) GetCommit() *Commit {
@@ -2824,7 +3075,7 @@ type DiffRequest struct {
 
 func (x *DiffRequest) Reset() {
 	*x = DiffRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[46]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2836,7 +3087,7 @@ func (x *DiffRequest) String() string {
 func (*DiffRequest) ProtoMessage() {}
 
 func (x *DiffRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[46]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2849,7 +3100,7 @@ func (x *DiffRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiffRequest.ProtoReflect.Descriptor instead.
 func (*DiffRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{46}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *DiffRequest) GetRepo() Repo {
@@ -2890,7 +3141,7 @@ type DiffResponse struct {
 
 func (x *DiffResponse) Reset() {
 	*x = DiffResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[47]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2902,7 +3153,7 @@ func (x *DiffResponse) String() string {
 func (*DiffResponse) ProtoMessage() {}
 
 func (x *DiffResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[47]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2915,7 +3166,7 @@ func (x *DiffResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiffResponse.ProtoReflect.Descriptor instead.
 func (*DiffResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{47}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *DiffResponse) GetUnifiedDiff() string {
@@ -2953,7 +3204,7 @@ type Provider struct {
 
 func (x *Provider) Reset() {
 	*x = Provider{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[48]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2965,7 +3216,7 @@ func (x *Provider) String() string {
 func (*Provider) ProtoMessage() {}
 
 func (x *Provider) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[48]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2978,7 +3229,7 @@ func (x *Provider) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Provider.ProtoReflect.Descriptor instead.
 func (*Provider) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{48}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *Provider) GetName() string {
@@ -3059,7 +3310,7 @@ type ListProvidersRequest struct {
 
 func (x *ListProvidersRequest) Reset() {
 	*x = ListProvidersRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[49]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3071,7 +3322,7 @@ func (x *ListProvidersRequest) String() string {
 func (*ListProvidersRequest) ProtoMessage() {}
 
 func (x *ListProvidersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[49]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3084,7 +3335,7 @@ func (x *ListProvidersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProvidersRequest.ProtoReflect.Descriptor instead.
 func (*ListProvidersRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{49}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{53}
 }
 
 type ListProvidersResponse struct {
@@ -3096,7 +3347,7 @@ type ListProvidersResponse struct {
 
 func (x *ListProvidersResponse) Reset() {
 	*x = ListProvidersResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[50]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3108,7 +3359,7 @@ func (x *ListProvidersResponse) String() string {
 func (*ListProvidersResponse) ProtoMessage() {}
 
 func (x *ListProvidersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[50]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3121,7 +3372,7 @@ func (x *ListProvidersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProvidersResponse.ProtoReflect.Descriptor instead.
 func (*ListProvidersResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{50}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ListProvidersResponse) GetProviders() []*Provider {
@@ -3143,7 +3394,7 @@ type UpdateProviderRequest struct {
 
 func (x *UpdateProviderRequest) Reset() {
 	*x = UpdateProviderRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[51]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3155,7 +3406,7 @@ func (x *UpdateProviderRequest) String() string {
 func (*UpdateProviderRequest) ProtoMessage() {}
 
 func (x *UpdateProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[51]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3168,7 +3419,7 @@ func (x *UpdateProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateProviderRequest.ProtoReflect.Descriptor instead.
 func (*UpdateProviderRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{51}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *UpdateProviderRequest) GetName() string {
@@ -3208,7 +3459,7 @@ type UpdateProviderResponse struct {
 
 func (x *UpdateProviderResponse) Reset() {
 	*x = UpdateProviderResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[52]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3220,7 +3471,7 @@ func (x *UpdateProviderResponse) String() string {
 func (*UpdateProviderResponse) ProtoMessage() {}
 
 func (x *UpdateProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[52]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3233,7 +3484,7 @@ func (x *UpdateProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateProviderResponse.ProtoReflect.Descriptor instead.
 func (*UpdateProviderResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{52}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *UpdateProviderResponse) GetProvider() *Provider {
@@ -3252,7 +3503,7 @@ type SyncProviderRequest struct {
 
 func (x *SyncProviderRequest) Reset() {
 	*x = SyncProviderRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[53]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3264,7 +3515,7 @@ func (x *SyncProviderRequest) String() string {
 func (*SyncProviderRequest) ProtoMessage() {}
 
 func (x *SyncProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[53]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3277,7 +3528,7 @@ func (x *SyncProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncProviderRequest.ProtoReflect.Descriptor instead.
 func (*SyncProviderRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{53}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SyncProviderRequest) GetName() string {
@@ -3298,7 +3549,7 @@ type SyncProviderResponse struct {
 
 func (x *SyncProviderResponse) Reset() {
 	*x = SyncProviderResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[54]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3310,7 +3561,7 @@ func (x *SyncProviderResponse) String() string {
 func (*SyncProviderResponse) ProtoMessage() {}
 
 func (x *SyncProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[54]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3323,7 +3574,7 @@ func (x *SyncProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncProviderResponse.ProtoReflect.Descriptor instead.
 func (*SyncProviderResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{54}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SyncProviderResponse) GetChanged() bool {
@@ -3363,7 +3614,7 @@ type DeployPolicy struct {
 
 func (x *DeployPolicy) Reset() {
 	*x = DeployPolicy{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[55]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3375,7 +3626,7 @@ func (x *DeployPolicy) String() string {
 func (*DeployPolicy) ProtoMessage() {}
 
 func (x *DeployPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[55]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3388,7 +3639,7 @@ func (x *DeployPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployPolicy.ProtoReflect.Descriptor instead.
 func (*DeployPolicy) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{55}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *DeployPolicy) GetKind() DeployKind {
@@ -3448,7 +3699,7 @@ type GetPoliciesRequest struct {
 
 func (x *GetPoliciesRequest) Reset() {
 	*x = GetPoliciesRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[56]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3460,7 +3711,7 @@ func (x *GetPoliciesRequest) String() string {
 func (*GetPoliciesRequest) ProtoMessage() {}
 
 func (x *GetPoliciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[56]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3473,7 +3724,7 @@ func (x *GetPoliciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPoliciesRequest.ProtoReflect.Descriptor instead.
 func (*GetPoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{56}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{60}
 }
 
 type GetPoliciesResponse struct {
@@ -3486,7 +3737,7 @@ type GetPoliciesResponse struct {
 
 func (x *GetPoliciesResponse) Reset() {
 	*x = GetPoliciesResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[57]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3498,7 +3749,7 @@ func (x *GetPoliciesResponse) String() string {
 func (*GetPoliciesResponse) ProtoMessage() {}
 
 func (x *GetPoliciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[57]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3511,7 +3762,7 @@ func (x *GetPoliciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPoliciesResponse.ProtoReflect.Descriptor instead.
 func (*GetPoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{57}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GetPoliciesResponse) GetRules() *DeployPolicy {
@@ -3539,7 +3790,7 @@ type SetPolicyRequest struct {
 
 func (x *SetPolicyRequest) Reset() {
 	*x = SetPolicyRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[58]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3551,7 +3802,7 @@ func (x *SetPolicyRequest) String() string {
 func (*SetPolicyRequest) ProtoMessage() {}
 
 func (x *SetPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[58]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3564,7 +3815,7 @@ func (x *SetPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPolicyRequest.ProtoReflect.Descriptor instead.
 func (*SetPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{58}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *SetPolicyRequest) GetKind() DeployKind {
@@ -3597,7 +3848,7 @@ type SetPolicyResponse struct {
 
 func (x *SetPolicyResponse) Reset() {
 	*x = SetPolicyResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[59]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3609,7 +3860,7 @@ func (x *SetPolicyResponse) String() string {
 func (*SetPolicyResponse) ProtoMessage() {}
 
 func (x *SetPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[59]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3622,7 +3873,7 @@ func (x *SetPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPolicyResponse.ProtoReflect.Descriptor instead.
 func (*SetPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{59}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *SetPolicyResponse) GetPolicy() *DeployPolicy {
@@ -3646,7 +3897,7 @@ type RuleStats struct {
 
 func (x *RuleStats) Reset() {
 	*x = RuleStats{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[60]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3658,7 +3909,7 @@ func (x *RuleStats) String() string {
 func (*RuleStats) ProtoMessage() {}
 
 func (x *RuleStats) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[60]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3671,7 +3922,7 @@ func (x *RuleStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuleStats.ProtoReflect.Descriptor instead.
 func (*RuleStats) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{60}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *RuleStats) GetTotal() uint32 {
@@ -3728,7 +3979,7 @@ type PreviewNodeRequest struct {
 
 func (x *PreviewNodeRequest) Reset() {
 	*x = PreviewNodeRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[61]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3740,7 +3991,7 @@ func (x *PreviewNodeRequest) String() string {
 func (*PreviewNodeRequest) ProtoMessage() {}
 
 func (x *PreviewNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[61]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3753,7 +4004,7 @@ func (x *PreviewNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewNodeRequest.ProtoReflect.Descriptor instead.
 func (*PreviewNodeRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{61}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *PreviewNodeRequest) GetNodeId() string {
@@ -3793,7 +4044,7 @@ type PreviewNodeResponse struct {
 
 func (x *PreviewNodeResponse) Reset() {
 	*x = PreviewNodeResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[62]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3805,7 +4056,7 @@ func (x *PreviewNodeResponse) String() string {
 func (*PreviewNodeResponse) ProtoMessage() {}
 
 func (x *PreviewNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[62]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3818,7 +4069,7 @@ func (x *PreviewNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewNodeResponse.ProtoReflect.Descriptor instead.
 func (*PreviewNodeResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{62}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *PreviewNodeResponse) GetRulesCommit() string {
@@ -3878,7 +4129,7 @@ type GetCollectionPoliciesRequest struct {
 
 func (x *GetCollectionPoliciesRequest) Reset() {
 	*x = GetCollectionPoliciesRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[63]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3890,7 +4141,7 @@ func (x *GetCollectionPoliciesRequest) String() string {
 func (*GetCollectionPoliciesRequest) ProtoMessage() {}
 
 func (x *GetCollectionPoliciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[63]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3903,7 +4154,7 @@ func (x *GetCollectionPoliciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCollectionPoliciesRequest.ProtoReflect.Descriptor instead.
 func (*GetCollectionPoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{63}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{67}
 }
 
 type GetCollectionPoliciesResponse struct {
@@ -3917,7 +4168,7 @@ type GetCollectionPoliciesResponse struct {
 
 func (x *GetCollectionPoliciesResponse) Reset() {
 	*x = GetCollectionPoliciesResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[64]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3929,7 +4180,7 @@ func (x *GetCollectionPoliciesResponse) String() string {
 func (*GetCollectionPoliciesResponse) ProtoMessage() {}
 
 func (x *GetCollectionPoliciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[64]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3942,7 +4193,7 @@ func (x *GetCollectionPoliciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCollectionPoliciesResponse.ProtoReflect.Descriptor instead.
 func (*GetCollectionPoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{64}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *GetCollectionPoliciesResponse) GetGlobal() *v1.LogCollectionPolicy {
@@ -3968,7 +4219,7 @@ type SetGlobalCollectionPolicyRequest struct {
 
 func (x *SetGlobalCollectionPolicyRequest) Reset() {
 	*x = SetGlobalCollectionPolicyRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[65]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3980,7 +4231,7 @@ func (x *SetGlobalCollectionPolicyRequest) String() string {
 func (*SetGlobalCollectionPolicyRequest) ProtoMessage() {}
 
 func (x *SetGlobalCollectionPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[65]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3993,7 +4244,7 @@ func (x *SetGlobalCollectionPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGlobalCollectionPolicyRequest.ProtoReflect.Descriptor instead.
 func (*SetGlobalCollectionPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{65}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *SetGlobalCollectionPolicyRequest) GetPolicy() *v1.LogCollectionPolicy {
@@ -4011,7 +4262,7 @@ type SetGlobalCollectionPolicyResponse struct {
 
 func (x *SetGlobalCollectionPolicyResponse) Reset() {
 	*x = SetGlobalCollectionPolicyResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[66]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4023,7 +4274,7 @@ func (x *SetGlobalCollectionPolicyResponse) String() string {
 func (*SetGlobalCollectionPolicyResponse) ProtoMessage() {}
 
 func (x *SetGlobalCollectionPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[66]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4036,7 +4287,7 @@ func (x *SetGlobalCollectionPolicyResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SetGlobalCollectionPolicyResponse.ProtoReflect.Descriptor instead.
 func (*SetGlobalCollectionPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{66}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{70}
 }
 
 type SetNodeCollectionPolicyRequest struct {
@@ -4051,7 +4302,7 @@ type SetNodeCollectionPolicyRequest struct {
 
 func (x *SetNodeCollectionPolicyRequest) Reset() {
 	*x = SetNodeCollectionPolicyRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[67]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4063,7 +4314,7 @@ func (x *SetNodeCollectionPolicyRequest) String() string {
 func (*SetNodeCollectionPolicyRequest) ProtoMessage() {}
 
 func (x *SetNodeCollectionPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[67]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4076,7 +4327,7 @@ func (x *SetNodeCollectionPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNodeCollectionPolicyRequest.ProtoReflect.Descriptor instead.
 func (*SetNodeCollectionPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{67}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *SetNodeCollectionPolicyRequest) GetNodeId() string {
@@ -4108,7 +4359,7 @@ type SetNodeCollectionPolicyResponse struct {
 
 func (x *SetNodeCollectionPolicyResponse) Reset() {
 	*x = SetNodeCollectionPolicyResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[68]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4120,7 +4371,7 @@ func (x *SetNodeCollectionPolicyResponse) String() string {
 func (*SetNodeCollectionPolicyResponse) ProtoMessage() {}
 
 func (x *SetNodeCollectionPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[68]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4133,7 +4384,7 @@ func (x *SetNodeCollectionPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNodeCollectionPolicyResponse.ProtoReflect.Descriptor instead.
 func (*SetNodeCollectionPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{68}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{72}
 }
 
 type RetentionPolicy struct {
@@ -4154,7 +4405,7 @@ type RetentionPolicy struct {
 
 func (x *RetentionPolicy) Reset() {
 	*x = RetentionPolicy{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[69]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4166,7 +4417,7 @@ func (x *RetentionPolicy) String() string {
 func (*RetentionPolicy) ProtoMessage() {}
 
 func (x *RetentionPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[69]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4179,7 +4430,7 @@ func (x *RetentionPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetentionPolicy.ProtoReflect.Descriptor instead.
 func (*RetentionPolicy) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{69}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *RetentionPolicy) GetRotate() RotateInterval {
@@ -4232,7 +4483,7 @@ type GetRetentionPolicyRequest struct {
 
 func (x *GetRetentionPolicyRequest) Reset() {
 	*x = GetRetentionPolicyRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[70]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4244,7 +4495,7 @@ func (x *GetRetentionPolicyRequest) String() string {
 func (*GetRetentionPolicyRequest) ProtoMessage() {}
 
 func (x *GetRetentionPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[70]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4257,7 +4508,7 @@ func (x *GetRetentionPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRetentionPolicyRequest.ProtoReflect.Descriptor instead.
 func (*GetRetentionPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{70}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{74}
 }
 
 type GetRetentionPolicyResponse struct {
@@ -4269,7 +4520,7 @@ type GetRetentionPolicyResponse struct {
 
 func (x *GetRetentionPolicyResponse) Reset() {
 	*x = GetRetentionPolicyResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[71]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4281,7 +4532,7 @@ func (x *GetRetentionPolicyResponse) String() string {
 func (*GetRetentionPolicyResponse) ProtoMessage() {}
 
 func (x *GetRetentionPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[71]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4294,7 +4545,7 @@ func (x *GetRetentionPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRetentionPolicyResponse.ProtoReflect.Descriptor instead.
 func (*GetRetentionPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{71}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *GetRetentionPolicyResponse) GetPolicy() *RetentionPolicy {
@@ -4313,7 +4564,7 @@ type SetRetentionPolicyRequest struct {
 
 func (x *SetRetentionPolicyRequest) Reset() {
 	*x = SetRetentionPolicyRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[72]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4325,7 +4576,7 @@ func (x *SetRetentionPolicyRequest) String() string {
 func (*SetRetentionPolicyRequest) ProtoMessage() {}
 
 func (x *SetRetentionPolicyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[72]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4338,7 +4589,7 @@ func (x *SetRetentionPolicyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetRetentionPolicyRequest.ProtoReflect.Descriptor instead.
 func (*SetRetentionPolicyRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{72}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *SetRetentionPolicyRequest) GetPolicy() *RetentionPolicy {
@@ -4357,7 +4608,7 @@ type SetRetentionPolicyResponse struct {
 
 func (x *SetRetentionPolicyResponse) Reset() {
 	*x = SetRetentionPolicyResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[73]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4369,7 +4620,7 @@ func (x *SetRetentionPolicyResponse) String() string {
 func (*SetRetentionPolicyResponse) ProtoMessage() {}
 
 func (x *SetRetentionPolicyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[73]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4382,7 +4633,7 @@ func (x *SetRetentionPolicyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetRetentionPolicyResponse.ProtoReflect.Descriptor instead.
 func (*SetRetentionPolicyResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{73}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *SetRetentionPolicyResponse) GetPolicy() *RetentionPolicy {
@@ -4407,7 +4658,7 @@ type LogFile struct {
 
 func (x *LogFile) Reset() {
 	*x = LogFile{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[74]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4419,7 +4670,7 @@ func (x *LogFile) String() string {
 func (*LogFile) ProtoMessage() {}
 
 func (x *LogFile) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[74]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4432,7 +4683,7 @@ func (x *LogFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogFile.ProtoReflect.Descriptor instead.
 func (*LogFile) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{74}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *LogFile) GetNodeId() string {
@@ -4487,7 +4738,7 @@ type ListLogFilesRequest struct {
 
 func (x *ListLogFilesRequest) Reset() {
 	*x = ListLogFilesRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[75]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4499,7 +4750,7 @@ func (x *ListLogFilesRequest) String() string {
 func (*ListLogFilesRequest) ProtoMessage() {}
 
 func (x *ListLogFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[75]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4512,7 +4763,7 @@ func (x *ListLogFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLogFilesRequest.ProtoReflect.Descriptor instead.
 func (*ListLogFilesRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{75}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *ListLogFilesRequest) GetNodeId() string {
@@ -4539,7 +4790,7 @@ type ListLogFilesResponse struct {
 
 func (x *ListLogFilesResponse) Reset() {
 	*x = ListLogFilesResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[76]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4551,7 +4802,7 @@ func (x *ListLogFilesResponse) String() string {
 func (*ListLogFilesResponse) ProtoMessage() {}
 
 func (x *ListLogFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[76]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4564,7 +4815,7 @@ func (x *ListLogFilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLogFilesResponse.ProtoReflect.Descriptor instead.
 func (*ListLogFilesResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{76}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *ListLogFilesResponse) GetFiles() []*LogFile {
@@ -4597,7 +4848,7 @@ type TailLogRequest struct {
 
 func (x *TailLogRequest) Reset() {
 	*x = TailLogRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[77]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4609,7 +4860,7 @@ func (x *TailLogRequest) String() string {
 func (*TailLogRequest) ProtoMessage() {}
 
 func (x *TailLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[77]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4622,7 +4873,7 @@ func (x *TailLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TailLogRequest.ProtoReflect.Descriptor instead.
 func (*TailLogRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{77}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *TailLogRequest) GetNodeId() string {
@@ -4669,7 +4920,7 @@ type TailLogResponse struct {
 
 func (x *TailLogResponse) Reset() {
 	*x = TailLogResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[78]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4681,7 +4932,7 @@ func (x *TailLogResponse) String() string {
 func (*TailLogResponse) ProtoMessage() {}
 
 func (x *TailLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[78]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4694,7 +4945,7 @@ func (x *TailLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TailLogResponse.ProtoReflect.Descriptor instead.
 func (*TailLogResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{78}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *TailLogResponse) GetLines() []string {
@@ -4712,7 +4963,7 @@ type GetIngestStatsRequest struct {
 
 func (x *GetIngestStatsRequest) Reset() {
 	*x = GetIngestStatsRequest{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[79]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4724,7 +4975,7 @@ func (x *GetIngestStatsRequest) String() string {
 func (*GetIngestStatsRequest) ProtoMessage() {}
 
 func (x *GetIngestStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[79]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4737,7 +4988,7 @@ func (x *GetIngestStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetIngestStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetIngestStatsRequest) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{79}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{83}
 }
 
 type NodeIngestStats struct {
@@ -4752,7 +5003,7 @@ type NodeIngestStats struct {
 
 func (x *NodeIngestStats) Reset() {
 	*x = NodeIngestStats{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[80]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4764,7 +5015,7 @@ func (x *NodeIngestStats) String() string {
 func (*NodeIngestStats) ProtoMessage() {}
 
 func (x *NodeIngestStats) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[80]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4777,7 +5028,7 @@ func (x *NodeIngestStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeIngestStats.ProtoReflect.Descriptor instead.
 func (*NodeIngestStats) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{80}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *NodeIngestStats) GetNodeId() string {
@@ -4821,7 +5072,7 @@ type GetIngestStatsResponse struct {
 
 func (x *GetIngestStatsResponse) Reset() {
 	*x = GetIngestStatsResponse{}
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[81]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4833,7 +5084,7 @@ func (x *GetIngestStatsResponse) String() string {
 func (*GetIngestStatsResponse) ProtoMessage() {}
 
 func (x *GetIngestStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_api_v1_api_proto_msgTypes[81]
+	mi := &file_suricontroller_api_v1_api_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4846,7 +5097,7 @@ func (x *GetIngestStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetIngestStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetIngestStatsResponse) Descriptor() ([]byte, []int) {
-	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{81}
+	return file_suricontroller_api_v1_api_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *GetIngestStatsResponse) GetQueueBytes() uint64 {
@@ -4929,7 +5180,19 @@ const file_suricontroller_api_v1_api_proto_rawDesc = "" +
 	"\x02up\x18\x04 \x01(\bR\x02up\x12\x1c\n" +
 	"\taddresses\x18\x05 \x03(\tR\taddresses\x12:\n" +
 	"\x04mode\x18\x06 \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\x04mode\x12I\n" +
-	"\fapplied_mode\x18\a \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\vappliedMode\"\xb3\x04\n" +
+	"\fapplied_mode\x18\a \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\vappliedMode\"\xf5\x01\n" +
+	"\x0fNodeTapEndpoint\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
+	"\x0fprevent_allowed\x18\x02 \x01(\bR\x0epreventAllowed\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x129\n" +
+	"\x04mode\x18\x04 \x01(\x0e2%.suricontroller.agent.v1.EndpointModeR\x04mode\x12H\n" +
+	"\fapplied_mode\x18\x05 \x01(\x0e2%.suricontroller.agent.v1.EndpointModeR\vappliedMode\"\xaf\x01\n" +
+	"\aNodeTap\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1d\n" +
+	"\n" +
+	"socket_dir\x18\x02 \x01(\tR\tsocketDir\x12%\n" +
+	"\x0eplugin_present\x18\x03 \x01(\bR\rpluginPresent\x12D\n" +
+	"\tendpoints\x18\x04 \x03(\v2&.suricontroller.api.v1.NodeTapEndpointR\tendpoints\"\xb3\x04\n" +
 	"\x0fNodeDeployState\x12-\n" +
 	"\x12desired_generation\x18\x01 \x01(\x04R\x11desiredGeneration\x12I\n" +
 	"\x0edesired_bundle\x18\x02 \x01(\v2\".suricontroller.agent.v1.BundleRefR\rdesiredBundle\x12-\n" +
@@ -4943,7 +5206,7 @@ const file_suricontroller_api_v1_api_proto_rawDesc = "" +
 	"\x0elast_report_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\flastReportAt\x12\x17\n" +
 	"\ain_sync\x18\t \x01(\bR\x06inSync\x12#\n" +
 	"\rdesired_error\x18\n" +
-	" \x01(\tR\fdesiredError\"\xbe\a\n" +
+	" \x01(\tR\fdesiredError\"\xf0\a\n" +
 	"\x04Node\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -4971,7 +5234,8 @@ const file_suricontroller_api_v1_api_proto_rawDesc = "" +
 	"\vlog_sources\x18\x11 \x03(\v2\".suricontroller.agent.v1.LogSourceR\n" +
 	"logSources\x12C\n" +
 	"\tlog_queue\x18\x12 \x01(\v2&.suricontroller.agent.v1.LogQueueStatsR\blogQueue\x12>\n" +
-	"\x06deploy\x18\x13 \x01(\v2&.suricontroller.api.v1.NodeDeployStateR\x06deploy\"\x12\n" +
+	"\x06deploy\x18\x13 \x01(\v2&.suricontroller.api.v1.NodeDeployStateR\x06deploy\x120\n" +
+	"\x03tap\x18\x14 \x01(\v2\x1e.suricontroller.api.v1.NodeTapR\x03tap\"\x12\n" +
 	"\x10ListNodesRequest\"F\n" +
 	"\x11ListNodesResponse\x121\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x1b.suricontroller.api.v1.NodeR\x05nodes\" \n" +
@@ -5005,6 +5269,15 @@ const file_suricontroller_api_v1_api_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
 	"\x05value\x18\x02 \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\x05value:\x028\x01\"L\n" +
 	"\x19SetInterfaceModesResponse\x12/\n" +
+	"\x04node\x18\x01 \x01(\v2\x1b.suricontroller.api.v1.NodeR\x04node\"\xdb\x01\n" +
+	"\x17SetEndpointModesRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12O\n" +
+	"\x05modes\x18\x02 \x03(\v29.suricontroller.api.v1.SetEndpointModesRequest.ModesEntryR\x05modes\x1a_\n" +
+	"\n" +
+	"ModesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12;\n" +
+	"\x05value\x18\x02 \x01(\x0e2%.suricontroller.agent.v1.EndpointModeR\x05value:\x028\x01\"K\n" +
+	"\x18SetEndpointModesResponse\x12/\n" +
 	"\x04node\x18\x01 \x01(\v2\x1b.suricontroller.api.v1.NodeR\x04node\"\x9c\x01\n" +
 	"\x11ApplyHistoryEntry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12<\n" +
@@ -5256,7 +5529,7 @@ const file_suricontroller_api_v1_api_proto_rawDesc = "" +
 	"\rSystemService\x12X\n" +
 	"\aGetInfo\x12%.suricontroller.api.v1.GetInfoRequest\x1a&.suricontroller.api.v1.GetInfoResponse\x12d\n" +
 	"\vGetSettings\x12).suricontroller.api.v1.GetSettingsRequest\x1a*.suricontroller.api.v1.GetSettingsResponse\x12m\n" +
-	"\x0eUpdateSettings\x12,.suricontroller.api.v1.UpdateSettingsRequest\x1a-.suricontroller.api.v1.UpdateSettingsResponse2\xd4\x05\n" +
+	"\x0eUpdateSettings\x12,.suricontroller.api.v1.UpdateSettingsRequest\x1a-.suricontroller.api.v1.UpdateSettingsResponse2\xc9\x06\n" +
 	"\vNodeService\x12^\n" +
 	"\tListNodes\x12'.suricontroller.api.v1.ListNodesRequest\x1a(.suricontroller.api.v1.ListNodesResponse\x12X\n" +
 	"\aGetNode\x12%.suricontroller.api.v1.GetNodeRequest\x1a&.suricontroller.api.v1.GetNodeResponse\x12X\n" +
@@ -5266,6 +5539,7 @@ const file_suricontroller_api_v1_api_proto_rawDesc = "" +
 	"\n" +
 	"DeleteNode\x12(.suricontroller.api.v1.DeleteNodeRequest\x1a).suricontroller.api.v1.DeleteNodeResponse\x12v\n" +
 	"\x11SetInterfaceModes\x12/.suricontroller.api.v1.SetInterfaceModesRequest\x1a0.suricontroller.api.v1.SetInterfaceModesResponse\x12s\n" +
+	"\x10SetEndpointModes\x12..suricontroller.api.v1.SetEndpointModesRequest\x1a/.suricontroller.api.v1.SetEndpointModesResponse\x12s\n" +
 	"\x10ListApplyHistory\x12..suricontroller.api.v1.ListApplyHistoryRequest\x1a/.suricontroller.api.v1.ListApplyHistoryResponse2\xc1\x04\n" +
 	"\vRepoService\x12d\n" +
 	"\vListCommits\x12).suricontroller.api.v1.ListCommitsRequest\x1a*.suricontroller.api.v1.ListCommitsResponse\x12^\n" +
@@ -5307,7 +5581,7 @@ func file_suricontroller_api_v1_api_proto_rawDescGZIP() []byte {
 }
 
 var file_suricontroller_api_v1_api_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_suricontroller_api_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
+var file_suricontroller_api_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 91)
 var file_suricontroller_api_v1_api_proto_goTypes = []any{
 	(Repo)(0),                                 // 0: suricontroller.api.v1.Repo
 	(DeployKind)(0),                           // 1: suricontroller.api.v1.DeployKind
@@ -5328,91 +5602,97 @@ var file_suricontroller_api_v1_api_proto_goTypes = []any{
 	(*UpdateSettingsRequest)(nil),             // 16: suricontroller.api.v1.UpdateSettingsRequest
 	(*UpdateSettingsResponse)(nil),            // 17: suricontroller.api.v1.UpdateSettingsResponse
 	(*NodeInterface)(nil),                     // 18: suricontroller.api.v1.NodeInterface
-	(*NodeDeployState)(nil),                   // 19: suricontroller.api.v1.NodeDeployState
-	(*Node)(nil),                              // 20: suricontroller.api.v1.Node
-	(*ListNodesRequest)(nil),                  // 21: suricontroller.api.v1.ListNodesRequest
-	(*ListNodesResponse)(nil),                 // 22: suricontroller.api.v1.ListNodesResponse
-	(*GetNodeRequest)(nil),                    // 23: suricontroller.api.v1.GetNodeRequest
-	(*GetNodeResponse)(nil),                   // 24: suricontroller.api.v1.GetNodeResponse
-	(*AddNodeRequest)(nil),                    // 25: suricontroller.api.v1.AddNodeRequest
-	(*AddNodeResponse)(nil),                   // 26: suricontroller.api.v1.AddNodeResponse
-	(*UpdateNodeRequest)(nil),                 // 27: suricontroller.api.v1.UpdateNodeRequest
-	(*UpdateNodeResponse)(nil),                // 28: suricontroller.api.v1.UpdateNodeResponse
-	(*DeleteNodeRequest)(nil),                 // 29: suricontroller.api.v1.DeleteNodeRequest
-	(*DeleteNodeResponse)(nil),                // 30: suricontroller.api.v1.DeleteNodeResponse
-	(*SetInterfaceModesRequest)(nil),          // 31: suricontroller.api.v1.SetInterfaceModesRequest
-	(*SetInterfaceModesResponse)(nil),         // 32: suricontroller.api.v1.SetInterfaceModesResponse
-	(*ApplyHistoryEntry)(nil),                 // 33: suricontroller.api.v1.ApplyHistoryEntry
-	(*ListApplyHistoryRequest)(nil),           // 34: suricontroller.api.v1.ListApplyHistoryRequest
-	(*ListApplyHistoryResponse)(nil),          // 35: suricontroller.api.v1.ListApplyHistoryResponse
-	(*Commit)(nil),                            // 36: suricontroller.api.v1.Commit
-	(*ListCommitsRequest)(nil),                // 37: suricontroller.api.v1.ListCommitsRequest
-	(*ListCommitsResponse)(nil),               // 38: suricontroller.api.v1.ListCommitsResponse
-	(*FileChangeStat)(nil),                    // 39: suricontroller.api.v1.FileChangeStat
-	(*GetCommitRequest)(nil),                  // 40: suricontroller.api.v1.GetCommitRequest
-	(*GetCommitResponse)(nil),                 // 41: suricontroller.api.v1.GetCommitResponse
-	(*TreeEntry)(nil),                         // 42: suricontroller.api.v1.TreeEntry
-	(*ListTreeRequest)(nil),                   // 43: suricontroller.api.v1.ListTreeRequest
-	(*ListTreeResponse)(nil),                  // 44: suricontroller.api.v1.ListTreeResponse
-	(*ReadFileRequest)(nil),                   // 45: suricontroller.api.v1.ReadFileRequest
-	(*ReadFileResponse)(nil),                  // 46: suricontroller.api.v1.ReadFileResponse
-	(*FileChange)(nil),                        // 47: suricontroller.api.v1.FileChange
-	(*WriteFilesRequest)(nil),                 // 48: suricontroller.api.v1.WriteFilesRequest
-	(*WriteFilesResponse)(nil),                // 49: suricontroller.api.v1.WriteFilesResponse
-	(*DiffRequest)(nil),                       // 50: suricontroller.api.v1.DiffRequest
-	(*DiffResponse)(nil),                      // 51: suricontroller.api.v1.DiffResponse
-	(*Provider)(nil),                          // 52: suricontroller.api.v1.Provider
-	(*ListProvidersRequest)(nil),              // 53: suricontroller.api.v1.ListProvidersRequest
-	(*ListProvidersResponse)(nil),             // 54: suricontroller.api.v1.ListProvidersResponse
-	(*UpdateProviderRequest)(nil),             // 55: suricontroller.api.v1.UpdateProviderRequest
-	(*UpdateProviderResponse)(nil),            // 56: suricontroller.api.v1.UpdateProviderResponse
-	(*SyncProviderRequest)(nil),               // 57: suricontroller.api.v1.SyncProviderRequest
-	(*SyncProviderResponse)(nil),              // 58: suricontroller.api.v1.SyncProviderResponse
-	(*DeployPolicy)(nil),                      // 59: suricontroller.api.v1.DeployPolicy
-	(*GetPoliciesRequest)(nil),                // 60: suricontroller.api.v1.GetPoliciesRequest
-	(*GetPoliciesResponse)(nil),               // 61: suricontroller.api.v1.GetPoliciesResponse
-	(*SetPolicyRequest)(nil),                  // 62: suricontroller.api.v1.SetPolicyRequest
-	(*SetPolicyResponse)(nil),                 // 63: suricontroller.api.v1.SetPolicyResponse
-	(*RuleStats)(nil),                         // 64: suricontroller.api.v1.RuleStats
-	(*PreviewNodeRequest)(nil),                // 65: suricontroller.api.v1.PreviewNodeRequest
-	(*PreviewNodeResponse)(nil),               // 66: suricontroller.api.v1.PreviewNodeResponse
-	(*GetCollectionPoliciesRequest)(nil),      // 67: suricontroller.api.v1.GetCollectionPoliciesRequest
-	(*GetCollectionPoliciesResponse)(nil),     // 68: suricontroller.api.v1.GetCollectionPoliciesResponse
-	(*SetGlobalCollectionPolicyRequest)(nil),  // 69: suricontroller.api.v1.SetGlobalCollectionPolicyRequest
-	(*SetGlobalCollectionPolicyResponse)(nil), // 70: suricontroller.api.v1.SetGlobalCollectionPolicyResponse
-	(*SetNodeCollectionPolicyRequest)(nil),    // 71: suricontroller.api.v1.SetNodeCollectionPolicyRequest
-	(*SetNodeCollectionPolicyResponse)(nil),   // 72: suricontroller.api.v1.SetNodeCollectionPolicyResponse
-	(*RetentionPolicy)(nil),                   // 73: suricontroller.api.v1.RetentionPolicy
-	(*GetRetentionPolicyRequest)(nil),         // 74: suricontroller.api.v1.GetRetentionPolicyRequest
-	(*GetRetentionPolicyResponse)(nil),        // 75: suricontroller.api.v1.GetRetentionPolicyResponse
-	(*SetRetentionPolicyRequest)(nil),         // 76: suricontroller.api.v1.SetRetentionPolicyRequest
-	(*SetRetentionPolicyResponse)(nil),        // 77: suricontroller.api.v1.SetRetentionPolicyResponse
-	(*LogFile)(nil),                           // 78: suricontroller.api.v1.LogFile
-	(*ListLogFilesRequest)(nil),               // 79: suricontroller.api.v1.ListLogFilesRequest
-	(*ListLogFilesResponse)(nil),              // 80: suricontroller.api.v1.ListLogFilesResponse
-	(*TailLogRequest)(nil),                    // 81: suricontroller.api.v1.TailLogRequest
-	(*TailLogResponse)(nil),                   // 82: suricontroller.api.v1.TailLogResponse
-	(*GetIngestStatsRequest)(nil),             // 83: suricontroller.api.v1.GetIngestStatsRequest
-	(*NodeIngestStats)(nil),                   // 84: suricontroller.api.v1.NodeIngestStats
-	(*GetIngestStatsResponse)(nil),            // 85: suricontroller.api.v1.GetIngestStatsResponse
-	nil,                                       // 86: suricontroller.api.v1.SetInterfaceModesRequest.ModesEntry
-	nil,                                       // 87: suricontroller.api.v1.Provider.OptionsEntry
-	nil,                                       // 88: suricontroller.api.v1.UpdateProviderRequest.OptionsEntry
-	nil,                                       // 89: suricontroller.api.v1.GetCollectionPoliciesResponse.NodesEntry
-	(v1.InterfaceMode)(0),                     // 90: suricontroller.agent.v1.InterfaceMode
-	(*v1.BundleRef)(nil),                      // 91: suricontroller.agent.v1.BundleRef
-	(v1.ApplyStatus)(0),                       // 92: suricontroller.agent.v1.ApplyStatus
-	(v1.ApplyStage)(0),                        // 93: suricontroller.agent.v1.ApplyStage
-	(*timestamppb.Timestamp)(nil),             // 94: google.protobuf.Timestamp
-	(*v1.PlatformInfo)(nil),                   // 95: suricontroller.agent.v1.PlatformInfo
-	(*v1.EngineInfo)(nil),                     // 96: suricontroller.agent.v1.EngineInfo
-	(*v1.InstanceStatus)(nil),                 // 97: suricontroller.agent.v1.InstanceStatus
-	(*v1.Warning)(nil),                        // 98: suricontroller.agent.v1.Warning
-	(*v1.LogSource)(nil),                      // 99: suricontroller.agent.v1.LogSource
-	(*v1.LogQueueStats)(nil),                  // 100: suricontroller.agent.v1.LogQueueStats
-	(*v1.ApplyReport)(nil),                    // 101: suricontroller.agent.v1.ApplyReport
-	(*v1.LogCollectionPolicy)(nil),            // 102: suricontroller.agent.v1.LogCollectionPolicy
-	(v1.LogType)(0),                           // 103: suricontroller.agent.v1.LogType
+	(*NodeTapEndpoint)(nil),                   // 19: suricontroller.api.v1.NodeTapEndpoint
+	(*NodeTap)(nil),                           // 20: suricontroller.api.v1.NodeTap
+	(*NodeDeployState)(nil),                   // 21: suricontroller.api.v1.NodeDeployState
+	(*Node)(nil),                              // 22: suricontroller.api.v1.Node
+	(*ListNodesRequest)(nil),                  // 23: suricontroller.api.v1.ListNodesRequest
+	(*ListNodesResponse)(nil),                 // 24: suricontroller.api.v1.ListNodesResponse
+	(*GetNodeRequest)(nil),                    // 25: suricontroller.api.v1.GetNodeRequest
+	(*GetNodeResponse)(nil),                   // 26: suricontroller.api.v1.GetNodeResponse
+	(*AddNodeRequest)(nil),                    // 27: suricontroller.api.v1.AddNodeRequest
+	(*AddNodeResponse)(nil),                   // 28: suricontroller.api.v1.AddNodeResponse
+	(*UpdateNodeRequest)(nil),                 // 29: suricontroller.api.v1.UpdateNodeRequest
+	(*UpdateNodeResponse)(nil),                // 30: suricontroller.api.v1.UpdateNodeResponse
+	(*DeleteNodeRequest)(nil),                 // 31: suricontroller.api.v1.DeleteNodeRequest
+	(*DeleteNodeResponse)(nil),                // 32: suricontroller.api.v1.DeleteNodeResponse
+	(*SetInterfaceModesRequest)(nil),          // 33: suricontroller.api.v1.SetInterfaceModesRequest
+	(*SetInterfaceModesResponse)(nil),         // 34: suricontroller.api.v1.SetInterfaceModesResponse
+	(*SetEndpointModesRequest)(nil),           // 35: suricontroller.api.v1.SetEndpointModesRequest
+	(*SetEndpointModesResponse)(nil),          // 36: suricontroller.api.v1.SetEndpointModesResponse
+	(*ApplyHistoryEntry)(nil),                 // 37: suricontroller.api.v1.ApplyHistoryEntry
+	(*ListApplyHistoryRequest)(nil),           // 38: suricontroller.api.v1.ListApplyHistoryRequest
+	(*ListApplyHistoryResponse)(nil),          // 39: suricontroller.api.v1.ListApplyHistoryResponse
+	(*Commit)(nil),                            // 40: suricontroller.api.v1.Commit
+	(*ListCommitsRequest)(nil),                // 41: suricontroller.api.v1.ListCommitsRequest
+	(*ListCommitsResponse)(nil),               // 42: suricontroller.api.v1.ListCommitsResponse
+	(*FileChangeStat)(nil),                    // 43: suricontroller.api.v1.FileChangeStat
+	(*GetCommitRequest)(nil),                  // 44: suricontroller.api.v1.GetCommitRequest
+	(*GetCommitResponse)(nil),                 // 45: suricontroller.api.v1.GetCommitResponse
+	(*TreeEntry)(nil),                         // 46: suricontroller.api.v1.TreeEntry
+	(*ListTreeRequest)(nil),                   // 47: suricontroller.api.v1.ListTreeRequest
+	(*ListTreeResponse)(nil),                  // 48: suricontroller.api.v1.ListTreeResponse
+	(*ReadFileRequest)(nil),                   // 49: suricontroller.api.v1.ReadFileRequest
+	(*ReadFileResponse)(nil),                  // 50: suricontroller.api.v1.ReadFileResponse
+	(*FileChange)(nil),                        // 51: suricontroller.api.v1.FileChange
+	(*WriteFilesRequest)(nil),                 // 52: suricontroller.api.v1.WriteFilesRequest
+	(*WriteFilesResponse)(nil),                // 53: suricontroller.api.v1.WriteFilesResponse
+	(*DiffRequest)(nil),                       // 54: suricontroller.api.v1.DiffRequest
+	(*DiffResponse)(nil),                      // 55: suricontroller.api.v1.DiffResponse
+	(*Provider)(nil),                          // 56: suricontroller.api.v1.Provider
+	(*ListProvidersRequest)(nil),              // 57: suricontroller.api.v1.ListProvidersRequest
+	(*ListProvidersResponse)(nil),             // 58: suricontroller.api.v1.ListProvidersResponse
+	(*UpdateProviderRequest)(nil),             // 59: suricontroller.api.v1.UpdateProviderRequest
+	(*UpdateProviderResponse)(nil),            // 60: suricontroller.api.v1.UpdateProviderResponse
+	(*SyncProviderRequest)(nil),               // 61: suricontroller.api.v1.SyncProviderRequest
+	(*SyncProviderResponse)(nil),              // 62: suricontroller.api.v1.SyncProviderResponse
+	(*DeployPolicy)(nil),                      // 63: suricontroller.api.v1.DeployPolicy
+	(*GetPoliciesRequest)(nil),                // 64: suricontroller.api.v1.GetPoliciesRequest
+	(*GetPoliciesResponse)(nil),               // 65: suricontroller.api.v1.GetPoliciesResponse
+	(*SetPolicyRequest)(nil),                  // 66: suricontroller.api.v1.SetPolicyRequest
+	(*SetPolicyResponse)(nil),                 // 67: suricontroller.api.v1.SetPolicyResponse
+	(*RuleStats)(nil),                         // 68: suricontroller.api.v1.RuleStats
+	(*PreviewNodeRequest)(nil),                // 69: suricontroller.api.v1.PreviewNodeRequest
+	(*PreviewNodeResponse)(nil),               // 70: suricontroller.api.v1.PreviewNodeResponse
+	(*GetCollectionPoliciesRequest)(nil),      // 71: suricontroller.api.v1.GetCollectionPoliciesRequest
+	(*GetCollectionPoliciesResponse)(nil),     // 72: suricontroller.api.v1.GetCollectionPoliciesResponse
+	(*SetGlobalCollectionPolicyRequest)(nil),  // 73: suricontroller.api.v1.SetGlobalCollectionPolicyRequest
+	(*SetGlobalCollectionPolicyResponse)(nil), // 74: suricontroller.api.v1.SetGlobalCollectionPolicyResponse
+	(*SetNodeCollectionPolicyRequest)(nil),    // 75: suricontroller.api.v1.SetNodeCollectionPolicyRequest
+	(*SetNodeCollectionPolicyResponse)(nil),   // 76: suricontroller.api.v1.SetNodeCollectionPolicyResponse
+	(*RetentionPolicy)(nil),                   // 77: suricontroller.api.v1.RetentionPolicy
+	(*GetRetentionPolicyRequest)(nil),         // 78: suricontroller.api.v1.GetRetentionPolicyRequest
+	(*GetRetentionPolicyResponse)(nil),        // 79: suricontroller.api.v1.GetRetentionPolicyResponse
+	(*SetRetentionPolicyRequest)(nil),         // 80: suricontroller.api.v1.SetRetentionPolicyRequest
+	(*SetRetentionPolicyResponse)(nil),        // 81: suricontroller.api.v1.SetRetentionPolicyResponse
+	(*LogFile)(nil),                           // 82: suricontroller.api.v1.LogFile
+	(*ListLogFilesRequest)(nil),               // 83: suricontroller.api.v1.ListLogFilesRequest
+	(*ListLogFilesResponse)(nil),              // 84: suricontroller.api.v1.ListLogFilesResponse
+	(*TailLogRequest)(nil),                    // 85: suricontroller.api.v1.TailLogRequest
+	(*TailLogResponse)(nil),                   // 86: suricontroller.api.v1.TailLogResponse
+	(*GetIngestStatsRequest)(nil),             // 87: suricontroller.api.v1.GetIngestStatsRequest
+	(*NodeIngestStats)(nil),                   // 88: suricontroller.api.v1.NodeIngestStats
+	(*GetIngestStatsResponse)(nil),            // 89: suricontroller.api.v1.GetIngestStatsResponse
+	nil,                                       // 90: suricontroller.api.v1.SetInterfaceModesRequest.ModesEntry
+	nil,                                       // 91: suricontroller.api.v1.SetEndpointModesRequest.ModesEntry
+	nil,                                       // 92: suricontroller.api.v1.Provider.OptionsEntry
+	nil,                                       // 93: suricontroller.api.v1.UpdateProviderRequest.OptionsEntry
+	nil,                                       // 94: suricontroller.api.v1.GetCollectionPoliciesResponse.NodesEntry
+	(v1.InterfaceMode)(0),                     // 95: suricontroller.agent.v1.InterfaceMode
+	(v1.EndpointMode)(0),                      // 96: suricontroller.agent.v1.EndpointMode
+	(*v1.BundleRef)(nil),                      // 97: suricontroller.agent.v1.BundleRef
+	(v1.ApplyStatus)(0),                       // 98: suricontroller.agent.v1.ApplyStatus
+	(v1.ApplyStage)(0),                        // 99: suricontroller.agent.v1.ApplyStage
+	(*timestamppb.Timestamp)(nil),             // 100: google.protobuf.Timestamp
+	(*v1.PlatformInfo)(nil),                   // 101: suricontroller.agent.v1.PlatformInfo
+	(*v1.EngineInfo)(nil),                     // 102: suricontroller.agent.v1.EngineInfo
+	(*v1.InstanceStatus)(nil),                 // 103: suricontroller.agent.v1.InstanceStatus
+	(*v1.Warning)(nil),                        // 104: suricontroller.agent.v1.Warning
+	(*v1.LogSource)(nil),                      // 105: suricontroller.agent.v1.LogSource
+	(*v1.LogQueueStats)(nil),                  // 106: suricontroller.agent.v1.LogQueueStats
+	(*v1.ApplyReport)(nil),                    // 107: suricontroller.agent.v1.ApplyReport
+	(*v1.LogCollectionPolicy)(nil),            // 108: suricontroller.agent.v1.LogCollectionPolicy
+	(v1.LogType)(0),                           // 109: suricontroller.agent.v1.LogType
 }
 var file_suricontroller_api_v1_api_proto_depIdxs = []int32{
 	4,   // 0: suricontroller.api.v1.GetAuthInfoResponse.principal:type_name -> suricontroller.api.v1.Principal
@@ -5420,150 +5700,159 @@ var file_suricontroller_api_v1_api_proto_depIdxs = []int32{
 	13,  // 2: suricontroller.api.v1.GetSettingsResponse.settings:type_name -> suricontroller.api.v1.Settings
 	13,  // 3: suricontroller.api.v1.UpdateSettingsRequest.settings:type_name -> suricontroller.api.v1.Settings
 	13,  // 4: suricontroller.api.v1.UpdateSettingsResponse.settings:type_name -> suricontroller.api.v1.Settings
-	90,  // 5: suricontroller.api.v1.NodeInterface.mode:type_name -> suricontroller.agent.v1.InterfaceMode
-	90,  // 6: suricontroller.api.v1.NodeInterface.applied_mode:type_name -> suricontroller.agent.v1.InterfaceMode
-	91,  // 7: suricontroller.api.v1.NodeDeployState.desired_bundle:type_name -> suricontroller.agent.v1.BundleRef
-	91,  // 8: suricontroller.api.v1.NodeDeployState.applied_bundle:type_name -> suricontroller.agent.v1.BundleRef
-	92,  // 9: suricontroller.api.v1.NodeDeployState.last_status:type_name -> suricontroller.agent.v1.ApplyStatus
-	93,  // 10: suricontroller.api.v1.NodeDeployState.last_stage:type_name -> suricontroller.agent.v1.ApplyStage
-	94,  // 11: suricontroller.api.v1.NodeDeployState.last_report_at:type_name -> google.protobuf.Timestamp
-	94,  // 12: suricontroller.api.v1.Node.created_at:type_name -> google.protobuf.Timestamp
-	94,  // 13: suricontroller.api.v1.Node.last_seen_at:type_name -> google.protobuf.Timestamp
-	94,  // 14: suricontroller.api.v1.Node.connected_at:type_name -> google.protobuf.Timestamp
-	95,  // 15: suricontroller.api.v1.Node.platform:type_name -> suricontroller.agent.v1.PlatformInfo
-	96,  // 16: suricontroller.api.v1.Node.engine:type_name -> suricontroller.agent.v1.EngineInfo
-	18,  // 17: suricontroller.api.v1.Node.interfaces:type_name -> suricontroller.api.v1.NodeInterface
-	97,  // 18: suricontroller.api.v1.Node.instances:type_name -> suricontroller.agent.v1.InstanceStatus
-	98,  // 19: suricontroller.api.v1.Node.warnings:type_name -> suricontroller.agent.v1.Warning
-	99,  // 20: suricontroller.api.v1.Node.log_sources:type_name -> suricontroller.agent.v1.LogSource
-	100, // 21: suricontroller.api.v1.Node.log_queue:type_name -> suricontroller.agent.v1.LogQueueStats
-	19,  // 22: suricontroller.api.v1.Node.deploy:type_name -> suricontroller.api.v1.NodeDeployState
-	20,  // 23: suricontroller.api.v1.ListNodesResponse.nodes:type_name -> suricontroller.api.v1.Node
-	20,  // 24: suricontroller.api.v1.GetNodeResponse.node:type_name -> suricontroller.api.v1.Node
-	20,  // 25: suricontroller.api.v1.AddNodeResponse.node:type_name -> suricontroller.api.v1.Node
-	20,  // 26: suricontroller.api.v1.UpdateNodeResponse.node:type_name -> suricontroller.api.v1.Node
-	86,  // 27: suricontroller.api.v1.SetInterfaceModesRequest.modes:type_name -> suricontroller.api.v1.SetInterfaceModesRequest.ModesEntry
-	20,  // 28: suricontroller.api.v1.SetInterfaceModesResponse.node:type_name -> suricontroller.api.v1.Node
-	101, // 29: suricontroller.api.v1.ApplyHistoryEntry.report:type_name -> suricontroller.agent.v1.ApplyReport
-	94,  // 30: suricontroller.api.v1.ApplyHistoryEntry.created_at:type_name -> google.protobuf.Timestamp
-	33,  // 31: suricontroller.api.v1.ListApplyHistoryResponse.entries:type_name -> suricontroller.api.v1.ApplyHistoryEntry
-	94,  // 32: suricontroller.api.v1.Commit.time:type_name -> google.protobuf.Timestamp
-	0,   // 33: suricontroller.api.v1.ListCommitsRequest.repo:type_name -> suricontroller.api.v1.Repo
-	36,  // 34: suricontroller.api.v1.ListCommitsResponse.commits:type_name -> suricontroller.api.v1.Commit
-	0,   // 35: suricontroller.api.v1.GetCommitRequest.repo:type_name -> suricontroller.api.v1.Repo
-	36,  // 36: suricontroller.api.v1.GetCommitResponse.commit:type_name -> suricontroller.api.v1.Commit
-	39,  // 37: suricontroller.api.v1.GetCommitResponse.files:type_name -> suricontroller.api.v1.FileChangeStat
-	0,   // 38: suricontroller.api.v1.ListTreeRequest.repo:type_name -> suricontroller.api.v1.Repo
-	42,  // 39: suricontroller.api.v1.ListTreeResponse.entries:type_name -> suricontroller.api.v1.TreeEntry
-	0,   // 40: suricontroller.api.v1.ReadFileRequest.repo:type_name -> suricontroller.api.v1.Repo
-	0,   // 41: suricontroller.api.v1.WriteFilesRequest.repo:type_name -> suricontroller.api.v1.Repo
-	47,  // 42: suricontroller.api.v1.WriteFilesRequest.changes:type_name -> suricontroller.api.v1.FileChange
-	36,  // 43: suricontroller.api.v1.WriteFilesResponse.commit:type_name -> suricontroller.api.v1.Commit
-	0,   // 44: suricontroller.api.v1.DiffRequest.repo:type_name -> suricontroller.api.v1.Repo
-	39,  // 45: suricontroller.api.v1.DiffResponse.files:type_name -> suricontroller.api.v1.FileChangeStat
-	87,  // 46: suricontroller.api.v1.Provider.options:type_name -> suricontroller.api.v1.Provider.OptionsEntry
-	94,  // 47: suricontroller.api.v1.Provider.last_fetch_at:type_name -> google.protobuf.Timestamp
-	94,  // 48: suricontroller.api.v1.Provider.last_success_at:type_name -> google.protobuf.Timestamp
-	52,  // 49: suricontroller.api.v1.ListProvidersResponse.providers:type_name -> suricontroller.api.v1.Provider
-	88,  // 50: suricontroller.api.v1.UpdateProviderRequest.options:type_name -> suricontroller.api.v1.UpdateProviderRequest.OptionsEntry
-	52,  // 51: suricontroller.api.v1.UpdateProviderResponse.provider:type_name -> suricontroller.api.v1.Provider
-	52,  // 52: suricontroller.api.v1.SyncProviderResponse.provider:type_name -> suricontroller.api.v1.Provider
-	1,   // 53: suricontroller.api.v1.DeployPolicy.kind:type_name -> suricontroller.api.v1.DeployKind
-	2,   // 54: suricontroller.api.v1.DeployPolicy.mode:type_name -> suricontroller.api.v1.DeployMode
-	94,  // 55: suricontroller.api.v1.DeployPolicy.updated_at:type_name -> google.protobuf.Timestamp
-	59,  // 56: suricontroller.api.v1.GetPoliciesResponse.rules:type_name -> suricontroller.api.v1.DeployPolicy
-	59,  // 57: suricontroller.api.v1.GetPoliciesResponse.config:type_name -> suricontroller.api.v1.DeployPolicy
-	1,   // 58: suricontroller.api.v1.SetPolicyRequest.kind:type_name -> suricontroller.api.v1.DeployKind
-	2,   // 59: suricontroller.api.v1.SetPolicyRequest.mode:type_name -> suricontroller.api.v1.DeployMode
-	59,  // 60: suricontroller.api.v1.SetPolicyResponse.policy:type_name -> suricontroller.api.v1.DeployPolicy
-	64,  // 61: suricontroller.api.v1.PreviewNodeResponse.rule_stats:type_name -> suricontroller.api.v1.RuleStats
-	102, // 62: suricontroller.api.v1.GetCollectionPoliciesResponse.global:type_name -> suricontroller.agent.v1.LogCollectionPolicy
-	89,  // 63: suricontroller.api.v1.GetCollectionPoliciesResponse.nodes:type_name -> suricontroller.api.v1.GetCollectionPoliciesResponse.NodesEntry
-	102, // 64: suricontroller.api.v1.SetGlobalCollectionPolicyRequest.policy:type_name -> suricontroller.agent.v1.LogCollectionPolicy
-	102, // 65: suricontroller.api.v1.SetNodeCollectionPolicyRequest.policy:type_name -> suricontroller.agent.v1.LogCollectionPolicy
-	3,   // 66: suricontroller.api.v1.RetentionPolicy.rotate:type_name -> suricontroller.api.v1.RotateInterval
-	73,  // 67: suricontroller.api.v1.GetRetentionPolicyResponse.policy:type_name -> suricontroller.api.v1.RetentionPolicy
-	73,  // 68: suricontroller.api.v1.SetRetentionPolicyRequest.policy:type_name -> suricontroller.api.v1.RetentionPolicy
-	73,  // 69: suricontroller.api.v1.SetRetentionPolicyResponse.policy:type_name -> suricontroller.api.v1.RetentionPolicy
-	103, // 70: suricontroller.api.v1.LogFile.type:type_name -> suricontroller.agent.v1.LogType
-	94,  // 71: suricontroller.api.v1.LogFile.mod_time:type_name -> google.protobuf.Timestamp
-	103, // 72: suricontroller.api.v1.ListLogFilesRequest.type:type_name -> suricontroller.agent.v1.LogType
-	78,  // 73: suricontroller.api.v1.ListLogFilesResponse.files:type_name -> suricontroller.api.v1.LogFile
-	103, // 74: suricontroller.api.v1.TailLogRequest.type:type_name -> suricontroller.agent.v1.LogType
-	84,  // 75: suricontroller.api.v1.GetIngestStatsResponse.nodes:type_name -> suricontroller.api.v1.NodeIngestStats
-	90,  // 76: suricontroller.api.v1.SetInterfaceModesRequest.ModesEntry.value:type_name -> suricontroller.agent.v1.InterfaceMode
-	102, // 77: suricontroller.api.v1.GetCollectionPoliciesResponse.NodesEntry.value:type_name -> suricontroller.agent.v1.LogCollectionPolicy
-	5,   // 78: suricontroller.api.v1.AuthService.GetAuthInfo:input_type -> suricontroller.api.v1.GetAuthInfoRequest
-	7,   // 79: suricontroller.api.v1.AuthService.Login:input_type -> suricontroller.api.v1.LoginRequest
-	9,   // 80: suricontroller.api.v1.AuthService.Logout:input_type -> suricontroller.api.v1.LogoutRequest
-	11,  // 81: suricontroller.api.v1.SystemService.GetInfo:input_type -> suricontroller.api.v1.GetInfoRequest
-	14,  // 82: suricontroller.api.v1.SystemService.GetSettings:input_type -> suricontroller.api.v1.GetSettingsRequest
-	16,  // 83: suricontroller.api.v1.SystemService.UpdateSettings:input_type -> suricontroller.api.v1.UpdateSettingsRequest
-	21,  // 84: suricontroller.api.v1.NodeService.ListNodes:input_type -> suricontroller.api.v1.ListNodesRequest
-	23,  // 85: suricontroller.api.v1.NodeService.GetNode:input_type -> suricontroller.api.v1.GetNodeRequest
-	25,  // 86: suricontroller.api.v1.NodeService.AddNode:input_type -> suricontroller.api.v1.AddNodeRequest
-	27,  // 87: suricontroller.api.v1.NodeService.UpdateNode:input_type -> suricontroller.api.v1.UpdateNodeRequest
-	29,  // 88: suricontroller.api.v1.NodeService.DeleteNode:input_type -> suricontroller.api.v1.DeleteNodeRequest
-	31,  // 89: suricontroller.api.v1.NodeService.SetInterfaceModes:input_type -> suricontroller.api.v1.SetInterfaceModesRequest
-	34,  // 90: suricontroller.api.v1.NodeService.ListApplyHistory:input_type -> suricontroller.api.v1.ListApplyHistoryRequest
-	37,  // 91: suricontroller.api.v1.RepoService.ListCommits:input_type -> suricontroller.api.v1.ListCommitsRequest
-	40,  // 92: suricontroller.api.v1.RepoService.GetCommit:input_type -> suricontroller.api.v1.GetCommitRequest
-	43,  // 93: suricontroller.api.v1.RepoService.ListTree:input_type -> suricontroller.api.v1.ListTreeRequest
-	45,  // 94: suricontroller.api.v1.RepoService.ReadFile:input_type -> suricontroller.api.v1.ReadFileRequest
-	48,  // 95: suricontroller.api.v1.RepoService.WriteFiles:input_type -> suricontroller.api.v1.WriteFilesRequest
-	50,  // 96: suricontroller.api.v1.RepoService.Diff:input_type -> suricontroller.api.v1.DiffRequest
-	53,  // 97: suricontroller.api.v1.RuleService.ListProviders:input_type -> suricontroller.api.v1.ListProvidersRequest
-	55,  // 98: suricontroller.api.v1.RuleService.UpdateProvider:input_type -> suricontroller.api.v1.UpdateProviderRequest
-	57,  // 99: suricontroller.api.v1.RuleService.SyncProvider:input_type -> suricontroller.api.v1.SyncProviderRequest
-	60,  // 100: suricontroller.api.v1.DeployService.GetPolicies:input_type -> suricontroller.api.v1.GetPoliciesRequest
-	62,  // 101: suricontroller.api.v1.DeployService.SetPolicy:input_type -> suricontroller.api.v1.SetPolicyRequest
-	65,  // 102: suricontroller.api.v1.DeployService.PreviewNode:input_type -> suricontroller.api.v1.PreviewNodeRequest
-	67,  // 103: suricontroller.api.v1.LogService.GetCollectionPolicies:input_type -> suricontroller.api.v1.GetCollectionPoliciesRequest
-	69,  // 104: suricontroller.api.v1.LogService.SetGlobalCollectionPolicy:input_type -> suricontroller.api.v1.SetGlobalCollectionPolicyRequest
-	71,  // 105: suricontroller.api.v1.LogService.SetNodeCollectionPolicy:input_type -> suricontroller.api.v1.SetNodeCollectionPolicyRequest
-	74,  // 106: suricontroller.api.v1.LogService.GetRetentionPolicy:input_type -> suricontroller.api.v1.GetRetentionPolicyRequest
-	76,  // 107: suricontroller.api.v1.LogService.SetRetentionPolicy:input_type -> suricontroller.api.v1.SetRetentionPolicyRequest
-	79,  // 108: suricontroller.api.v1.LogService.ListLogFiles:input_type -> suricontroller.api.v1.ListLogFilesRequest
-	81,  // 109: suricontroller.api.v1.LogService.TailLog:input_type -> suricontroller.api.v1.TailLogRequest
-	83,  // 110: suricontroller.api.v1.LogService.GetIngestStats:input_type -> suricontroller.api.v1.GetIngestStatsRequest
-	6,   // 111: suricontroller.api.v1.AuthService.GetAuthInfo:output_type -> suricontroller.api.v1.GetAuthInfoResponse
-	8,   // 112: suricontroller.api.v1.AuthService.Login:output_type -> suricontroller.api.v1.LoginResponse
-	10,  // 113: suricontroller.api.v1.AuthService.Logout:output_type -> suricontroller.api.v1.LogoutResponse
-	12,  // 114: suricontroller.api.v1.SystemService.GetInfo:output_type -> suricontroller.api.v1.GetInfoResponse
-	15,  // 115: suricontroller.api.v1.SystemService.GetSettings:output_type -> suricontroller.api.v1.GetSettingsResponse
-	17,  // 116: suricontroller.api.v1.SystemService.UpdateSettings:output_type -> suricontroller.api.v1.UpdateSettingsResponse
-	22,  // 117: suricontroller.api.v1.NodeService.ListNodes:output_type -> suricontroller.api.v1.ListNodesResponse
-	24,  // 118: suricontroller.api.v1.NodeService.GetNode:output_type -> suricontroller.api.v1.GetNodeResponse
-	26,  // 119: suricontroller.api.v1.NodeService.AddNode:output_type -> suricontroller.api.v1.AddNodeResponse
-	28,  // 120: suricontroller.api.v1.NodeService.UpdateNode:output_type -> suricontroller.api.v1.UpdateNodeResponse
-	30,  // 121: suricontroller.api.v1.NodeService.DeleteNode:output_type -> suricontroller.api.v1.DeleteNodeResponse
-	32,  // 122: suricontroller.api.v1.NodeService.SetInterfaceModes:output_type -> suricontroller.api.v1.SetInterfaceModesResponse
-	35,  // 123: suricontroller.api.v1.NodeService.ListApplyHistory:output_type -> suricontroller.api.v1.ListApplyHistoryResponse
-	38,  // 124: suricontroller.api.v1.RepoService.ListCommits:output_type -> suricontroller.api.v1.ListCommitsResponse
-	41,  // 125: suricontroller.api.v1.RepoService.GetCommit:output_type -> suricontroller.api.v1.GetCommitResponse
-	44,  // 126: suricontroller.api.v1.RepoService.ListTree:output_type -> suricontroller.api.v1.ListTreeResponse
-	46,  // 127: suricontroller.api.v1.RepoService.ReadFile:output_type -> suricontroller.api.v1.ReadFileResponse
-	49,  // 128: suricontroller.api.v1.RepoService.WriteFiles:output_type -> suricontroller.api.v1.WriteFilesResponse
-	51,  // 129: suricontroller.api.v1.RepoService.Diff:output_type -> suricontroller.api.v1.DiffResponse
-	54,  // 130: suricontroller.api.v1.RuleService.ListProviders:output_type -> suricontroller.api.v1.ListProvidersResponse
-	56,  // 131: suricontroller.api.v1.RuleService.UpdateProvider:output_type -> suricontroller.api.v1.UpdateProviderResponse
-	58,  // 132: suricontroller.api.v1.RuleService.SyncProvider:output_type -> suricontroller.api.v1.SyncProviderResponse
-	61,  // 133: suricontroller.api.v1.DeployService.GetPolicies:output_type -> suricontroller.api.v1.GetPoliciesResponse
-	63,  // 134: suricontroller.api.v1.DeployService.SetPolicy:output_type -> suricontroller.api.v1.SetPolicyResponse
-	66,  // 135: suricontroller.api.v1.DeployService.PreviewNode:output_type -> suricontroller.api.v1.PreviewNodeResponse
-	68,  // 136: suricontroller.api.v1.LogService.GetCollectionPolicies:output_type -> suricontroller.api.v1.GetCollectionPoliciesResponse
-	70,  // 137: suricontroller.api.v1.LogService.SetGlobalCollectionPolicy:output_type -> suricontroller.api.v1.SetGlobalCollectionPolicyResponse
-	72,  // 138: suricontroller.api.v1.LogService.SetNodeCollectionPolicy:output_type -> suricontroller.api.v1.SetNodeCollectionPolicyResponse
-	75,  // 139: suricontroller.api.v1.LogService.GetRetentionPolicy:output_type -> suricontroller.api.v1.GetRetentionPolicyResponse
-	77,  // 140: suricontroller.api.v1.LogService.SetRetentionPolicy:output_type -> suricontroller.api.v1.SetRetentionPolicyResponse
-	80,  // 141: suricontroller.api.v1.LogService.ListLogFiles:output_type -> suricontroller.api.v1.ListLogFilesResponse
-	82,  // 142: suricontroller.api.v1.LogService.TailLog:output_type -> suricontroller.api.v1.TailLogResponse
-	85,  // 143: suricontroller.api.v1.LogService.GetIngestStats:output_type -> suricontroller.api.v1.GetIngestStatsResponse
-	111, // [111:144] is the sub-list for method output_type
-	78,  // [78:111] is the sub-list for method input_type
-	78,  // [78:78] is the sub-list for extension type_name
-	78,  // [78:78] is the sub-list for extension extendee
-	0,   // [0:78] is the sub-list for field type_name
+	95,  // 5: suricontroller.api.v1.NodeInterface.mode:type_name -> suricontroller.agent.v1.InterfaceMode
+	95,  // 6: suricontroller.api.v1.NodeInterface.applied_mode:type_name -> suricontroller.agent.v1.InterfaceMode
+	96,  // 7: suricontroller.api.v1.NodeTapEndpoint.mode:type_name -> suricontroller.agent.v1.EndpointMode
+	96,  // 8: suricontroller.api.v1.NodeTapEndpoint.applied_mode:type_name -> suricontroller.agent.v1.EndpointMode
+	19,  // 9: suricontroller.api.v1.NodeTap.endpoints:type_name -> suricontroller.api.v1.NodeTapEndpoint
+	97,  // 10: suricontroller.api.v1.NodeDeployState.desired_bundle:type_name -> suricontroller.agent.v1.BundleRef
+	97,  // 11: suricontroller.api.v1.NodeDeployState.applied_bundle:type_name -> suricontroller.agent.v1.BundleRef
+	98,  // 12: suricontroller.api.v1.NodeDeployState.last_status:type_name -> suricontroller.agent.v1.ApplyStatus
+	99,  // 13: suricontroller.api.v1.NodeDeployState.last_stage:type_name -> suricontroller.agent.v1.ApplyStage
+	100, // 14: suricontroller.api.v1.NodeDeployState.last_report_at:type_name -> google.protobuf.Timestamp
+	100, // 15: suricontroller.api.v1.Node.created_at:type_name -> google.protobuf.Timestamp
+	100, // 16: suricontroller.api.v1.Node.last_seen_at:type_name -> google.protobuf.Timestamp
+	100, // 17: suricontroller.api.v1.Node.connected_at:type_name -> google.protobuf.Timestamp
+	101, // 18: suricontroller.api.v1.Node.platform:type_name -> suricontroller.agent.v1.PlatformInfo
+	102, // 19: suricontroller.api.v1.Node.engine:type_name -> suricontroller.agent.v1.EngineInfo
+	18,  // 20: suricontroller.api.v1.Node.interfaces:type_name -> suricontroller.api.v1.NodeInterface
+	103, // 21: suricontroller.api.v1.Node.instances:type_name -> suricontroller.agent.v1.InstanceStatus
+	104, // 22: suricontroller.api.v1.Node.warnings:type_name -> suricontroller.agent.v1.Warning
+	105, // 23: suricontroller.api.v1.Node.log_sources:type_name -> suricontroller.agent.v1.LogSource
+	106, // 24: suricontroller.api.v1.Node.log_queue:type_name -> suricontroller.agent.v1.LogQueueStats
+	21,  // 25: suricontroller.api.v1.Node.deploy:type_name -> suricontroller.api.v1.NodeDeployState
+	20,  // 26: suricontroller.api.v1.Node.tap:type_name -> suricontroller.api.v1.NodeTap
+	22,  // 27: suricontroller.api.v1.ListNodesResponse.nodes:type_name -> suricontroller.api.v1.Node
+	22,  // 28: suricontroller.api.v1.GetNodeResponse.node:type_name -> suricontroller.api.v1.Node
+	22,  // 29: suricontroller.api.v1.AddNodeResponse.node:type_name -> suricontroller.api.v1.Node
+	22,  // 30: suricontroller.api.v1.UpdateNodeResponse.node:type_name -> suricontroller.api.v1.Node
+	90,  // 31: suricontroller.api.v1.SetInterfaceModesRequest.modes:type_name -> suricontroller.api.v1.SetInterfaceModesRequest.ModesEntry
+	22,  // 32: suricontroller.api.v1.SetInterfaceModesResponse.node:type_name -> suricontroller.api.v1.Node
+	91,  // 33: suricontroller.api.v1.SetEndpointModesRequest.modes:type_name -> suricontroller.api.v1.SetEndpointModesRequest.ModesEntry
+	22,  // 34: suricontroller.api.v1.SetEndpointModesResponse.node:type_name -> suricontroller.api.v1.Node
+	107, // 35: suricontroller.api.v1.ApplyHistoryEntry.report:type_name -> suricontroller.agent.v1.ApplyReport
+	100, // 36: suricontroller.api.v1.ApplyHistoryEntry.created_at:type_name -> google.protobuf.Timestamp
+	37,  // 37: suricontroller.api.v1.ListApplyHistoryResponse.entries:type_name -> suricontroller.api.v1.ApplyHistoryEntry
+	100, // 38: suricontroller.api.v1.Commit.time:type_name -> google.protobuf.Timestamp
+	0,   // 39: suricontroller.api.v1.ListCommitsRequest.repo:type_name -> suricontroller.api.v1.Repo
+	40,  // 40: suricontroller.api.v1.ListCommitsResponse.commits:type_name -> suricontroller.api.v1.Commit
+	0,   // 41: suricontroller.api.v1.GetCommitRequest.repo:type_name -> suricontroller.api.v1.Repo
+	40,  // 42: suricontroller.api.v1.GetCommitResponse.commit:type_name -> suricontroller.api.v1.Commit
+	43,  // 43: suricontroller.api.v1.GetCommitResponse.files:type_name -> suricontroller.api.v1.FileChangeStat
+	0,   // 44: suricontroller.api.v1.ListTreeRequest.repo:type_name -> suricontroller.api.v1.Repo
+	46,  // 45: suricontroller.api.v1.ListTreeResponse.entries:type_name -> suricontroller.api.v1.TreeEntry
+	0,   // 46: suricontroller.api.v1.ReadFileRequest.repo:type_name -> suricontroller.api.v1.Repo
+	0,   // 47: suricontroller.api.v1.WriteFilesRequest.repo:type_name -> suricontroller.api.v1.Repo
+	51,  // 48: suricontroller.api.v1.WriteFilesRequest.changes:type_name -> suricontroller.api.v1.FileChange
+	40,  // 49: suricontroller.api.v1.WriteFilesResponse.commit:type_name -> suricontroller.api.v1.Commit
+	0,   // 50: suricontroller.api.v1.DiffRequest.repo:type_name -> suricontroller.api.v1.Repo
+	43,  // 51: suricontroller.api.v1.DiffResponse.files:type_name -> suricontroller.api.v1.FileChangeStat
+	92,  // 52: suricontroller.api.v1.Provider.options:type_name -> suricontroller.api.v1.Provider.OptionsEntry
+	100, // 53: suricontroller.api.v1.Provider.last_fetch_at:type_name -> google.protobuf.Timestamp
+	100, // 54: suricontroller.api.v1.Provider.last_success_at:type_name -> google.protobuf.Timestamp
+	56,  // 55: suricontroller.api.v1.ListProvidersResponse.providers:type_name -> suricontroller.api.v1.Provider
+	93,  // 56: suricontroller.api.v1.UpdateProviderRequest.options:type_name -> suricontroller.api.v1.UpdateProviderRequest.OptionsEntry
+	56,  // 57: suricontroller.api.v1.UpdateProviderResponse.provider:type_name -> suricontroller.api.v1.Provider
+	56,  // 58: suricontroller.api.v1.SyncProviderResponse.provider:type_name -> suricontroller.api.v1.Provider
+	1,   // 59: suricontroller.api.v1.DeployPolicy.kind:type_name -> suricontroller.api.v1.DeployKind
+	2,   // 60: suricontroller.api.v1.DeployPolicy.mode:type_name -> suricontroller.api.v1.DeployMode
+	100, // 61: suricontroller.api.v1.DeployPolicy.updated_at:type_name -> google.protobuf.Timestamp
+	63,  // 62: suricontroller.api.v1.GetPoliciesResponse.rules:type_name -> suricontroller.api.v1.DeployPolicy
+	63,  // 63: suricontroller.api.v1.GetPoliciesResponse.config:type_name -> suricontroller.api.v1.DeployPolicy
+	1,   // 64: suricontroller.api.v1.SetPolicyRequest.kind:type_name -> suricontroller.api.v1.DeployKind
+	2,   // 65: suricontroller.api.v1.SetPolicyRequest.mode:type_name -> suricontroller.api.v1.DeployMode
+	63,  // 66: suricontroller.api.v1.SetPolicyResponse.policy:type_name -> suricontroller.api.v1.DeployPolicy
+	68,  // 67: suricontroller.api.v1.PreviewNodeResponse.rule_stats:type_name -> suricontroller.api.v1.RuleStats
+	108, // 68: suricontroller.api.v1.GetCollectionPoliciesResponse.global:type_name -> suricontroller.agent.v1.LogCollectionPolicy
+	94,  // 69: suricontroller.api.v1.GetCollectionPoliciesResponse.nodes:type_name -> suricontroller.api.v1.GetCollectionPoliciesResponse.NodesEntry
+	108, // 70: suricontroller.api.v1.SetGlobalCollectionPolicyRequest.policy:type_name -> suricontroller.agent.v1.LogCollectionPolicy
+	108, // 71: suricontroller.api.v1.SetNodeCollectionPolicyRequest.policy:type_name -> suricontroller.agent.v1.LogCollectionPolicy
+	3,   // 72: suricontroller.api.v1.RetentionPolicy.rotate:type_name -> suricontroller.api.v1.RotateInterval
+	77,  // 73: suricontroller.api.v1.GetRetentionPolicyResponse.policy:type_name -> suricontroller.api.v1.RetentionPolicy
+	77,  // 74: suricontroller.api.v1.SetRetentionPolicyRequest.policy:type_name -> suricontroller.api.v1.RetentionPolicy
+	77,  // 75: suricontroller.api.v1.SetRetentionPolicyResponse.policy:type_name -> suricontroller.api.v1.RetentionPolicy
+	109, // 76: suricontroller.api.v1.LogFile.type:type_name -> suricontroller.agent.v1.LogType
+	100, // 77: suricontroller.api.v1.LogFile.mod_time:type_name -> google.protobuf.Timestamp
+	109, // 78: suricontroller.api.v1.ListLogFilesRequest.type:type_name -> suricontroller.agent.v1.LogType
+	82,  // 79: suricontroller.api.v1.ListLogFilesResponse.files:type_name -> suricontroller.api.v1.LogFile
+	109, // 80: suricontroller.api.v1.TailLogRequest.type:type_name -> suricontroller.agent.v1.LogType
+	88,  // 81: suricontroller.api.v1.GetIngestStatsResponse.nodes:type_name -> suricontroller.api.v1.NodeIngestStats
+	95,  // 82: suricontroller.api.v1.SetInterfaceModesRequest.ModesEntry.value:type_name -> suricontroller.agent.v1.InterfaceMode
+	96,  // 83: suricontroller.api.v1.SetEndpointModesRequest.ModesEntry.value:type_name -> suricontroller.agent.v1.EndpointMode
+	108, // 84: suricontroller.api.v1.GetCollectionPoliciesResponse.NodesEntry.value:type_name -> suricontroller.agent.v1.LogCollectionPolicy
+	5,   // 85: suricontroller.api.v1.AuthService.GetAuthInfo:input_type -> suricontroller.api.v1.GetAuthInfoRequest
+	7,   // 86: suricontroller.api.v1.AuthService.Login:input_type -> suricontroller.api.v1.LoginRequest
+	9,   // 87: suricontroller.api.v1.AuthService.Logout:input_type -> suricontroller.api.v1.LogoutRequest
+	11,  // 88: suricontroller.api.v1.SystemService.GetInfo:input_type -> suricontroller.api.v1.GetInfoRequest
+	14,  // 89: suricontroller.api.v1.SystemService.GetSettings:input_type -> suricontroller.api.v1.GetSettingsRequest
+	16,  // 90: suricontroller.api.v1.SystemService.UpdateSettings:input_type -> suricontroller.api.v1.UpdateSettingsRequest
+	23,  // 91: suricontroller.api.v1.NodeService.ListNodes:input_type -> suricontroller.api.v1.ListNodesRequest
+	25,  // 92: suricontroller.api.v1.NodeService.GetNode:input_type -> suricontroller.api.v1.GetNodeRequest
+	27,  // 93: suricontroller.api.v1.NodeService.AddNode:input_type -> suricontroller.api.v1.AddNodeRequest
+	29,  // 94: suricontroller.api.v1.NodeService.UpdateNode:input_type -> suricontroller.api.v1.UpdateNodeRequest
+	31,  // 95: suricontroller.api.v1.NodeService.DeleteNode:input_type -> suricontroller.api.v1.DeleteNodeRequest
+	33,  // 96: suricontroller.api.v1.NodeService.SetInterfaceModes:input_type -> suricontroller.api.v1.SetInterfaceModesRequest
+	35,  // 97: suricontroller.api.v1.NodeService.SetEndpointModes:input_type -> suricontroller.api.v1.SetEndpointModesRequest
+	38,  // 98: suricontroller.api.v1.NodeService.ListApplyHistory:input_type -> suricontroller.api.v1.ListApplyHistoryRequest
+	41,  // 99: suricontroller.api.v1.RepoService.ListCommits:input_type -> suricontroller.api.v1.ListCommitsRequest
+	44,  // 100: suricontroller.api.v1.RepoService.GetCommit:input_type -> suricontroller.api.v1.GetCommitRequest
+	47,  // 101: suricontroller.api.v1.RepoService.ListTree:input_type -> suricontroller.api.v1.ListTreeRequest
+	49,  // 102: suricontroller.api.v1.RepoService.ReadFile:input_type -> suricontroller.api.v1.ReadFileRequest
+	52,  // 103: suricontroller.api.v1.RepoService.WriteFiles:input_type -> suricontroller.api.v1.WriteFilesRequest
+	54,  // 104: suricontroller.api.v1.RepoService.Diff:input_type -> suricontroller.api.v1.DiffRequest
+	57,  // 105: suricontroller.api.v1.RuleService.ListProviders:input_type -> suricontroller.api.v1.ListProvidersRequest
+	59,  // 106: suricontroller.api.v1.RuleService.UpdateProvider:input_type -> suricontroller.api.v1.UpdateProviderRequest
+	61,  // 107: suricontroller.api.v1.RuleService.SyncProvider:input_type -> suricontroller.api.v1.SyncProviderRequest
+	64,  // 108: suricontroller.api.v1.DeployService.GetPolicies:input_type -> suricontroller.api.v1.GetPoliciesRequest
+	66,  // 109: suricontroller.api.v1.DeployService.SetPolicy:input_type -> suricontroller.api.v1.SetPolicyRequest
+	69,  // 110: suricontroller.api.v1.DeployService.PreviewNode:input_type -> suricontroller.api.v1.PreviewNodeRequest
+	71,  // 111: suricontroller.api.v1.LogService.GetCollectionPolicies:input_type -> suricontroller.api.v1.GetCollectionPoliciesRequest
+	73,  // 112: suricontroller.api.v1.LogService.SetGlobalCollectionPolicy:input_type -> suricontroller.api.v1.SetGlobalCollectionPolicyRequest
+	75,  // 113: suricontroller.api.v1.LogService.SetNodeCollectionPolicy:input_type -> suricontroller.api.v1.SetNodeCollectionPolicyRequest
+	78,  // 114: suricontroller.api.v1.LogService.GetRetentionPolicy:input_type -> suricontroller.api.v1.GetRetentionPolicyRequest
+	80,  // 115: suricontroller.api.v1.LogService.SetRetentionPolicy:input_type -> suricontroller.api.v1.SetRetentionPolicyRequest
+	83,  // 116: suricontroller.api.v1.LogService.ListLogFiles:input_type -> suricontroller.api.v1.ListLogFilesRequest
+	85,  // 117: suricontroller.api.v1.LogService.TailLog:input_type -> suricontroller.api.v1.TailLogRequest
+	87,  // 118: suricontroller.api.v1.LogService.GetIngestStats:input_type -> suricontroller.api.v1.GetIngestStatsRequest
+	6,   // 119: suricontroller.api.v1.AuthService.GetAuthInfo:output_type -> suricontroller.api.v1.GetAuthInfoResponse
+	8,   // 120: suricontroller.api.v1.AuthService.Login:output_type -> suricontroller.api.v1.LoginResponse
+	10,  // 121: suricontroller.api.v1.AuthService.Logout:output_type -> suricontroller.api.v1.LogoutResponse
+	12,  // 122: suricontroller.api.v1.SystemService.GetInfo:output_type -> suricontroller.api.v1.GetInfoResponse
+	15,  // 123: suricontroller.api.v1.SystemService.GetSettings:output_type -> suricontroller.api.v1.GetSettingsResponse
+	17,  // 124: suricontroller.api.v1.SystemService.UpdateSettings:output_type -> suricontroller.api.v1.UpdateSettingsResponse
+	24,  // 125: suricontroller.api.v1.NodeService.ListNodes:output_type -> suricontroller.api.v1.ListNodesResponse
+	26,  // 126: suricontroller.api.v1.NodeService.GetNode:output_type -> suricontroller.api.v1.GetNodeResponse
+	28,  // 127: suricontroller.api.v1.NodeService.AddNode:output_type -> suricontroller.api.v1.AddNodeResponse
+	30,  // 128: suricontroller.api.v1.NodeService.UpdateNode:output_type -> suricontroller.api.v1.UpdateNodeResponse
+	32,  // 129: suricontroller.api.v1.NodeService.DeleteNode:output_type -> suricontroller.api.v1.DeleteNodeResponse
+	34,  // 130: suricontroller.api.v1.NodeService.SetInterfaceModes:output_type -> suricontroller.api.v1.SetInterfaceModesResponse
+	36,  // 131: suricontroller.api.v1.NodeService.SetEndpointModes:output_type -> suricontroller.api.v1.SetEndpointModesResponse
+	39,  // 132: suricontroller.api.v1.NodeService.ListApplyHistory:output_type -> suricontroller.api.v1.ListApplyHistoryResponse
+	42,  // 133: suricontroller.api.v1.RepoService.ListCommits:output_type -> suricontroller.api.v1.ListCommitsResponse
+	45,  // 134: suricontroller.api.v1.RepoService.GetCommit:output_type -> suricontroller.api.v1.GetCommitResponse
+	48,  // 135: suricontroller.api.v1.RepoService.ListTree:output_type -> suricontroller.api.v1.ListTreeResponse
+	50,  // 136: suricontroller.api.v1.RepoService.ReadFile:output_type -> suricontroller.api.v1.ReadFileResponse
+	53,  // 137: suricontroller.api.v1.RepoService.WriteFiles:output_type -> suricontroller.api.v1.WriteFilesResponse
+	55,  // 138: suricontroller.api.v1.RepoService.Diff:output_type -> suricontroller.api.v1.DiffResponse
+	58,  // 139: suricontroller.api.v1.RuleService.ListProviders:output_type -> suricontroller.api.v1.ListProvidersResponse
+	60,  // 140: suricontroller.api.v1.RuleService.UpdateProvider:output_type -> suricontroller.api.v1.UpdateProviderResponse
+	62,  // 141: suricontroller.api.v1.RuleService.SyncProvider:output_type -> suricontroller.api.v1.SyncProviderResponse
+	65,  // 142: suricontroller.api.v1.DeployService.GetPolicies:output_type -> suricontroller.api.v1.GetPoliciesResponse
+	67,  // 143: suricontroller.api.v1.DeployService.SetPolicy:output_type -> suricontroller.api.v1.SetPolicyResponse
+	70,  // 144: suricontroller.api.v1.DeployService.PreviewNode:output_type -> suricontroller.api.v1.PreviewNodeResponse
+	72,  // 145: suricontroller.api.v1.LogService.GetCollectionPolicies:output_type -> suricontroller.api.v1.GetCollectionPoliciesResponse
+	74,  // 146: suricontroller.api.v1.LogService.SetGlobalCollectionPolicy:output_type -> suricontroller.api.v1.SetGlobalCollectionPolicyResponse
+	76,  // 147: suricontroller.api.v1.LogService.SetNodeCollectionPolicy:output_type -> suricontroller.api.v1.SetNodeCollectionPolicyResponse
+	79,  // 148: suricontroller.api.v1.LogService.GetRetentionPolicy:output_type -> suricontroller.api.v1.GetRetentionPolicyResponse
+	81,  // 149: suricontroller.api.v1.LogService.SetRetentionPolicy:output_type -> suricontroller.api.v1.SetRetentionPolicyResponse
+	84,  // 150: suricontroller.api.v1.LogService.ListLogFiles:output_type -> suricontroller.api.v1.ListLogFilesResponse
+	86,  // 151: suricontroller.api.v1.LogService.TailLog:output_type -> suricontroller.api.v1.TailLogResponse
+	89,  // 152: suricontroller.api.v1.LogService.GetIngestStats:output_type -> suricontroller.api.v1.GetIngestStatsResponse
+	119, // [119:153] is the sub-list for method output_type
+	85,  // [85:119] is the sub-list for method input_type
+	85,  // [85:85] is the sub-list for extension type_name
+	85,  // [85:85] is the sub-list for extension extendee
+	0,   // [0:85] is the sub-list for field type_name
 }
 
 func init() { file_suricontroller_api_v1_api_proto_init() }
@@ -5571,15 +5860,15 @@ func file_suricontroller_api_v1_api_proto_init() {
 	if File_suricontroller_api_v1_api_proto != nil {
 		return
 	}
-	file_suricontroller_api_v1_api_proto_msgTypes[23].OneofWrappers = []any{}
-	file_suricontroller_api_v1_api_proto_msgTypes[51].OneofWrappers = []any{}
+	file_suricontroller_api_v1_api_proto_msgTypes[25].OneofWrappers = []any{}
+	file_suricontroller_api_v1_api_proto_msgTypes[55].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_suricontroller_api_v1_api_proto_rawDesc), len(file_suricontroller_api_v1_api_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   86,
+			NumMessages:   91,
 			NumExtensions: 0,
 			NumServices:   7,
 		},

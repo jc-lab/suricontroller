@@ -426,6 +426,21 @@ func (a *Agent) queueSupport(ctx context.Context) error {
 	return err
 }
 
+// tapInfo describes the suritap instance and endpoints from agent.yaml.
+func (a *Agent) tapInfo() *agentv1.TapInfo {
+	if !a.cfg.Tap.Enabled && len(a.cfg.Tap.Endpoints) == 0 {
+		return nil
+	}
+	ti := &agentv1.TapInfo{Enabled: a.cfg.Tap.Enabled, SocketDir: a.cfg.Tap.SocketDir}
+	if _, err := os.Stat(a.cfg.Tap.Plugin); err == nil {
+		ti.PluginPresent = true
+	}
+	for _, ep := range a.cfg.Tap.Endpoints {
+		ti.Endpoints = append(ti.Endpoints, &agentv1.TapEndpointInfo{Name: ep.Name, PreventAllowed: ep.PreventAllowed(), Description: ep.Description})
+	}
+	return ti
+}
+
 // MinSuricataVersion is the oldest supported Suricata release.
 const MinSuricataVersion = "8.0.5"
 
@@ -467,6 +482,9 @@ func (a *Agent) warnings() []*agentv1.Warning {
 			ws = append(ws, &agentv1.Warning{Code: "interface_missing", Message: "interface " + ifc.Name + " does not exist"})
 		}
 	}
+	if ti := a.tapInfo(); ti != nil && ti.Enabled && !ti.PluginPresent {
+		ws = append(ws, &agentv1.Warning{Code: "tap_plugin_missing", Message: "suritap plugin " + a.cfg.Tap.Plugin + " not found: the tap instance cannot start"})
+	}
 	return append(ws, a.rec.Warnings()...)
 }
 
@@ -483,6 +501,7 @@ func (a *Agent) hello() *agentv1.Hello {
 		Applied:    a.rec.Applied(),
 		Warnings:   a.warnings(),
 		LogSources: a.col.Sources(),
+		Tap:        a.tapInfo(),
 	}
 }
 

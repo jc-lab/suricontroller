@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -179,6 +180,23 @@ func (ns *nodeService) view(n *store.Node) *apiv1.Node {
 			Mode: mode, AppliedMode: applied,
 		})
 	}
+	if ti := n.Hello.GetTap(); ti != nil {
+		tap := &apiv1.NodeTap{Enabled: ti.Enabled, SocketDir: ti.SocketDir, PluginPresent: ti.PluginPresent}
+		for _, ep := range ti.Endpoints {
+			mode := n.EndpointModes[ep.Name]
+			if mode == agentv1.EndpointMode_ENDPOINT_MODE_UNSPECIFIED {
+				mode = agentv1.EndpointMode_ENDPOINT_MODE_OFF
+			}
+			applied := n.Applied.GetEndpointModes()[ep.Name]
+			if applied == agentv1.EndpointMode_ENDPOINT_MODE_UNSPECIFIED {
+				applied = agentv1.EndpointMode_ENDPOINT_MODE_OFF
+			}
+			tap.Endpoints = append(tap.Endpoints, &apiv1.NodeTapEndpoint{
+				Name: ep.Name, PreventAllowed: ep.PreventAllowed, Description: ep.Description, Mode: mode, AppliedMode: applied,
+			})
+		}
+		v.Tap = tap
+	}
 	d := &apiv1.NodeDeployState{
 		DesiredGeneration: n.Desired.GetGeneration(),
 		DesiredBundle:     n.Desired.GetBundle(),
@@ -253,6 +271,20 @@ func (ns *nodeService) SetInterfaceModes(ctx context.Context, req *connect.Reque
 	}
 	ns.s.audit(ctx, "node.interfaces", n.ID, strings.Join(parts, ","))
 	return connect.NewResponse(&apiv1.SetInterfaceModesResponse{Node: ns.view(n)}), nil
+}
+
+func (ns *nodeService) SetEndpointModes(ctx context.Context, req *connect.Request[apiv1.SetEndpointModesRequest]) (*connect.Response[apiv1.SetEndpointModesResponse], error) {
+	n, err := ns.s.Nodes.SetEndpointModes(ctx, req.Msg.Id, req.Msg.Modes)
+	if err != nil {
+		return nil, toConnectError(err)
+	}
+	var parts []string
+	for k, v := range req.Msg.Modes {
+		parts = append(parts, k+"="+strings.TrimPrefix(v.String(), "ENDPOINT_MODE_"))
+	}
+	sort.Strings(parts)
+	ns.s.audit(ctx, "node.tap_endpoints", n.ID, strings.Join(parts, ","))
+	return connect.NewResponse(&apiv1.SetEndpointModesResponse{Node: ns.view(n)}), nil
 }
 
 func (ns *nodeService) ListApplyHistory(ctx context.Context, req *connect.Request[apiv1.ListApplyHistoryRequest]) (*connect.Response[apiv1.ListApplyHistoryResponse], error) {

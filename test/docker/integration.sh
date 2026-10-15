@@ -4,7 +4,9 @@
 # network namespace, a veth pair and a peer namespace serving TCP 8080.
 #
 # Verifies: registration, IDS alerts (af-packet), IPS drops (NFQUEUE via
-# nftables), rejected rules (suricata -T), log collection, rollback.
+# nftables), the suritap instance and its endpoint modes (Off / Detect /
+# Prevent pushed to clients), rejected rules (suricata -T), log collection,
+# rollback, restore at boot.
 #
 # Usage: test/docker/integration.sh [agent-image]   (default suri-node-agent:dev)
 set -euo pipefail
@@ -24,6 +26,13 @@ cleanup() {
 	set +e
 	if [ -n "${KEEP:-}" ]; then log "keeping $WORK and container $CONTAINER"; return; fi
 	docker logs "$CONTAINER" > "$WORK/agent.log" 2>&1
+	if [ "${RESULT:-fail}" != ok ]; then
+		# On CI the work directory is gone after the job: show the essentials.
+		log "nftables ruleset in the agent container:"
+		docker exec "$CONTAINER" nft list ruleset 2>&1 | sed 's/^/    /'
+		log "agent log (warnings, errors, firewall):"
+		grep -iE 'level=(WARN|ERROR)|firewall|nft|queue|restored|apply' "$WORK/agent.log" | tail -60 | sed 's/^/    /'
+	fi
 	docker rm -f "$CONTAINER" >/dev/null 2>&1
 	[ -n "$CTL_PID" ] && kill "$CTL_PID" 2>/dev/null && wait "$CTL_PID" 2>/dev/null
 	if [ "${RESULT:-fail}" = ok ]; then
@@ -67,9 +76,11 @@ peer_curl() { # peer_curl payload -> exit status of a POST through veth0
 	docker exec "$CONTAINER" sh -c "printf 'POST / HTTP/1.0\r\nContent-Length: ${#1}\r\n\r\n$1' | timeout 5 nc -w 3 10.99.0.2 8080 | grep -q pong"
 }
 
-log "building controller"
+log "building controller and probe"
 go build -o "$WORK/suri-controller" ./cmd/suri-controller
-mkdir -p "$WORK/ctl" "$WORK/agent/etc" "$WORK/agent/suricata" "$WORK/agent/data" "$WORK/agent/log"
+mkdir -p "$WORK/ctl" "$WORK/agent/etc" "$WORK/agent/suricata" "$WORK/agent/data" "$WORK/agent/log" "$WORK/bin"
+# The probe plays a proxy adapter inside the agent container (static).
+CGO_ENABLED=0 go build -o "$WORK/bin/suritap-probe" ./cmd/suritap-probe
 SURICONTROLLER_DATA_DIR="$WORK/ctl" SURICONTROLLER_LISTEN="0.0.0.0:$PORT" SURICONTROLLER_ADMIN_PASSWORD=pw \
 	SURICONTROLLER_INSECURE_COOKIE=1 SURICONTROLLER_ET_OPEN=false "$WORK/suri-controller" serve > "$WORK/controller.log" 2>&1 &
 CTL_PID=$!
@@ -95,6 +106,12 @@ interfaces:
 ips:
   enabled: true
   queues: "0"
+tap:
+  enabled: true
+  socket_mode: "0666"
+  endpoints:
+    - name: web
+      description: test endpoint
 logs:
   start_position: beginning
 log_level: debug
@@ -115,7 +132,7 @@ commit REPO_CONFIG common/sources.yaml 'providers: [local]
 log "starting agent container"
 docker run -d --name "$CONTAINER" --privileged --add-host host.docker.internal:host-gateway \
 	-v "$WORK/agent/etc:/etc/suri-agent" -v "$WORK/agent/suricata:/etc/suricata" \
-	-v "$WORK/agent/data:/var/lib/suri-agent" -v "$WORK/agent/log:/var/log/suricata" \
+	-v "$WORK/agent/data:/var/lib/suri-agent" -v "$WORK/agent/log:/var/log/suricata" -v "$WORK/bin:/opt/test:ro" \
 	--entrypoint /bin/sh "$IMAGE" -c '
 set -e
 apk add -q iproute2 socat >/dev/null
@@ -138,7 +155,7 @@ node | jq -e '.node.interfaces[0].ipsAllowed' >/dev/null || fail "veth0 should a
 
 log "IDS on veth0"
 api NodeService/SetInterfaceModes "{\"id\":\"$NODE\",\"modes\":{\"veth0\":\"INTERFACE_MODE_IDS\"}}" >/dev/null
-wait_for "IDS applied" 120 sh -c "$(declare -f api node); API='$API'; WORK='$WORK'; NODE='$NODE'; node | jq -e '.node.interfaces[0].appliedMode == \"INTERFACE_MODE_IDS\" and .node.deploy.inSync and (.node.instances|length) == 1 and .node.instances[0].running'"
+wait_for "IDS applied" 120 sh -c "$(declare -f api node); API='$API'; WORK='$WORK'; NODE='$NODE'; node | jq -e '.node.interfaces[0].appliedMode == \"INTERFACE_MODE_IDS\" and .node.deploy.inSync and ([.node.instances[] | select(.name == \"ids\" and .running)] | length) == 1'"
 sleep 2
 peer_curl "hello-suritest" || fail "IDS must not block traffic"
 peer_curl "blockme-in-ids-mode" || fail "drop rules must not block in IDS mode"
@@ -146,13 +163,35 @@ wait_for "IDS alert collected" 60 sh -c "$(declare -f api eve_has); API='$API'; 
 
 log "IPS on veth0"
 api NodeService/SetInterfaceModes "{\"id\":\"$NODE\",\"modes\":{\"veth0\":\"INTERFACE_MODE_IPS\"}}" >/dev/null
-wait_for "IPS applied" 120 sh -c "$(declare -f api node); API='$API'; WORK='$WORK'; NODE='$NODE'; node | jq -e '.node.interfaces[0].appliedMode == \"INTERFACE_MODE_IPS\" and .node.deploy.inSync and .node.instances[0].name == \"ips\" and .node.instances[0].running'"
+wait_for "IPS applied" 120 sh -c "$(declare -f api node); API='$API'; WORK='$WORK'; NODE='$NODE'; node | jq -e '.node.interfaces[0].appliedMode == \"INTERFACE_MODE_IPS\" and .node.deploy.inSync and ([.node.instances[] | select(.name == \"ips\" and .running)] | length) == 1 and ([.node.instances[] | select(.name == \"ids\")] | length) == 0'"
 docker exec "$CONTAINER" nft list table inet suricontroller | grep -q 'queue' || fail "nftables steering missing"
 sleep 2
 peer_curl "normal-request" || fail "IPS must pass normal traffic"
 if peer_curl "please-blockme-now"; then fail "IPS did not drop the blockme request"; fi
 log "ok: blockme request dropped"
 wait_for "IPS drop collected" 60 sh -c "$(declare -f api eve_has); API='$API'; WORK='$WORK'; NODE='$NODE'; eve_has 9000002"
+
+log "suritap: tap instance and endpoint modes"
+node | jq -e '.node.tap.enabled and .node.tap.pluginPresent and .node.tap.endpoints[0].name == "web"' >/dev/null || fail "tap endpoints not reported"
+wait_for "tap instance running" 60 sh -c "$(declare -f api node); API='$API'; WORK='$WORK'; NODE='$NODE'; node | jq -e '[.node.instances[] | select(.name == \"tap\" and .capture == \"plugin\" and .running)] | length == 1'"
+probe() { # probe -> JSON verdict of a blockme request on endpoint web (port 8080 rule)
+	docker exec "$CONTAINER" /opt/test/suritap-probe inspect -dir /run/suritap -endpoint web -dst 10.99.0.1:8080 \
+		-policy-wait 1s -data "$(printf 'POST / HTTP/1.0\r\nContent-Length: 7\r\n\r\nblockme')"
+}
+set_endpoint() { # set_endpoint MODE: set it and wait until applied and seen by clients
+	api NodeService/SetEndpointModes "{\"id\":\"$NODE\",\"modes\":{\"web\":\"ENDPOINT_MODE_$1\"}}" | jq -e .node >/dev/null || fail "set endpoint mode $1"
+	wait_for "endpoint web $1 applied" 60 sh -c "$(declare -f api node); API='$API'; WORK='$WORK'; NODE='$NODE'; node | jq -e '.node.tap.endpoints[0].appliedMode == \"ENDPOINT_MODE_$1\" and .node.deploy.inSync'"
+	local want; want=$(printf '%s' "$1" | tr 'A-Z' 'a-z')
+	wait_for "clients see web=$want" 30 sh -c "$(declare -f probe); CONTAINER='$CONTAINER'; probe | jq -e '.mode == \"$want\"'"
+}
+set_endpoint PREVENT
+probe | jq -e '.action == "drop" and (.sids | index(9000002))' >/dev/null || fail "prevent: blockme must be dropped ($(probe))"
+log "ok: prevent endpoint drops"
+set_endpoint DETECT
+probe | jq -e '.action == "pass" and .reason == "rule"' >/dev/null || fail "detect: verdict must pass with the drop reason ($(probe))"
+log "ok: detect endpoint is never blocked"
+set_endpoint OFF
+wait_for "tap EVE with endpoint metadata collected" 60 sh -c "$(declare -f api eve_has); API='$API'; WORK='$WORK'; NODE='$NODE'; eve_has '\"endpoint\":\"web\"'"
 
 log "invalid rule is rejected by suricata -T"
 commit REPO_RULES local/bad.rules 'alert tcp any any -> any any (msg:"bad"; nosuchkeyword:1; sid:9000003; rev:1;)
@@ -178,6 +217,7 @@ docker exec "$CONTAINER" nft list table inet suricontroller | grep -q queue || f
 peer_curl "after-restart" || fail "traffic after restart"
 if peer_curl "blockme-after-restart"; then fail "IPS not enforcing after restart"; fi
 log "ok: IPS enforcing after restart without the controller"
+wait_for "tap instance restored at boot" 60 docker exec "$CONTAINER" test -S /run/suritap/worker-0.stream.sock
 
 RESULT=ok
 log "ALL PASSED"

@@ -34,6 +34,9 @@ type Node struct {
 	Hello *agentv1.Hello
 	// InterfaceModes are the modes requested by the administrator.
 	InterfaceModes map[string]agentv1.InterfaceMode
+	// EndpointModes are the suritap endpoint modes requested by the
+	// administrator.
+	EndpointModes map[string]agentv1.EndpointMode
 	// LogPolicy overrides the global log collection policy; nil inherits.
 	LogPolicy *agentv1.LogCollectionPolicy
 

@@ -15,6 +15,8 @@ ARG TARGETOS TARGETARCH TARGETVARIANT
 ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
+# Replaced module (see go.mod).
+COPY adapters/traefik-plugin/go.mod adapters/traefik-plugin/
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist/ /src/web/dist/

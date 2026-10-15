@@ -357,3 +357,73 @@ func TestIPSWithoutQueueSupport(t *testing.T) {
 		t.Fatalf("IDS: %v %s", rep.Status, rep.Message)
 	}
 }
+
+// The tap instance runs with the suritap plugin whenever it is enabled;
+// endpoint modes go to the policy file the plugin watches, and changing
+// only them neither revalidates nor restarts anything.
+func TestTapEndpoints(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	e := newEnv(t, dir)
+	no := false
+	e.cfg.Tap.Enabled = true
+	e.cfg.Tap.Plugin = "/usr/lib/suricata/suritap.so"
+	e.cfg.Tap.SocketDir = filepath.Join(dir, "suritap")
+	e.cfg.Tap.Config = filepath.Join(dir, "tap.yaml")
+	e.cfg.Tap.Endpoints = []config.TapEndpoint{{Name: "websecure"}, {Name: "admin", Prevent: &no}}
+	e.cfg.Suricata.Instances["tap"] = config.Instance{LogDir: filepath.Join(dir, "log/tap")}
+	os.WriteFile(e.cfg.Tap.Config, []byte("stream:\n  reassembly:\n    depth: 0\n"), 0o644)
+	emodes := func(kv ...string) map[string]agentv1.EndpointMode {
+		m := map[string]agentv1.EndpointMode{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			m[kv[i]] = agentv1.EndpointMode(agentv1.EndpointMode_value["ENDPOINT_MODE_"+kv[i+1]])
+		}
+		return m
+	}
+	ref := e.bundle(t, rulesA, "")
+	rep := e.rec.apply(ctx, &agentv1.DesiredState{Generation: 1, Bundle: ref, EndpointModes: emodes("websecure", "PREVENT", "admin", "DETECT")})
+	if rep.Status != agentv1.ApplyStatus_APPLY_STATUS_SUCCEEDED {
+		t.Fatalf("apply: %v %s", rep.Status, rep.Message)
+	}
+	tap, ok := e.eng.running["tap"]
+	if !ok || tap.Capture != engine.CapturePlugin {
+		t.Fatalf("tap instance not running: %+v", e.eng.running)
+	}
+	conf, _ := os.ReadFile(tap.ConfigPath)
+	for _, want := range []string{"suritap.so", "socket-dir: " + e.cfg.Tap.SocketDir, "policy-file: " + e.rec.policyPath(), "depth: 0"} {
+		if !strings.Contains(string(conf), want) {
+			t.Errorf("tap config lacks %q:\n%s", want, conf)
+		}
+	}
+	policy := func() string {
+		b, _ := os.ReadFile(e.rec.policyPath())
+		return string(b)
+	}
+	if p := policy(); !strings.Contains(p, "websecure prevent\n") || !strings.Contains(p, "admin detect\n") {
+		t.Fatalf("policy:\n%s", p)
+	}
+
+	// Only the modes change: the policy file is rewritten, the engine kept.
+	calls := e.eng.ensureCalls
+	rep = e.rec.apply(ctx, &agentv1.DesiredState{Generation: 2, Bundle: ref, EndpointModes: emodes("websecure", "DETECT")})
+	if rep.Status != agentv1.ApplyStatus_APPLY_STATUS_SUCCEEDED || e.eng.ensureCalls != calls {
+		t.Fatalf("mode change: %v %s (ensure calls %d -> %d)", rep.Status, rep.Message, calls, e.eng.ensureCalls)
+	}
+	if p := policy(); !strings.Contains(p, "websecure detect\n") || !strings.Contains(p, "admin off\n") {
+		t.Fatalf("policy after change:\n%s", p)
+	}
+	if got := e.rec.Applied().EndpointModes["websecure"]; got != agentv1.EndpointMode_ENDPOINT_MODE_DETECT {
+		t.Fatalf("applied mode %v", got)
+	}
+
+	// Policy checks: undeclared endpoints and prevent where not allowed.
+	for _, ds := range []map[string]agentv1.EndpointMode{emodes("other", "DETECT"), emodes("admin", "PREVENT")} {
+		rep = e.rec.apply(ctx, &agentv1.DesiredState{Generation: 3, Bundle: ref, EndpointModes: ds})
+		if rep.Status != agentv1.ApplyStatus_APPLY_STATUS_FAILED || rep.Stage != agentv1.ApplyStage_APPLY_STAGE_POLICY {
+			t.Fatalf("%v: %v %v %s", ds, rep.Status, rep.Stage, rep.Message)
+		}
+	}
+	if p := policy(); !strings.Contains(p, "websecure detect\n") {
+		t.Fatalf("rejected change touched the policy:\n%s", p)
+	}
+}

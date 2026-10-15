@@ -110,6 +110,8 @@ message Hello {
   AppliedState applied = 6;
   repeated Warning warnings = 7;
   repeated LogSource log_sources = 8;
+  // suritap: proxy endpoints the agent allows the controller to manage.
+  TapInfo tap = 9;
 }
 
 message HelloAck {
@@ -159,6 +161,36 @@ message Warning {
   string message = 2;
 }
 
+// TapInfo describes the suritap instance (Suricata fed by TLS-terminating
+// proxies through the suritap capture plugin), from agent.yaml.
+message TapInfo {
+  bool enabled = 1;
+  // Directory of the plugin's worker sockets the proxies connect to.
+  string socket_dir = 2;
+  repeated TapEndpointInfo endpoints = 3;
+  // Whether the plugin library exists on the node.
+  bool plugin_present = 4;
+}
+
+// TapEndpointInfo is a proxy endpoint (the name the adapters report, e.g. a
+// Traefik entry point or a Kong route) the controller may manage.
+message TapEndpointInfo {
+  string name = 1;
+  // Whether the agent allows Prevent mode (agent decides).
+  bool prevent_allowed = 2;
+  string description = 3;
+}
+
+// EndpointMode is the inspection mode of a proxy endpoint. The plugin pushes
+// it to the proxies: Off skips inspection, Detect inspects without waiting
+// and never blocks, Prevent blocks on drop verdicts.
+enum EndpointMode {
+  ENDPOINT_MODE_UNSPECIFIED = 0;
+  ENDPOINT_MODE_OFF = 1;
+  ENDPOINT_MODE_DETECT = 2;
+  ENDPOINT_MODE_PREVENT = 3;
+}
+
 // ---------------------------------------------------------------------------
 // Desired / applied state
 // ---------------------------------------------------------------------------
@@ -178,12 +210,14 @@ message DesiredState {
   BundleRef bundle = 2;
   map<string, InterfaceMode> interface_modes = 3;
   LogCollectionPolicy log_policy = 4;
+  map<string, EndpointMode> endpoint_modes = 5;
 }
 
 message AppliedState {
   uint64 generation = 1;
   BundleRef bundle = 2;
   map<string, InterfaceMode> interface_modes = 3;
+  map<string, EndpointMode> endpoint_modes = 4;
 }
 
 enum ApplyStage {
@@ -246,9 +280,9 @@ message StatusReport {
 }
 
 message InstanceStatus {
-  // ids | ips
+  // ids | ips | tap
   string name = 1;
-  // af-packet | nfq
+  // af-packet | nfq | plugin
   string capture = 2;
   bool running = 3;
   int64 uptime_seconds = 4;

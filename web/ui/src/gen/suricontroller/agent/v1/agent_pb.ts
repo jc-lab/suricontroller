@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file suricontroller/agent/v1/agent.proto.
  */
 export const file_suricontroller_agent_v1_agent: GenFile = /*@__PURE__*/
-  fileDesc("CiNzdXJpY29udHJvbGxlci9hZ2VudC92MS9hZ2VudC5wcm90bxIXc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEiUgoNSGFuZHNoYWtlSW5pdBIPCgdub2RlX2lkGAEgASgJEhUKDWFnZW50X3ZlcnNpb24YAiABKAkSGQoRdGltZXN0YW1wX3VuaXhfbXMYAyABKAMiigEKEUhhbmRzaGFrZVJlc3BvbnNlEhAKCGFjY2VwdGVkGAEgASgIEjUKBnJlYXNvbhgCIAEoDjIlLnN1cmljb250cm9sbGVyLmFnZW50LnYxLlJlamVjdFJlYXNvbhIPCgdtZXNzYWdlGAMgASgJEhsKE3NlcnZlcl90aW1lX3VuaXhfbXMYBCABKAMidQoMU3RyZWFtSGVhZGVyEjEKBHR5cGUYASABKA4yIy5zdXJpY29udHJvbGxlci5hZ2VudC52MS5TdHJlYW1UeXBlEjIKBGJsb2IYAiABKAsyJC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5CbG9iUmVxdWVzdCIwCgtCbG9iUmVxdWVzdBIRCglidW5kbGVfaWQYASABKAkSDgoGb2Zmc2V0GAIgASgEIjcKDEJsb2JSZXNwb25zZRIKCgJvaxgBIAEoCBINCgVlcnJvchgCIAEoCRIMCgRzaXplGAMgASgEIq4DCghFbnZlbG9wZRIKCgJpZBgBIAEoBBIQCghyZXBseV90bxgCIAEoBBIvCgVoZWxsbxgKIAEoCzIeLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkhlbGxvSAASNgoJaGVsbG9fYWNrGAsgASgLMiEuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuSGVsbG9BY2tIABI+Cg1kZXNpcmVkX3N0YXRlGAwgASgLMiUuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuRGVzaXJlZFN0YXRlSAASPAoMYXBwbHlfcmVwb3J0GA0gASgLMiQuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQXBwbHlSZXBvcnRIABI3CgZzdGF0dXMYDiABKAsyJS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5TdGF0dXNSZXBvcnRIABIvCgVlcnJvchgPIAEoCzIeLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkVycm9ySAASKwoDYWNrGBAgASgLMhwuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQWNrSABCBgoEYm9keSImCgVFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkiBQoDQWNrIv4CCgVIZWxsbxIPCgdub2RlX2lkGAEgASgJEhUKDWFnZW50X3ZlcnNpb24YAiABKAkSNwoIcGxhdGZvcm0YAyABKAsyJS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5QbGF0Zm9ybUluZm8SMwoGZW5naW5lGAQgASgLMiMuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuRW5naW5lSW5mbxI6CgppbnRlcmZhY2VzGAUgAygLMiYuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuSW50ZXJmYWNlSW5mbxI2CgdhcHBsaWVkGAYgASgLMiUuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQXBwbGllZFN0YXRlEjIKCHdhcm5pbmdzGAcgAygLMiAuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuV2FybmluZxI3Cgtsb2dfc291cmNlcxgIIAMoCzIiLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ1NvdXJjZSJkCghIZWxsb0FjaxIbChNzZXJ2ZXJfdGltZV91bml4X21zGAEgASgDEhoKEmNvbnRyb2xsZXJfdmVyc2lvbhgCIAEoCRIfChdzdGF0dXNfaW50ZXJ2YWxfc2Vjb25kcxgDIAEoDSKOAQoMUGxhdGZvcm1JbmZvEg8KB3Byb2ZpbGUYASABKAkSDwoHb3NfbmFtZRgCIAEoCRISCgpvc192ZXJzaW9uGAMgASgJEgwKBGFyY2gYBCABKAkSEAoIaG9zdG5hbWUYBSABKAkSDgoGa2VybmVsGAYgASgJEhgKEGZpcmV3YWxsX2JhY2tlbmQYByABKAkiTwoKRW5naW5lSW5mbxIPCgd2ZXJzaW9uGAEgASgJEhAKCGZlYXR1cmVzGAIgAygJEgsKA25mcRgDIAEoCBIRCglhZl9wYWNrZXQYBCABKAgiYgoNSW50ZXJmYWNlSW5mbxIMCgRuYW1lGAEgASgJEhMKC2lwc19hbGxvd2VkGAIgASgIEg8KB3ByZXNlbnQYAyABKAgSCgoCdXAYBCABKAgSEQoJYWRkcmVzc2VzGAUgAygJIigKB1dhcm5pbmcSDAoEY29kZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJIlkKCUJ1bmRsZVJlZhIRCglidW5kbGVfaWQYASABKAkSFAoMcnVsZXNfY29tbWl0GAIgASgJEhUKDWNvbmZpZ19jb21taXQYAyABKAkSDAoEc2l6ZRgEIAEoBCLLAgoMRGVzaXJlZFN0YXRlEhIKCmdlbmVyYXRpb24YASABKAQSMgoGYnVuZGxlGAIgASgLMiIuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQnVuZGxlUmVmElIKD2ludGVyZmFjZV9tb2RlcxgDIAMoCzI5LnN1cmljb250cm9sbGVyLmFnZW50LnYxLkRlc2lyZWRTdGF0ZS5JbnRlcmZhY2VNb2Rlc0VudHJ5EkAKCmxvZ19wb2xpY3kYBCABKAsyLC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5Mb2dDb2xsZWN0aW9uUG9saWN5Gl0KE0ludGVyZmFjZU1vZGVzRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgOMiYuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuSW50ZXJmYWNlTW9kZToCOAEiiQIKDEFwcGxpZWRTdGF0ZRISCgpnZW5lcmF0aW9uGAEgASgEEjIKBmJ1bmRsZRgCIAEoCzIiLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkJ1bmRsZVJlZhJSCg9pbnRlcmZhY2VfbW9kZXMYAyADKAsyOS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5BcHBsaWVkU3RhdGUuSW50ZXJmYWNlTW9kZXNFbnRyeRpdChNJbnRlcmZhY2VNb2Rlc0VudHJ5EgsKA2tleRgBIAEoCRI1CgV2YWx1ZRgCIAEoDjImLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkludGVyZmFjZU1vZGU6AjgBIkUKCVJ1bGVFcnJvchIMCgRmaWxlGAEgASgJEgwKBGxpbmUYAiABKA0SCwoDc2lkGAMgASgNEg8KB21lc3NhZ2UYBCABKAkiigMKC0FwcGx5UmVwb3J0EhIKCmdlbmVyYXRpb24YASABKAQSNAoGc3RhdHVzGAIgASgOMiQuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQXBwbHlTdGF0dXMSMgoFc3RhZ2UYAyABKA4yIy5zdXJpY29udHJvbGxlci5hZ2VudC52MS5BcHBseVN0YWdlEg8KB21lc3NhZ2UYBCABKAkSDgoGZGV0YWlsGAUgASgJEjcKC3J1bGVfZXJyb3JzGAYgAygLMiIuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuUnVsZUVycm9yEjYKB2FwcGxpZWQYByABKAsyJS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5BcHBsaWVkU3RhdGUSGgoSc3RhcnRlZF9hdF91bml4X21zGAggASgDEhsKE2ZpbmlzaGVkX2F0X3VuaXhfbXMYCSABKAMSMgoId2FybmluZ3MYCiADKAsyIC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5XYXJuaW5nIsQCCgxTdGF0dXNSZXBvcnQSFAoMdGltZV91bml4X21zGAEgASgDEjoKCWluc3RhbmNlcxgCIAMoCzInLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkluc3RhbmNlU3RhdHVzEjkKCWxvZ19xdWV1ZRgDIAEoCzImLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ1F1ZXVlU3RhdHMSMgoId2FybmluZ3MYBCADKAsyIC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5XYXJuaW5nEjoKCmludGVyZmFjZXMYBSADKAsyJi5zdXJpY29udHJvbGxlci5hZ2VudC52MS5JbnRlcmZhY2VJbmZvEjcKC2xvZ19zb3VyY2VzGAYgAygLMiIuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuTG9nU291cmNlIrkCCg5JbnN0YW5jZVN0YXR1cxIMCgRuYW1lGAEgASgJEg8KB2NhcHR1cmUYAiABKAkSDwoHcnVubmluZxgDIAEoCBIWCg51cHRpbWVfc2Vjb25kcxgEIAEoAxIRCglyc3NfYnl0ZXMYBSABKAQSEgoKaW50ZXJmYWNlcxgGIAMoCRJHCghjb3VudGVycxgHIAMoCzI1LnN1cmljb250cm9sbGVyLmFnZW50LnYxLkluc3RhbmNlU3RhdHVzLkNvdW50ZXJzRW50cnkSFAoMcnVsZXNfbG9hZGVkGAggASgNEhQKDHJ1bGVzX2ZhaWxlZBgJIAEoDRISCgpsYXN0X2Vycm9yGAogASgJGi8KDUNvdW50ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgEOgI4ASJuCglMb2dTb3VyY2USLgoEdHlwZRgBIAEoDjIgLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ1R5cGUSEAoIaW5zdGFuY2UYAiABKAkSDAoEcGF0aBgDIAEoCRIRCglldmVfdHlwZXMYBCADKAkigQEKE0xvZ0NvbGxlY3Rpb25Qb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIvCgV0eXBlcxgCIAMoDjIgLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ1R5cGUSFQoNZXZlX2FsbF90eXBlcxgDIAEoCBIRCglldmVfdHlwZXMYBCADKAkiZQoNTG9nUXVldWVTdGF0cxINCgVieXRlcxgBIAEoBBIWCg5jYXBhY2l0eV9ieXRlcxgCIAEoBBIXCg9kcm9wcGVkX3JlY29yZHMYAyABKAQSFAoMc2VudF9yZWNvcmRzGAQgASgEIqEBCghMb2dCYXRjaBILCgNzZXEYASABKAQSLgoEdHlwZRgCIAEoDjIgLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ1R5cGUSEAoIaW5zdGFuY2UYAyABKAkSFAoMenN0ZF9yZWNvcmRzGAQgASgMEhQKDHJlY29yZF9jb3VudBgFIAEoDRIaChJkcm9wcGVkX3NpbmNlX2xhc3QYBiABKAQq4AEKDFJlamVjdFJlYXNvbhIdChlSRUpFQ1RfUkVBU09OX1VOU1BFQ0lGSUVEEAASHQoZUkVKRUNUX1JFQVNPTl9VTktOT1dOX0tFWRABEhoKFlJFSkVDVF9SRUFTT05fRElTQUJMRUQQAhIiCh5SRUpFQ1RfUkVBU09OX05PREVfSURfTUlTTUFUQ0gQAxIcChhSRUpFQ1RfUkVBU09OX0NMT0NLX1NLRVcQBBIYChRSRUpFQ1RfUkVBU09OX1JFUExBWRAFEhoKFlJFSkVDVF9SRUFTT05fUFJPVE9DT0wQBipuCgpTdHJlYW1UeXBlEhsKF1NUUkVBTV9UWVBFX1VOU1BFQ0lGSUVEEAASFwoTU1RSRUFNX1RZUEVfQ09OVFJPTBABEhQKEFNUUkVBTV9UWVBFX0xPR1MQAhIUChBTVFJFQU1fVFlQRV9CTE9CEAMqdwoNSW50ZXJmYWNlTW9kZRIeChpJTlRFUkZBQ0VfTU9ERV9VTlNQRUNJRklFRBAAEhYKEklOVEVSRkFDRV9NT0RFX09GRhABEhYKEklOVEVSRkFDRV9NT0RFX0lEUxACEhYKEklOVEVSRkFDRV9NT0RFX0lQUxADKowCCgpBcHBseVN0YWdlEhsKF0FQUExZX1NUQUdFX1VOU1BFQ0lGSUVEEAASFgoSQVBQTFlfU1RBR0VfUE9MSUNZEAESGAoUQVBQTFlfU1RBR0VfRE9XTkxPQUQQAhIWChJBUFBMWV9TVEFHRV9WRVJJRlkQAxIWChJBUFBMWV9TVEFHRV9SRU5ERVIQBBIYChRBUFBMWV9TVEFHRV9WQUxJREFURRAFEhgKFEFQUExZX1NUQUdFX0ZJUkVXQUxMEAYSGAoUQVBQTFlfU1RBR0VfQUNUSVZBVEUQBxIbChdBUFBMWV9TVEFHRV9IRUFMVEhDSEVDSxAIEhQKEEFQUExZX1NUQUdFX0RPTkUQCSqcAQoLQXBwbHlTdGF0dXMSHAoYQVBQTFlfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHAoYQVBQTFlfU1RBVFVTX0lOX1BST0dSRVNTEAESGgoWQVBQTFlfU1RBVFVTX1NVQ0NFRURFRBACEhcKE0FQUExZX1NUQVRVU19GQUlMRUQQAxIcChhBUFBMWV9TVEFUVVNfUk9MTEVEX0JBQ0sQBCqHAQoHTG9nVHlwZRIYChRMT0dfVFlQRV9VTlNQRUNJRklFRBAAEhAKDExPR19UWVBFX0VWRRABEhUKEUxPR19UWVBFX1NVUklDQVRBEAISEQoNTE9HX1RZUEVfRkFTVBADEhIKDkxPR19UWVBFX1NUQVRTEAQSEgoOTE9HX1RZUEVfQUdFTlQQBUJGWkRnaXRodWIuY29tL2pjLWxhYi9zdXJpY29udHJvbGxlci9nZW4vc3VyaWNvbnRyb2xsZXIvYWdlbnQvdjE7YWdlbnR2MWIGcHJvdG8z");
+  fileDesc("CiNzdXJpY29udHJvbGxlci9hZ2VudC92MS9hZ2VudC5wcm90bxIXc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEiUgoNSGFuZHNoYWtlSW5pdBIPCgdub2RlX2lkGAEgASgJEhUKDWFnZW50X3ZlcnNpb24YAiABKAkSGQoRdGltZXN0YW1wX3VuaXhfbXMYAyABKAMiigEKEUhhbmRzaGFrZVJlc3BvbnNlEhAKCGFjY2VwdGVkGAEgASgIEjUKBnJlYXNvbhgCIAEoDjIlLnN1cmljb250cm9sbGVyLmFnZW50LnYxLlJlamVjdFJlYXNvbhIPCgdtZXNzYWdlGAMgASgJEhsKE3NlcnZlcl90aW1lX3VuaXhfbXMYBCABKAMidQoMU3RyZWFtSGVhZGVyEjEKBHR5cGUYASABKA4yIy5zdXJpY29udHJvbGxlci5hZ2VudC52MS5TdHJlYW1UeXBlEjIKBGJsb2IYAiABKAsyJC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5CbG9iUmVxdWVzdCIwCgtCbG9iUmVxdWVzdBIRCglidW5kbGVfaWQYASABKAkSDgoGb2Zmc2V0GAIgASgEIjcKDEJsb2JSZXNwb25zZRIKCgJvaxgBIAEoCBINCgVlcnJvchgCIAEoCRIMCgRzaXplGAMgASgEIq4DCghFbnZlbG9wZRIKCgJpZBgBIAEoBBIQCghyZXBseV90bxgCIAEoBBIvCgVoZWxsbxgKIAEoCzIeLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkhlbGxvSAASNgoJaGVsbG9fYWNrGAsgASgLMiEuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuSGVsbG9BY2tIABI+Cg1kZXNpcmVkX3N0YXRlGAwgASgLMiUuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuRGVzaXJlZFN0YXRlSAASPAoMYXBwbHlfcmVwb3J0GA0gASgLMiQuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQXBwbHlSZXBvcnRIABI3CgZzdGF0dXMYDiABKAsyJS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5TdGF0dXNSZXBvcnRIABIvCgVlcnJvchgPIAEoCzIeLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkVycm9ySAASKwoDYWNrGBAgASgLMhwuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQWNrSABCBgoEYm9keSImCgVFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkiBQoDQWNrIq0DCgVIZWxsbxIPCgdub2RlX2lkGAEgASgJEhUKDWFnZW50X3ZlcnNpb24YAiABKAkSNwoIcGxhdGZvcm0YAyABKAsyJS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5QbGF0Zm9ybUluZm8SMwoGZW5naW5lGAQgASgLMiMuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuRW5naW5lSW5mbxI6CgppbnRlcmZhY2VzGAUgAygLMiYuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuSW50ZXJmYWNlSW5mbxI2CgdhcHBsaWVkGAYgASgLMiUuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQXBwbGllZFN0YXRlEjIKCHdhcm5pbmdzGAcgAygLMiAuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuV2FybmluZxI3Cgtsb2dfc291cmNlcxgIIAMoCzIiLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ1NvdXJjZRItCgN0YXAYCSABKAsyIC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5UYXBJbmZvImQKCEhlbGxvQWNrEhsKE3NlcnZlcl90aW1lX3VuaXhfbXMYASABKAMSGgoSY29udHJvbGxlcl92ZXJzaW9uGAIgASgJEh8KF3N0YXR1c19pbnRlcnZhbF9zZWNvbmRzGAMgASgNIo4BCgxQbGF0Zm9ybUluZm8SDwoHcHJvZmlsZRgBIAEoCRIPCgdvc19uYW1lGAIgASgJEhIKCm9zX3ZlcnNpb24YAyABKAkSDAoEYXJjaBgEIAEoCRIQCghob3N0bmFtZRgFIAEoCRIOCgZrZXJuZWwYBiABKAkSGAoQZmlyZXdhbGxfYmFja2VuZBgHIAEoCSJPCgpFbmdpbmVJbmZvEg8KB3ZlcnNpb24YASABKAkSEAoIZmVhdHVyZXMYAiADKAkSCwoDbmZxGAMgASgIEhEKCWFmX3BhY2tldBgEIAEoCCJiCg1JbnRlcmZhY2VJbmZvEgwKBG5hbWUYASABKAkSEwoLaXBzX2FsbG93ZWQYAiABKAgSDwoHcHJlc2VudBgDIAEoCBIKCgJ1cBgEIAEoCBIRCglhZGRyZXNzZXMYBSADKAkiKAoHV2FybmluZxIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkigwEKB1RhcEluZm8SDwoHZW5hYmxlZBgBIAEoCBISCgpzb2NrZXRfZGlyGAIgASgJEjsKCWVuZHBvaW50cxgDIAMoCzIoLnN1cmljb250cm9sbGVyLmFnZW50LnYxLlRhcEVuZHBvaW50SW5mbxIWCg5wbHVnaW5fcHJlc2VudBgEIAEoCCJNCg9UYXBFbmRwb2ludEluZm8SDAoEbmFtZRgBIAEoCRIXCg9wcmV2ZW50X2FsbG93ZWQYAiABKAgSEwoLZGVzY3JpcHRpb24YAyABKAkiWQoJQnVuZGxlUmVmEhEKCWJ1bmRsZV9pZBgBIAEoCRIUCgxydWxlc19jb21taXQYAiABKAkSFQoNY29uZmlnX2NvbW1pdBgDIAEoCRIMCgRzaXplGAQgASgEIvoDCgxEZXNpcmVkU3RhdGUSEgoKZ2VuZXJhdGlvbhgBIAEoBBIyCgZidW5kbGUYAiABKAsyIi5zdXJpY29udHJvbGxlci5hZ2VudC52MS5CdW5kbGVSZWYSUgoPaW50ZXJmYWNlX21vZGVzGAMgAygLMjkuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuRGVzaXJlZFN0YXRlLkludGVyZmFjZU1vZGVzRW50cnkSQAoKbG9nX3BvbGljeRgEIAEoCzIsLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ0NvbGxlY3Rpb25Qb2xpY3kSUAoOZW5kcG9pbnRfbW9kZXMYBSADKAsyOC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5EZXNpcmVkU3RhdGUuRW5kcG9pbnRNb2Rlc0VudHJ5Gl0KE0ludGVyZmFjZU1vZGVzRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgOMiYuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuSW50ZXJmYWNlTW9kZToCOAEaWwoSRW5kcG9pbnRNb2Rlc0VudHJ5EgsKA2tleRgBIAEoCRI0CgV2YWx1ZRgCIAEoDjIlLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkVuZHBvaW50TW9kZToCOAEiuAMKDEFwcGxpZWRTdGF0ZRISCgpnZW5lcmF0aW9uGAEgASgEEjIKBmJ1bmRsZRgCIAEoCzIiLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkJ1bmRsZVJlZhJSCg9pbnRlcmZhY2VfbW9kZXMYAyADKAsyOS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5BcHBsaWVkU3RhdGUuSW50ZXJmYWNlTW9kZXNFbnRyeRJQCg5lbmRwb2ludF9tb2RlcxgEIAMoCzI4LnN1cmljb250cm9sbGVyLmFnZW50LnYxLkFwcGxpZWRTdGF0ZS5FbmRwb2ludE1vZGVzRW50cnkaXQoTSW50ZXJmYWNlTW9kZXNFbnRyeRILCgNrZXkYASABKAkSNQoFdmFsdWUYAiABKA4yJi5zdXJpY29udHJvbGxlci5hZ2VudC52MS5JbnRlcmZhY2VNb2RlOgI4ARpbChJFbmRwb2ludE1vZGVzRW50cnkSCwoDa2V5GAEgASgJEjQKBXZhbHVlGAIgASgOMiUuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuRW5kcG9pbnRNb2RlOgI4ASJFCglSdWxlRXJyb3ISDAoEZmlsZRgBIAEoCRIMCgRsaW5lGAIgASgNEgsKA3NpZBgDIAEoDRIPCgdtZXNzYWdlGAQgASgJIooDCgtBcHBseVJlcG9ydBISCgpnZW5lcmF0aW9uGAEgASgEEjQKBnN0YXR1cxgCIAEoDjIkLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkFwcGx5U3RhdHVzEjIKBXN0YWdlGAMgASgOMiMuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQXBwbHlTdGFnZRIPCgdtZXNzYWdlGAQgASgJEg4KBmRldGFpbBgFIAEoCRI3CgtydWxlX2Vycm9ycxgGIAMoCzIiLnN1cmljb250cm9sbGVyLmFnZW50LnYxLlJ1bGVFcnJvchI2CgdhcHBsaWVkGAcgASgLMiUuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuQXBwbGllZFN0YXRlEhoKEnN0YXJ0ZWRfYXRfdW5peF9tcxgIIAEoAxIbChNmaW5pc2hlZF9hdF91bml4X21zGAkgASgDEjIKCHdhcm5pbmdzGAogAygLMiAuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuV2FybmluZyLEAgoMU3RhdHVzUmVwb3J0EhQKDHRpbWVfdW5peF9tcxgBIAEoAxI6CglpbnN0YW5jZXMYAiADKAsyJy5zdXJpY29udHJvbGxlci5hZ2VudC52MS5JbnN0YW5jZVN0YXR1cxI5Cglsb2dfcXVldWUYAyABKAsyJi5zdXJpY29udHJvbGxlci5hZ2VudC52MS5Mb2dRdWV1ZVN0YXRzEjIKCHdhcm5pbmdzGAQgAygLMiAuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuV2FybmluZxI6CgppbnRlcmZhY2VzGAUgAygLMiYuc3VyaWNvbnRyb2xsZXIuYWdlbnQudjEuSW50ZXJmYWNlSW5mbxI3Cgtsb2dfc291cmNlcxgGIAMoCzIiLnN1cmljb250cm9sbGVyLmFnZW50LnYxLkxvZ1NvdXJjZSK5AgoOSW5zdGFuY2VTdGF0dXMSDAoEbmFtZRgBIAEoCRIPCgdjYXB0dXJlGAIgASgJEg8KB3J1bm5pbmcYAyABKAgSFgoOdXB0aW1lX3NlY29uZHMYBCABKAMSEQoJcnNzX2J5dGVzGAUgASgEEhIKCmludGVyZmFjZXMYBiADKAkSRwoIY291bnRlcnMYByADKAsyNS5zdXJpY29udHJvbGxlci5hZ2VudC52MS5JbnN0YW5jZVN0YXR1cy5Db3VudGVyc0VudHJ5EhQKDHJ1bGVzX2xvYWRlZBgIIAEoDRIUCgxydWxlc19mYWlsZWQYCSABKA0SEgoKbGFzdF9lcnJvchgKIAEoCRovCg1Db3VudGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBDoCOAEibgoJTG9nU291cmNlEi4KBHR5cGUYASABKA4yIC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5Mb2dUeXBlEhAKCGluc3RhbmNlGAIgASgJEgwKBHBhdGgYAyABKAkSEQoJZXZlX3R5cGVzGAQgAygJIoEBChNMb2dDb2xsZWN0aW9uUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSLwoFdHlwZXMYAiADKA4yIC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5Mb2dUeXBlEhUKDWV2ZV9hbGxfdHlwZXMYAyABKAgSEQoJZXZlX3R5cGVzGAQgAygJImUKDUxvZ1F1ZXVlU3RhdHMSDQoFYnl0ZXMYASABKAQSFgoOY2FwYWNpdHlfYnl0ZXMYAiABKAQSFwoPZHJvcHBlZF9yZWNvcmRzGAMgASgEEhQKDHNlbnRfcmVjb3JkcxgEIAEoBCKhAQoITG9nQmF0Y2gSCwoDc2VxGAEgASgEEi4KBHR5cGUYAiABKA4yIC5zdXJpY29udHJvbGxlci5hZ2VudC52MS5Mb2dUeXBlEhAKCGluc3RhbmNlGAMgASgJEhQKDHpzdGRfcmVjb3JkcxgEIAEoDBIUCgxyZWNvcmRfY291bnQYBSABKA0SGgoSZHJvcHBlZF9zaW5jZV9sYXN0GAYgASgEKuABCgxSZWplY3RSZWFzb24SHQoZUkVKRUNUX1JFQVNPTl9VTlNQRUNJRklFRBAAEh0KGVJFSkVDVF9SRUFTT05fVU5LTk9XTl9LRVkQARIaChZSRUpFQ1RfUkVBU09OX0RJU0FCTEVEEAISIgoeUkVKRUNUX1JFQVNPTl9OT0RFX0lEX01JU01BVENIEAMSHAoYUkVKRUNUX1JFQVNPTl9DTE9DS19TS0VXEAQSGAoUUkVKRUNUX1JFQVNPTl9SRVBMQVkQBRIaChZSRUpFQ1RfUkVBU09OX1BST1RPQ09MEAYqbgoKU3RyZWFtVHlwZRIbChdTVFJFQU1fVFlQRV9VTlNQRUNJRklFRBAAEhcKE1NUUkVBTV9UWVBFX0NPTlRST0wQARIUChBTVFJFQU1fVFlQRV9MT0dTEAISFAoQU1RSRUFNX1RZUEVfQkxPQhADKncKDUludGVyZmFjZU1vZGUSHgoaSU5URVJGQUNFX01PREVfVU5TUEVDSUZJRUQQABIWChJJTlRFUkZBQ0VfTU9ERV9PRkYQARIWChJJTlRFUkZBQ0VfTU9ERV9JRFMQAhIWChJJTlRFUkZBQ0VfTU9ERV9JUFMQAyp5CgxFbmRwb2ludE1vZGUSHQoZRU5EUE9JTlRfTU9ERV9VTlNQRUNJRklFRBAAEhUKEUVORFBPSU5UX01PREVfT0ZGEAESGAoURU5EUE9JTlRfTU9ERV9ERVRFQ1QQAhIZChVFTkRQT0lOVF9NT0RFX1BSRVZFTlQQAyqMAgoKQXBwbHlTdGFnZRIbChdBUFBMWV9TVEFHRV9VTlNQRUNJRklFRBAAEhYKEkFQUExZX1NUQUdFX1BPTElDWRABEhgKFEFQUExZX1NUQUdFX0RPV05MT0FEEAISFgoSQVBQTFlfU1RBR0VfVkVSSUZZEAMSFgoSQVBQTFlfU1RBR0VfUkVOREVSEAQSGAoUQVBQTFlfU1RBR0VfVkFMSURBVEUQBRIYChRBUFBMWV9TVEFHRV9GSVJFV0FMTBAGEhgKFEFQUExZX1NUQUdFX0FDVElWQVRFEAcSGwoXQVBQTFlfU1RBR0VfSEVBTFRIQ0hFQ0sQCBIUChBBUFBMWV9TVEFHRV9ET05FEAkqnAEKC0FwcGx5U3RhdHVzEhwKGEFQUExZX1NUQVRVU19VTlNQRUNJRklFRBAAEhwKGEFQUExZX1NUQVRVU19JTl9QUk9HUkVTUxABEhoKFkFQUExZX1NUQVRVU19TVUNDRUVERUQQAhIXChNBUFBMWV9TVEFUVVNfRkFJTEVEEAMSHAoYQVBQTFlfU1RBVFVTX1JPTExFRF9CQUNLEAQqhwEKB0xvZ1R5cGUSGAoUTE9HX1RZUEVfVU5TUEVDSUZJRUQQABIQCgxMT0dfVFlQRV9FVkUQARIVChFMT0dfVFlQRV9TVVJJQ0FUQRACEhEKDUxPR19UWVBFX0ZBU1QQAxISCg5MT0dfVFlQRV9TVEFUUxAEEhIKDkxPR19UWVBFX0FHRU5UEAVCRlpEZ2l0aHViLmNvbS9qYy1sYWIvc3VyaWNvbnRyb2xsZXIvZ2VuL3N1cmljb250cm9sbGVyL2FnZW50L3YxO2FnZW50djFiBnByb3RvMw");
 
 /**
  * HandshakeInit is the payload of Noise message 1 (agent -> controller).
@@ -311,6 +311,13 @@ export type Hello = Message<"suricontroller.agent.v1.Hello"> & {
    * @generated from field: repeated suricontroller.agent.v1.LogSource log_sources = 8;
    */
   logSources: LogSource[];
+
+  /**
+   * suritap: proxy endpoints the agent allows the controller to manage.
+   *
+   * @generated from field: suricontroller.agent.v1.TapInfo tap = 9;
+   */
+  tap?: TapInfo | undefined;
 };
 
 /**
@@ -494,6 +501,77 @@ export const WarningSchema: GenMessage<Warning> = /*@__PURE__*/
   messageDesc(file_suricontroller_agent_v1_agent, 13);
 
 /**
+ * TapInfo describes the suritap instance (Suricata fed by TLS-terminating
+ * proxies through the suritap capture plugin), from agent.yaml.
+ *
+ * @generated from message suricontroller.agent.v1.TapInfo
+ */
+export type TapInfo = Message<"suricontroller.agent.v1.TapInfo"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * Directory of the plugin's worker sockets the proxies connect to.
+   *
+   * @generated from field: string socket_dir = 2;
+   */
+  socketDir: string;
+
+  /**
+   * @generated from field: repeated suricontroller.agent.v1.TapEndpointInfo endpoints = 3;
+   */
+  endpoints: TapEndpointInfo[];
+
+  /**
+   * Whether the plugin library exists on the node.
+   *
+   * @generated from field: bool plugin_present = 4;
+   */
+  pluginPresent: boolean;
+};
+
+/**
+ * Describes the message suricontroller.agent.v1.TapInfo.
+ * Use `create(TapInfoSchema)` to create a new message.
+ */
+export const TapInfoSchema: GenMessage<TapInfo> = /*@__PURE__*/
+  messageDesc(file_suricontroller_agent_v1_agent, 14);
+
+/**
+ * TapEndpointInfo is a proxy endpoint (the name the adapters report, e.g. a
+ * Traefik entry point or a Kong route) the controller may manage.
+ *
+ * @generated from message suricontroller.agent.v1.TapEndpointInfo
+ */
+export type TapEndpointInfo = Message<"suricontroller.agent.v1.TapEndpointInfo"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Whether the agent allows Prevent mode (agent decides).
+   *
+   * @generated from field: bool prevent_allowed = 2;
+   */
+  preventAllowed: boolean;
+
+  /**
+   * @generated from field: string description = 3;
+   */
+  description: string;
+};
+
+/**
+ * Describes the message suricontroller.agent.v1.TapEndpointInfo.
+ * Use `create(TapEndpointInfoSchema)` to create a new message.
+ */
+export const TapEndpointInfoSchema: GenMessage<TapEndpointInfo> = /*@__PURE__*/
+  messageDesc(file_suricontroller_agent_v1_agent, 15);
+
+/**
  * @generated from message suricontroller.agent.v1.BundleRef
  */
 export type BundleRef = Message<"suricontroller.agent.v1.BundleRef"> & {
@@ -525,7 +603,7 @@ export type BundleRef = Message<"suricontroller.agent.v1.BundleRef"> & {
  * Use `create(BundleRefSchema)` to create a new message.
  */
 export const BundleRefSchema: GenMessage<BundleRef> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 14);
+  messageDesc(file_suricontroller_agent_v1_agent, 16);
 
 /**
  * @generated from message suricontroller.agent.v1.DesiredState
@@ -554,6 +632,11 @@ export type DesiredState = Message<"suricontroller.agent.v1.DesiredState"> & {
    * @generated from field: suricontroller.agent.v1.LogCollectionPolicy log_policy = 4;
    */
   logPolicy?: LogCollectionPolicy | undefined;
+
+  /**
+   * @generated from field: map<string, suricontroller.agent.v1.EndpointMode> endpoint_modes = 5;
+   */
+  endpointModes: { [key: string]: EndpointMode };
 };
 
 /**
@@ -561,7 +644,7 @@ export type DesiredState = Message<"suricontroller.agent.v1.DesiredState"> & {
  * Use `create(DesiredStateSchema)` to create a new message.
  */
 export const DesiredStateSchema: GenMessage<DesiredState> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 15);
+  messageDesc(file_suricontroller_agent_v1_agent, 17);
 
 /**
  * @generated from message suricontroller.agent.v1.AppliedState
@@ -581,6 +664,11 @@ export type AppliedState = Message<"suricontroller.agent.v1.AppliedState"> & {
    * @generated from field: map<string, suricontroller.agent.v1.InterfaceMode> interface_modes = 3;
    */
   interfaceModes: { [key: string]: InterfaceMode };
+
+  /**
+   * @generated from field: map<string, suricontroller.agent.v1.EndpointMode> endpoint_modes = 4;
+   */
+  endpointModes: { [key: string]: EndpointMode };
 };
 
 /**
@@ -588,7 +676,7 @@ export type AppliedState = Message<"suricontroller.agent.v1.AppliedState"> & {
  * Use `create(AppliedStateSchema)` to create a new message.
  */
 export const AppliedStateSchema: GenMessage<AppliedState> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 16);
+  messageDesc(file_suricontroller_agent_v1_agent, 18);
 
 /**
  * @generated from message suricontroller.agent.v1.RuleError
@@ -620,7 +708,7 @@ export type RuleError = Message<"suricontroller.agent.v1.RuleError"> & {
  * Use `create(RuleErrorSchema)` to create a new message.
  */
 export const RuleErrorSchema: GenMessage<RuleError> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 17);
+  messageDesc(file_suricontroller_agent_v1_agent, 19);
 
 /**
  * @generated from message suricontroller.agent.v1.ApplyReport
@@ -688,7 +776,7 @@ export type ApplyReport = Message<"suricontroller.agent.v1.ApplyReport"> & {
  * Use `create(ApplyReportSchema)` to create a new message.
  */
 export const ApplyReportSchema: GenMessage<ApplyReport> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 18);
+  messageDesc(file_suricontroller_agent_v1_agent, 20);
 
 /**
  * @generated from message suricontroller.agent.v1.StatusReport
@@ -730,21 +818,21 @@ export type StatusReport = Message<"suricontroller.agent.v1.StatusReport"> & {
  * Use `create(StatusReportSchema)` to create a new message.
  */
 export const StatusReportSchema: GenMessage<StatusReport> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 19);
+  messageDesc(file_suricontroller_agent_v1_agent, 21);
 
 /**
  * @generated from message suricontroller.agent.v1.InstanceStatus
  */
 export type InstanceStatus = Message<"suricontroller.agent.v1.InstanceStatus"> & {
   /**
-   * ids | ips
+   * ids | ips | tap
    *
    * @generated from field: string name = 1;
    */
   name: string;
 
   /**
-   * af-packet | nfq
+   * af-packet | nfq | plugin
    *
    * @generated from field: string capture = 2;
    */
@@ -796,7 +884,7 @@ export type InstanceStatus = Message<"suricontroller.agent.v1.InstanceStatus"> &
  * Use `create(InstanceStatusSchema)` to create a new message.
  */
 export const InstanceStatusSchema: GenMessage<InstanceStatus> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 20);
+  messageDesc(file_suricontroller_agent_v1_agent, 22);
 
 /**
  * LogSource describes a log the agent can collect on the node. Log file
@@ -833,7 +921,7 @@ export type LogSource = Message<"suricontroller.agent.v1.LogSource"> & {
  * Use `create(LogSourceSchema)` to create a new message.
  */
 export const LogSourceSchema: GenMessage<LogSource> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 21);
+  messageDesc(file_suricontroller_agent_v1_agent, 23);
 
 /**
  * @generated from message suricontroller.agent.v1.LogCollectionPolicy
@@ -869,7 +957,7 @@ export type LogCollectionPolicy = Message<"suricontroller.agent.v1.LogCollection
  * Use `create(LogCollectionPolicySchema)` to create a new message.
  */
 export const LogCollectionPolicySchema: GenMessage<LogCollectionPolicy> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 22);
+  messageDesc(file_suricontroller_agent_v1_agent, 24);
 
 /**
  * @generated from message suricontroller.agent.v1.LogQueueStats
@@ -901,7 +989,7 @@ export type LogQueueStats = Message<"suricontroller.agent.v1.LogQueueStats"> & {
  * Use `create(LogQueueStatsSchema)` to create a new message.
  */
 export const LogQueueStatsSchema: GenMessage<LogQueueStats> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 23);
+  messageDesc(file_suricontroller_agent_v1_agent, 25);
 
 /**
  * @generated from message suricontroller.agent.v1.LogBatch
@@ -947,7 +1035,7 @@ export type LogBatch = Message<"suricontroller.agent.v1.LogBatch"> & {
  * Use `create(LogBatchSchema)` to create a new message.
  */
 export const LogBatchSchema: GenMessage<LogBatch> = /*@__PURE__*/
-  messageDesc(file_suricontroller_agent_v1_agent, 24);
+  messageDesc(file_suricontroller_agent_v1_agent, 26);
 
 /**
  * @generated from enum suricontroller.agent.v1.RejectReason
@@ -1065,6 +1153,41 @@ export const InterfaceModeSchema: GenEnum<InterfaceMode> = /*@__PURE__*/
   enumDesc(file_suricontroller_agent_v1_agent, 2);
 
 /**
+ * EndpointMode is the inspection mode of a proxy endpoint. The plugin pushes
+ * it to the proxies: Off skips inspection, Detect inspects without waiting
+ * and never blocks, Prevent blocks on drop verdicts.
+ *
+ * @generated from enum suricontroller.agent.v1.EndpointMode
+ */
+export enum EndpointMode {
+  /**
+   * @generated from enum value: ENDPOINT_MODE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ENDPOINT_MODE_OFF = 1;
+   */
+  OFF = 1,
+
+  /**
+   * @generated from enum value: ENDPOINT_MODE_DETECT = 2;
+   */
+  DETECT = 2,
+
+  /**
+   * @generated from enum value: ENDPOINT_MODE_PREVENT = 3;
+   */
+  PREVENT = 3,
+}
+
+/**
+ * Describes the enum suricontroller.agent.v1.EndpointMode.
+ */
+export const EndpointModeSchema: GenEnum<EndpointMode> = /*@__PURE__*/
+  enumDesc(file_suricontroller_agent_v1_agent, 3);
+
+/**
  * @generated from enum suricontroller.agent.v1.ApplyStage
  */
 export enum ApplyStage {
@@ -1123,7 +1246,7 @@ export enum ApplyStage {
  * Describes the enum suricontroller.agent.v1.ApplyStage.
  */
 export const ApplyStageSchema: GenEnum<ApplyStage> = /*@__PURE__*/
-  enumDesc(file_suricontroller_agent_v1_agent, 3);
+  enumDesc(file_suricontroller_agent_v1_agent, 4);
 
 /**
  * @generated from enum suricontroller.agent.v1.ApplyStatus
@@ -1163,7 +1286,7 @@ export enum ApplyStatus {
  * Describes the enum suricontroller.agent.v1.ApplyStatus.
  */
 export const ApplyStatusSchema: GenEnum<ApplyStatus> = /*@__PURE__*/
-  enumDesc(file_suricontroller_agent_v1_agent, 4);
+  enumDesc(file_suricontroller_agent_v1_agent, 5);
 
 /**
  * @generated from enum suricontroller.agent.v1.LogType
@@ -1206,5 +1329,5 @@ export enum LogType {
  * Describes the enum suricontroller.agent.v1.LogType.
  */
 export const LogTypeSchema: GenEnum<LogType> = /*@__PURE__*/
-  enumDesc(file_suricontroller_agent_v1_agent, 5);
+  enumDesc(file_suricontroller_agent_v1_agent, 6);
 

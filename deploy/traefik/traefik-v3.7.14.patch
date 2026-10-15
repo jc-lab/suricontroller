@@ -1,0 +1,127 @@
+diff --git a/pkg/config/static/entrypoints.go b/pkg/config/static/entrypoints.go
+index ca6487a..5730fac 100644
+--- a/pkg/config/static/entrypoints.go
++++ b/pkg/config/static/entrypoints.go
+@@ -6,6 +6,7 @@ import (
+ 	"net/http"
+ 	"strings"
+ 
++	suritaptraefik "github.com/jc-lab/suricontroller/adapters/traefik"
+ 	ptypes "github.com/traefik/paerser/types"
+ 	otypes "github.com/traefik/traefik/v3/pkg/observability/types"
+ 	"github.com/traefik/traefik/v3/pkg/types"
+@@ -55,6 +56,8 @@ type EntryPoint struct {
+ 	HTTP3            *HTTP3Config          `description:"HTTP/3 configuration." json:"http3,omitempty" toml:"http3,omitempty" yaml:"http3,omitempty" label:"allowEmpty" file:"allowEmpty" export:"true"`
+ 	UDP              *UDPConfig            `description:"UDP configuration." json:"udp,omitempty" toml:"udp,omitempty" yaml:"udp,omitempty"`
+ 	Observability    *ObservabilityConfig  `description:"Observability configuration." json:"observability,omitempty" toml:"observability,omitempty" yaml:"observability,omitempty" export:"true"`
++
++	Suritap *suritaptraefik.Config `description:"Inspect decrypted traffic with Suricata (suritap)." json:"suritap,omitempty" toml:"suritap,omitempty" yaml:"suritap,omitempty" label:"allowEmpty" file:"allowEmpty" export:"true"`
+ }
+ 
+ // GetAddress strips any potential protocol part of the address field of the
+diff --git a/pkg/server/router/tcp/manager.go b/pkg/server/router/tcp/manager.go
+index 5553839..71dc15a 100644
+--- a/pkg/server/router/tcp/manager.go
++++ b/pkg/server/router/tcp/manager.go
+@@ -8,6 +8,7 @@ import (
+ 	"net/http"
+ 	"strings"
+ 
++	suritaptraefik "github.com/jc-lab/suricontroller/adapters/traefik"
+ 	"github.com/rs/zerolog/log"
+ 	"github.com/traefik/traefik/v3/pkg/config/runtime"
+ 	"github.com/traefik/traefik/v3/pkg/muxer"
+@@ -67,7 +68,7 @@ func (m *Manager) BuildHandlers(rootCtx context.Context, entryPoints []string) m
+ 		routers := entryPointsRouters[entryPointName]
+ 
+ 		logger := log.Ctx(rootCtx).With().Str(logs.EntryPointName, entryPointName).Logger()
+-		ctx := logger.WithContext(rootCtx)
++		ctx := logger.WithContext(suritaptraefik.WithEntryPoint(rootCtx, entryPointName))
+ 
+ 		handler, err := m.buildEntryPointHandler(ctx, routers, entryPointsRoutersHTTP[entryPointName], m.httpHandlers[entryPointName], m.httpsHandlers[entryPointName])
+ 		if err != nil {
+@@ -344,6 +345,13 @@ func (m *Manager) addTCPHandlers(ctx context.Context, configs map[string]*runtim
+ 			continue
+ 		}
+ 
++		// suritap: tap the decrypted stream of TCP routers terminating TLS.
++		if next, router := handler, routerName; suritaptraefik.Lookup(suritaptraefik.EntryPointFrom(ctx)) != nil {
++			handler = tcp.HandlerFunc(func(conn tcp.WriteCloser) {
++				next.ServeTCP(suritaptraefik.WrapConn(ctx, router, conn))
++			})
++		}
++
+ 		handler = &tcp.TLSHandler{
+ 			Next:           handler,
+ 			Config:         tlsConf,
+diff --git a/pkg/server/server_entrypoint_tcp.go b/pkg/server/server_entrypoint_tcp.go
+index fa4ec85..d87864e 100644
+--- a/pkg/server/server_entrypoint_tcp.go
++++ b/pkg/server/server_entrypoint_tcp.go
+@@ -19,6 +19,7 @@ import (
+ 
+ 	"github.com/containous/alice"
+ 	gokitmetrics "github.com/go-kit/kit/metrics"
++	suritaptraefik "github.com/jc-lab/suricontroller/adapters/traefik"
+ 	"github.com/pires/go-proxyproto"
+ 	"github.com/rs/zerolog"
+ 	"github.com/rs/zerolog/log"
+@@ -196,6 +197,8 @@ func NewTCPEntryPoint(ctx context.Context, name string, config *static.EntryPoin
+ 
+ 	reqDecorator := requestdecorator.New(hostResolverConfig)
+ 
++	ctx = suritaptraefik.WithEntryPoint(ctx, name)
++
+ 	// The header names strategies warnings are logged here, and not in newHTTPServer,
+ 	// which is called once for the HTTP server and once for the HTTPS server.
+ 	logHeaderNamesStrategiesWarnings(ctx, config)
+@@ -669,6 +672,13 @@ func newHTTPServer(ctx context.Context, ln net.Listener, configuration *static.E
+ 		return nil, err
+ 	}
+ 
++	// suritap: inspect every request after the entry point normalization
++	// and before routing.
++	handler, err = suritaptraefik.Middleware(ctx, configuration.Suritap, handler)
++	if err != nil {
++		return nil, err
++	}
++
+ 	debugConnection := os.Getenv(debugConnectionEnv) != ""
+ 	if debugConnection || (configuration.Transport != nil && (configuration.Transport.KeepAliveMaxTime > 0 || configuration.Transport.KeepAliveMaxRequests > 0)) {
+ 		handler = newKeepAliveMiddleware(handler, configuration.Transport.KeepAliveMaxRequests, configuration.Transport.KeepAliveMaxTime)
+diff --git a/pkg/server/suritap.go b/pkg/server/suritap.go
+new file mode 100644
+index 0000000..3499fa8
+--- /dev/null
++++ b/pkg/server/suritap.go
+@@ -0,0 +1,30 @@
++package server
++
++import (
++	"log/slog"
++
++	suritaptraefik "github.com/jc-lab/suricontroller/adapters/traefik"
++	"github.com/rs/zerolog"
++	"github.com/rs/zerolog/log"
++)
++
++// Route the suritap adapter logs into Traefik's logger.
++func init() {
++	suritaptraefik.Logger = slog.New(suritaptraefik.FuncHandler(func(level slog.Level, msg string, attrs []slog.Attr) {
++		var ev *zerolog.Event
++		switch {
++		case level >= slog.LevelError:
++			ev = log.Error()
++		case level >= slog.LevelWarn:
++			ev = log.Warn()
++		case level >= slog.LevelInfo:
++			ev = log.Info()
++		default:
++			ev = log.Debug()
++		}
++		for _, a := range attrs {
++			ev = ev.Interface(a.Key, a.Value.Any())
++		}
++		ev.Msg(msg)
++	}))
++}

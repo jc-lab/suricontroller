@@ -217,6 +217,43 @@ func (s *Service) SetInterfaceModes(ctx context.Context, id string, modes map[st
 	return n, nil
 }
 
+// SetEndpointModes replaces the requested suritap endpoint modes. Endpoints
+// must be among those the agent reported, and Prevent requires the agent
+// to allow it.
+func (s *Service) SetEndpointModes(ctx context.Context, id string, modes map[string]agentv1.EndpointMode) (*store.Node, error) {
+	n, err := s.store.UpdateNode(ctx, id, func(n *store.Node) error {
+		allowed := map[string]*agentv1.TapEndpointInfo{}
+		for _, ep := range n.Hello.GetTap().GetEndpoints() {
+			allowed[ep.Name] = ep
+		}
+		out := map[string]agentv1.EndpointMode{}
+		for name, mode := range modes {
+			ep, ok := allowed[name]
+			if !ok {
+				return fmt.Errorf("%w: tap endpoint %q is not managed by the agent", ErrInvalidArgument, name)
+			}
+			switch mode {
+			case agentv1.EndpointMode_ENDPOINT_MODE_OFF, agentv1.EndpointMode_ENDPOINT_MODE_DETECT:
+			case agentv1.EndpointMode_ENDPOINT_MODE_PREVENT:
+				if !ep.PreventAllowed {
+					return fmt.Errorf("%w: the agent does not allow prevent mode on %q", ErrInvalidArgument, name)
+				}
+			default:
+				return fmt.Errorf("%w: invalid mode for %q", ErrInvalidArgument, name)
+			}
+			out[name] = mode
+		}
+		n.EndpointModes = out
+		n.UpdatedAt = s.now()
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.changed(id)
+	return n, nil
+}
+
 // SetLogPolicy sets (or with nil, clears) the node's log collection override.
 func (s *Service) SetLogPolicy(ctx context.Context, id string, p *agentv1.LogCollectionPolicy) error {
 	_, err := s.store.UpdateNode(ctx, id, func(n *store.Node) error {

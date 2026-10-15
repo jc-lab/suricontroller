@@ -26,6 +26,17 @@ ips:                                     # needs kernel NFQUEUE support (OpenWrt
   queues: "0"                            # NFQUEUE number or range, e.g. "0-3"
   fail_open: true                        # let traffic pass when Suricata is down
 
+tap:                                     # suritap: inspect plaintext of TLS-terminating proxies
+  enabled: false
+  socket_dir: /run/suritap               # share with the proxies (Traefik plugin, Kong plugin)
+  socket_mode: "0666"                    # or restrict with a shared group
+  config: /etc/suricata/tap.yaml         # settings for this instance only (HOME_NET = listeners, ...)
+  endpoints:                             # what the proxies report as endpoint; the controller sets
+    - name: websecure                    # Off / Detect / Prevent for each
+      description: Traefik websecure entry point
+    # - name: admin
+    #   prevent: false                   # the controller can only set Off / Detect
+
 suricata:
   base_config: /etc/suricata/suricata.yaml   # yours: edit freely
   local_rules_dir: /etc/suricata/rules.local # *.rules here are always loaded
@@ -33,6 +44,7 @@ suricata:
   instances:                             # log locations (default-log-dir per instance)
     ids: { log_dir: /var/log/suricata/ids }
     ips: { log_dir: /var/log/suricata/ips }
+    tap: { log_dir: /var/log/suricata/tap }
 
 logs:
   queue_max_bytes: 16MiB                 # memory queue; oldest records are dropped when full
