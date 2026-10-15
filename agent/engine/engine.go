@@ -24,7 +24,13 @@ type CaptureMode string
 const (
 	CaptureAFPacket CaptureMode = "af-packet"
 	CaptureNFQ      CaptureMode = "nfq"
+	// CapturePlugin runs the suritap capture plugin (fed by proxies).
+	CapturePlugin CaptureMode = "plugin"
 )
+
+// PluginCaptureName is the name the suritap plugin registers its capture
+// method under (--capture-plugin=suritap).
+const PluginCaptureName = "suritap"
 
 // Info describes the Suricata build.
 type Info struct {

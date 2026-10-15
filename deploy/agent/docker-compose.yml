@@ -11,3 +11,4 @@ services:
       - ./suricata:/etc/suricata             # your suricata.yaml and local rules
       - ./data:/var/lib/suri-agent           # applied state (restored at boot)
       - /var/log/suricata:/var/log/suricata  # logs, readable by other collectors on the host
+      - /run/suritap:/run/suritap            # suritap sockets for the proxies (tap.enabled)

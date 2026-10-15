@@ -46,6 +46,7 @@ func fakeSuricata() {
 	}
 	l, err := net.Listen("unix", sock)
 	if err != nil {
+		fmt.Println("E: suricata: listen:", err)
 		os.Exit(4)
 	}
 	sigs := make(chan os.Signal, 1)

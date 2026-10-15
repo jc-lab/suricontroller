@@ -25,6 +25,8 @@ import (
 var counterNames = []string{
 	"capture.kernel_packets", "capture.kernel_drops", "decoder.pkts", "decoder.bytes",
 	"detect.alert", "ips.accepted", "ips.blocked", "ips.rejected", "ips.replaced",
+	// suritap instance (summed over the plugin workers)
+	"suritap.sessions", "suritap.verdicts", "suritap.drops", "suritap.detect_passes", "suritap.flows", "suritap.errors",
 }
 
 // Supervisor runs Suricata instances as child processes and restarts them
@@ -121,6 +123,8 @@ func (s *Supervisor) args(spec InstanceSpec) []string {
 		for _, q := range spec.Queues {
 			args = append(args, "-q", strconv.Itoa(int(q)))
 		}
+	case CapturePlugin:
+		args = append(args, "--capture-plugin="+PluginCaptureName)
 	}
 	return append(args, s.ExtraArgs...)
 }

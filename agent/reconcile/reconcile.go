@@ -224,10 +224,12 @@ func (r *Reconciler) applyAndReport(ctx context.Context, ds *agentv1.DesiredStat
 	r.d.Report(rep)
 }
 
-// plan is the part of the desired state that affects the engine.
+// plan is the part of the desired state that affects the engine, plus the
+// tap endpoint modes (which only rewrite the policy file).
 type plan struct {
-	bundleID string
-	modes    map[string]agentv1.InterfaceMode
+	bundleID  string
+	modes     map[string]agentv1.InterfaceMode
+	endpoints map[string]agentv1.EndpointMode
 }
 
 func (p plan) interfaces(mode agentv1.InterfaceMode) []string {
@@ -242,12 +244,13 @@ func (p plan) interfaces(mode agentv1.InterfaceMode) []string {
 }
 
 func planOf(a *agentv1.AppliedState) plan {
-	p := plan{modes: map[string]agentv1.InterfaceMode{}}
+	p := plan{modes: map[string]agentv1.InterfaceMode{}, endpoints: map[string]agentv1.EndpointMode{}}
 	if a == nil {
 		return p
 	}
 	p.bundleID = a.GetBundle().GetBundleId()
 	maps.Copy(p.modes, a.InterfaceModes)
+	maps.Copy(p.endpoints, a.EndpointModes)
 	return p
 }
 
@@ -262,6 +265,76 @@ func (p plan) equal(o plan) bool {
 		return out
 	}
 	return p.bundleID == o.bundleID && maps.Equal(norm(p.modes), norm(o.modes))
+}
+
+// endpointsEqual compares the endpoint modes (unset counts as off).
+func (p plan) endpointsEqual(o plan) bool {
+	norm := func(m map[string]agentv1.EndpointMode) map[string]agentv1.EndpointMode {
+		out := map[string]agentv1.EndpointMode{}
+		for k, v := range m {
+			if v != agentv1.EndpointMode_ENDPOINT_MODE_OFF && v != agentv1.EndpointMode_ENDPOINT_MODE_UNSPECIFIED {
+				out[k] = v
+			}
+		}
+		return out
+	}
+	return maps.Equal(norm(p.endpoints), norm(o.endpoints))
+}
+
+// PolicyPath is where the tap endpoint policy is written (read by the
+// suritap plugin, which pushes it to the proxies).
+func (r *Reconciler) policyPath() string {
+	return filepath.Join(r.d.Config.RunDir, config.InstanceTap, "policy")
+}
+
+// writePolicy writes the endpoint policy: every declared endpoint with its
+// mode (off unless set). The plugin picks up changes without a restart.
+func (r *Reconciler) writePolicy(p plan) error {
+	cfg := r.d.Config
+	if !cfg.Tap.Enabled {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString("# Written by suri-node-agent: tap endpoint modes set by the controller.\n")
+	for _, ep := range cfg.Tap.Endpoints {
+		mode := "off"
+		switch p.endpoints[ep.Name] {
+		case agentv1.EndpointMode_ENDPOINT_MODE_DETECT:
+			mode = "detect"
+		case agentv1.EndpointMode_ENDPOINT_MODE_PREVENT:
+			mode = "prevent"
+		}
+		fmt.Fprintf(&b, "%s %s\n", ep.Name, mode)
+	}
+	path := r.policyPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return state.WriteFileAtomic(path, []byte(b.String()), 0o644)
+}
+
+// checkEndpoints validates the requested endpoint modes against agent.yaml.
+func (r *Reconciler) checkEndpoints(p plan) error {
+	cfg := r.d.Config
+	for name, mode := range p.endpoints {
+		if mode == agentv1.EndpointMode_ENDPOINT_MODE_OFF {
+			continue
+		}
+		ep, ok := cfg.TapEndpoint(name)
+		if !ok || !cfg.Tap.Enabled {
+			return fmt.Errorf("tap endpoint %s is not managed by this agent", name)
+		}
+		switch mode {
+		case agentv1.EndpointMode_ENDPOINT_MODE_DETECT:
+		case agentv1.EndpointMode_ENDPOINT_MODE_PREVENT:
+			if !ep.PreventAllowed() {
+				return fmt.Errorf("prevent mode is not allowed on tap endpoint %s", name)
+			}
+		default:
+			return fmt.Errorf("invalid mode for tap endpoint %s", name)
+		}
+	}
+	return nil
 }
 
 func (r *Reconciler) fwPlan(p plan) firewall.Plan {
@@ -313,6 +386,17 @@ func (r *Reconciler) render(p plan, staging bool) (*renderedPlan, error) {
 			SocketPath: filepath.Join(runDir, "suricata.sock"), PidFile: filepath.Join(runDir, "suricata.pid"),
 			AllowLua: cfg.Suricata.AllowLua, FailOpen: cfg.FailOpen(),
 		}
+		if capture == engine.CapturePlugin {
+			ic, err := loadOptional(cfg.Tap.Config)
+			if err != nil {
+				return err
+			}
+			in.InstanceConfig = ic
+			in.Tap = &engine.TapSettings{
+				Plugin: cfg.Tap.Plugin, SocketDir: cfg.Tap.SocketDir, SocketMode: cfg.Tap.SocketMode,
+				Threads: cfg.Tap.Threads, PolicyFile: r.policyPath(),
+			}
+		}
 		res, err := engine.Render(in)
 		if err != nil {
 			return err
@@ -360,7 +444,33 @@ func (r *Reconciler) render(p plan, staging bool) (*renderedPlan, error) {
 			return nil, err
 		}
 	}
+	// The tap instance runs whenever it is enabled, even with every
+	// endpoint off: the proxies learn the modes from it.
+	if cfg.Tap.Enabled {
+		if err := add(config.InstanceTap, engine.CapturePlugin, nil, nil); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
+}
+
+// loadOptional parses a YAML file, nil when it does not exist.
+func loadOptional(path string) (*yaml.Node, error) {
+	if path == "" {
+		return nil, nil
+	}
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	n, err := yamlmerge.Parse(b)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return n, nil
 }
 
 func (r *Reconciler) loadBase() (*yaml.Node, error) {
@@ -395,6 +505,12 @@ func (r *Reconciler) localHash() string {
 	h := sha256.New()
 	if b, err := os.ReadFile(r.d.Config.Suricata.BaseConfig); err == nil {
 		h.Write(b)
+	}
+	if r.d.Config.Tap.Enabled {
+		if b, err := os.ReadFile(r.d.Config.Tap.Config); err == nil {
+			h.Write([]byte("\x00tap\x00"))
+			h.Write(b)
+		}
 	}
 	files, _ := filepath.Glob(filepath.Join(r.d.Config.Suricata.LocalRulesDir, "*.rules"))
 	sort.Strings(files)
@@ -451,6 +567,9 @@ func (r *Reconciler) restore(ctx context.Context) {
 	if err := writeFiles(rp.files); err != nil {
 		r.log.Error("write configuration", "err", err)
 		return
+	}
+	if err := r.writePolicy(p); err != nil {
+		r.log.Error("write tap endpoint policy", "err", err)
 	}
 	fw := r.fwPlan(p)
 	if err := r.d.Firewall.Apply(ctx, fw); err != nil {
@@ -513,26 +632,47 @@ func (r *Reconciler) apply(ctx context.Context, ds *agentv1.DesiredState) *agent
 			r.d.OnLogPolicy(ds.LogPolicy)
 		}
 	}
-	newApplied := &agentv1.AppliedState{Generation: ds.Generation, Bundle: ds.Bundle, InterfaceModes: map[string]agentv1.InterfaceMode{}}
+	newApplied := &agentv1.AppliedState{
+		Generation: ds.Generation, Bundle: ds.Bundle,
+		InterfaceModes: map[string]agentv1.InterfaceMode{}, EndpointModes: map[string]agentv1.EndpointMode{},
+	}
 	for name, mode := range ds.InterfaceModes {
 		if mode == agentv1.InterfaceMode_INTERFACE_MODE_UNSPECIFIED {
 			mode = agentv1.InterfaceMode_INTERFACE_MODE_OFF
 		}
 		newApplied.InterfaceModes[name] = mode
 	}
+	for name, mode := range ds.EndpointModes {
+		if mode == agentv1.EndpointMode_ENDPOINT_MODE_UNSPECIFIED {
+			mode = agentv1.EndpointMode_ENDPOINT_MODE_OFF
+		}
+		newApplied.EndpointModes[name] = mode
+	}
 	p := planOf(newApplied)
 	if p.bundleID != "" && !state.ValidID(p.bundleID) {
 		return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_FAILED, agentv1.ApplyStage_APPLY_STAGE_POLICY, "invalid bundle id")
+	}
+	if err := r.checkEndpoints(p); err != nil {
+		return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_FAILED, agentv1.ApplyStage_APPLY_STAGE_POLICY, err.Error())
 	}
 
 	r.mu.Lock()
 	old := r.cur
 	r.mu.Unlock()
 	if old.applied != nil && planOf(old.applied).equal(p) {
+		// The engine stays as it is; endpoint modes only rewrite the
+		// policy file (the plugin pushes it to the proxies).
+		msg := "already applied"
+		if !planOf(old.applied).endpointsEqual(p) {
+			if err := r.writePolicy(p); err != nil {
+				return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_FAILED, agentv1.ApplyStage_APPLY_STAGE_ACTIVATE, err.Error())
+			}
+			msg = "tap endpoint modes applied"
+		}
 		if err := r.commit(newApplied, old); err != nil {
 			return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_FAILED, agentv1.ApplyStage_APPLY_STAGE_DONE, err.Error())
 		}
-		return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_SUCCEEDED, agentv1.ApplyStage_APPLY_STAGE_DONE, "already applied")
+		return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_SUCCEEDED, agentv1.ApplyStage_APPLY_STAGE_DONE, msg)
 	}
 
 	// POLICY: the agent configuration is authoritative.
@@ -633,6 +773,9 @@ func (r *Reconciler) apply(ctx context.Context, ds *agentv1.DesiredState) *agent
 	if err := writeFiles(running.files); err != nil {
 		return rollback(agentv1.ApplyStage_APPLY_STAGE_ACTIVATE, err)
 	}
+	if err := r.writePolicy(p); err != nil {
+		return rollback(agentv1.ApplyStage_APPLY_STAGE_ACTIVATE, err)
+	}
 	if err := r.d.Engine.Ensure(ctx, running.specs); err != nil {
 		return rollback(agentv1.ApplyStage_APPLY_STAGE_ACTIVATE, err)
 	}
@@ -702,6 +845,9 @@ func (r *Reconciler) rollback(ctx context.Context, old current, oldActive string
 		errs = append(errs, err)
 	}
 	if err := writeFiles(old.rendered); err != nil {
+		errs = append(errs, err)
+	}
+	if err := r.writePolicy(planOf(old.applied)); err != nil {
 		errs = append(errs, err)
 	}
 	if err := r.d.Firewall.Apply(ctx, old.fw); err != nil {

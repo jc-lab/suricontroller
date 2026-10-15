@@ -1,6 +1,6 @@
 # suritap — TLS 종단 프록시 평문의 Suricata 검사
 
-TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 Suricata에 넘기고, 요청 단위 판정(pass/drop)을 돌려받는 구성 요소다. 전송은 두 가지다. 기본은 공유메모리이고, 공유메모리를 쓸 수 없는 클라이언트(Traefik Yaegi 플러그인, OpenResty/Kong Lua)를 위해 UNIX 스트림 소켓 전송도 있다. 이 문서는 1단계(전송·플러그인·클라이언트), 2단계(Traefik 어댑터), 3단계(Kong 어댑터)의 설계, 프로토콜 명세, 검증 결과를 다룬다.
+TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 Suricata에 넘기고, 요청 단위 판정(pass/drop)을 돌려받는 구성 요소다. 전송은 두 가지다. 기본은 공유메모리이고, 공유메모리를 쓸 수 없는 클라이언트(Traefik Yaegi 플러그인, OpenResty/Kong Lua)를 위해 UNIX 스트림 소켓 전송도 있다. 이 문서는 1단계(전송·플러그인·클라이언트), 2단계(Traefik 어댑터), 3단계(Kong 어댑터), 5단계(suricontroller 통합)의 설계, 프로토콜 명세, 검증 결과를 다룬다.
 
 ## 1. 구성 요소
 
@@ -96,6 +96,7 @@ eventfd는 서버가 생성하므로 서버가 그 유형을 신뢰할 수 있�
 | s2c | `BYPASS=0x82` | `cid:u64 dir:u8 rsv[7]` |
 | s2c | `PONG=0x83` | PING 그대로 |
 | s2c | `FLOW_ERROR=0x84` | `cid:u64 code:u32` (1 중복 cid, 2 flow 한도 초과, 3 잘못된 OPEN) |
+| s2c | `POLICY=0x85` | `version:u32 count:u16 rsv:u16` + count×`(mode:u8 len:u8 name[len])`. 엔드포인트 정책(§10.2). mode: 1 off, 2 detect, 3 prevent |
 
 메타 태그 번호: 1 sni, 2 alpn, 3 ja4, 4 route, 5 request_id, 6 endpoint, 7 service, 8 user, 9 proto, 10 proxy. 알 수 없는 태그는 버리고, 같은 태그가 여러 번 오면 첫 값만 쓴다.
 
@@ -118,7 +119,8 @@ eventfd는 서버가 생성하므로 서버가 그 유형을 신뢰할 수 있�
   `drop_reason`은 Suricata의 `PKT_DROP_REASON_*` 원값이다(버전마다 다르다).
 - alert는 pass 판정에도 실린다. 예를 들어 alert 전용 룰이 매치된 경우다. `action` 비트는 alert=1, drop=2, reject=4/8/16이다.
 - 크레딧: 클라이언트가 동시에 기다릴 수 있는 판정 수는 `s2c 크기 / 최대 VERDICT 레코드 / 2`로 제한한다. 그래서 서버는 s2c가 가득 차서 막히는 일이 없다. 이를 어기면 프로토콜 위반으로 세션을 닫는다.
-- 크레딧 없이 오는 레코드(BYPASS, FLOW_ERROR)는 s2c의 절반이 비어 있을 때만 보낸다. 그렇지 않으면 버린다. 그래서 이런 레코드가 쌓여도 판정 레코드는 항상 들어간다.
+- 크레딧 없이 오는 레코드(BYPASS, FLOW_ERROR, POLICY)는 s2c의 절반이 비어 있을 때만 보낸다. 그래서 이런 레코드가 쌓여도 판정 레코드는 항상 들어간다. BYPASS와 FLOW_ERROR는 자리가 없으면 버리고, POLICY는 자리가 날 때까지 다음 처리 패스마다 다시 보낸다.
+- 엔드포인트 정책이 off나 detect인 엔드포인트(OPEN 메타 `endpoint`)의 flow는 차단하지 않는다. drop 판정이 나와도 `action=pass`로 보내고, `reason`은 원래 값(예: `rule`)을 유지한다. alert도 그대로 싣는다. 정책을 모르는 오래된 어댑터도 막지 않게 하기 위해서다. 카운터는 `suritap.detect_passes`다.
 
 ### 3.6 소켓 전송 (`worker-N.stream.sock`, `SOCK_STREAM`)
 
@@ -160,7 +162,7 @@ suricata -c suricata.yaml --capture-plugin=suritap
 
 - 빌드할 때의 버전(`PACKAGE_VERSION`)과 로드한 Suricata 버전이 다르면 등록을 거부한다. C glue가 `Packet` 등의 구조체 레이아웃에 의존하기 때문이다.
 - C glue(`shim/shim.c`)는 Rust FFI로 호출할 수 없는 static inline 함수(`TmThreadsSlotProcessPkt` 등), 매크로, 구조체 필드 접근을 감싸기만 한다. 로직은 모두 Rust에 있다.
-- 플러그인 통계 카운터는 `suritap.sessions/records/packets/bytes/verdicts/drops/flows/errors/bypasses/keepalives`다.
+- 플러그인 통계 카운터는 `suritap.sessions/records/packets/bytes/verdicts/drops/flows/errors/bypasses/keepalives/detect_passes`다.
 
 ### 5.2 설정 (`suritap:`)
 
@@ -174,6 +176,7 @@ suricata -c suricata.yaml --capture-plugin=suritap
 | `max-sessions` / `max-flows` / `max-worker-flows` | 256 / 65536 / 262144 | 워커당 세션 수 / 세션당 flow 수 / 워커 전체 flow 수 |
 | `max-segment` / `ack-threshold` | 32kb / 32kb | 합성 세그먼트 크기 / pure ACK 기준(§7.5: HTTP 바디 minimal inspect size의 3배보다 충분히 작게) |
 | `max-region-size` | 64mb | 받아들이는 region 상한 |
+| `policy-file` | — | 엔드포인트 정책 파일(§10.2). 바뀌면 다시 읽고(최대 약 2초) 모든 세션에 POLICY로 보낸다. 내용이 잘못되면 이전 정책을 유지한다 |
 | `batch` / `spin-us` / `idle-ms` | 64 / 0 / 100 | 세션당 한 번에 처리할 레코드 수 / 잠들기 전 busy-poll 시간 / 유휴 주기 |
 | `discriminator` / `keepalive` | `yes` / `auto` | §4 참고 |
 
@@ -567,7 +570,102 @@ SURICATA_PREFIX=... SURICATA_SRC=... test/tap/kong.sh        # E2E → ALL PASSE
 - nginx가 거절하는 요청(루트 위로 올라가는 경로, `client_max_body_size` 초과 등)은 플러그인까지 오지 않는다.
 - nginx 워커마다 Suricata 워커 하나당 세션을 하나씩 연다. 그래서 `suritap.max-sessions`(Suricata 워커당 세션 상한, 기본 256)는 "Kong 인스턴스 수 × nginx 워커 수"보다 커야 한다.
 
-## 10. 알려진 제약과 다음 단계
+## 10. suricontroller 통합 (5단계)
+
+### 10.1 전달 경로
+
+```
+suri-controller-web  ──(노드 › Proxy endpoints: Off / Detect / Prevent)
+suri-controller      ──DesiredState.endpoint_modes──▶ suri-node-agent
+suri-node-agent      ──정책 파일 /run/suri-agent/tap/policy (원자적 쓰기)
+suritap.so           ──파일 변경 감지 → POLICY 레코드 (WELCOME 직후, 변경 시)──▶ 프록시 어댑터
+Traefik / Kong 어댑터 ──엔드포인트별 off(건너뜀) / detect(대기 없음) / prevent(대기·차단)
+```
+
+- 엔드포인트 이름은 어댑터가 OPEN 메타 `endpoint`로 보내는 값이다. Traefik 플러그인은 `endpoint` 설정(기본: 미들웨어 이름), 패치 빌드는 엔트리포인트 이름, Kong은 `endpoint` 설정(기본: 라우트 이름)이다.
+- 모드만 바꾸면 agent는 정책 파일만 다시 쓴다. `suricata -T`도 재시작도 없다. 프록시는 몇 초 안에 따라온다(플러그인 감지 최대 약 2초).
+- 인터페이스 모드와 같은 규칙을 따른다.
+  - 엔드포인트 목록과 prevent 허용 여부는 agent가 정한다(`agent.yaml`).
+  - controller와 UI도 검증하지만 최종 판단은 agent의 POLICY 단계다.
+  - controller가 지정하지 않은 엔드포인트는 off다.
+
+### 10.2 정책 파일과 POLICY 레코드
+
+```text
+# Written by suri-node-agent: tap endpoint modes set by the controller.
+websecure prevent
+api detect
+admin off
+```
+
+- 줄마다 `<엔드포인트> <off|detect|prevent>`다. 이름은 1~64자의 `A-Z a-z 0-9 . _ : @ / -`이고, 최대 256개다.
+- 플러그인 워커가 housekeeping 주기마다 파일의 크기와 수정 시각을 확인한다. 바뀌었으면 다시 읽어 버전을 올리고 POLICY를 보낸다. 파일이 없으면 빈 정책이다.
+- 클라이언트(Go `Client.EndpointMode`, Rust `Client::endpoint_mode`, Traefik 플러그인, Kong 전송)의 동작:
+  - 마지막으로 받은 정책을 캐시하고, 세션이 끊겨도 유지한다(Suricata 재시작 중에도 off/detect가 유지된다).
+  - 열린 세션이 없으면 모드를 조회할 때 백그라운드로 세션을 연다. 그래서 모든 요청이 off라 아무것도 보내지 않는 동안에도 정책 변경을 받는다.
+  - 정책에 없는 엔드포인트는 어댑터 자체 설정을 따른다. controller 없이 쓰는 기존 구성은 그대로 동작한다.
+
+### 10.3 어댑터 동작
+
+| 정책 | Traefik(플러그인, 패치 빌드) | Kong |
+|---|---|---|
+| off | 검사 없이 다음 핸들러로. TCP 라우터는 감싸지 않음 | access 단계에서 바로 반환 |
+| detect | 요청은 대기 없이 전송. 응답 prevent 설정은 detect로 낮춤 | 같음(`suritap-response`도 건너뜀) |
+| prevent | 판정 대기, drop이면 403(`X-Suritap-Cid`) | 같음 |
+| 목록에 없음 | 미들웨어/엔트리포인트 설정 | 플러그인 설정 |
+
+### 10.4 agent 설정과 tap 인스턴스
+
+```yaml
+tap:
+  enabled: true
+  plugin: /usr/lib/suricata/suritap.so     # 기본값
+  socket_dir: /run/suritap                 # 프록시와 공유(볼륨)
+  socket_mode: "0666"                      # 또는 공용 그룹으로 제한
+  threads: auto
+  config: /etc/suricata/tap.yaml           # tap 인스턴스 전용 Suricata 설정
+  endpoints:
+    - name: websecure
+      description: Traefik websecure
+    - name: admin
+      prevent: false                       # controller는 off/detect만 지정 가능
+suricata:
+  instances:
+    tap: { log_dir: /var/log/suricata/tap }
+```
+
+- `tap.enabled`이면 `tap` 인스턴스(`--capture-plugin=suritap`)를 띄운다. 모든 엔드포인트가 off여도 띄운다. 어댑터가 off 정책을 받아야 하기 때문이다. 룰 번들은 ids·ips와 같은 것을 쓴다.
+- 설정 병합 순서는 base(`suricata.yaml`) < `tap.config` < controller overlay < agent 런타임이다.
+  - 런타임은 `plugins`와 `suritap.socket-dir/policy-file/threads/socket-mode/ips`를 강제한다.
+  - §5.3의 권장값(depth 0, bypass no, `HOME_NET` = 프록시 리스너, body inspect size)은 다른 인스턴스와 공유하는 base 대신 `tap.config`에 둔다. 이미지가 기본 파일을 넣는다.
+- 상태 보고(인스턴스 `tap`, capture `plugin`)에 `suritap.sessions/verdicts/drops/detect_passes/flows/errors` 카운터가 실린다. Hello에는 엔드포인트 목록과 플러그인 존재 여부가 실린다. 플러그인이 없으면 경고 `tap_plugin_missing`을 보낸다.
+- tap 인스턴스의 EVE는 다른 인스턴스와 같이 수집된다. `suritap.*` 필드(endpoint, sni, route 등)로 걸러 볼 수 있다.
+
+### 10.5 이미지
+
+- `deploy/agent/Dockerfile`은 Alpine 패키지 대신 Suricata 8.0.7을 소스로 빌드한다(tarball SHA-256 고정, NFQ 포함). 같은 소스 트리로 `suritap.so`를 빌드해 `/usr/lib/suricata/suritap.so`에 넣는다. 플러그인은 정확히 같은 Suricata 빌드에만 로드되기 때문이다.
+- 기본 `tap.yaml`을 `/etc/suricata`가 비어 있을 때 채운다. compose 예시는 `/run/suritap`을 볼륨으로 공유한다.
+- 빌드는 컴파일 때문에 수 분 걸린다. 확인 단계에서 `suricata --build-info`(NFQ)를 검사하고, `suricata -T`로 플러그인이 로드되는지 확인했다.
+
+### 10.6 검증 (`test/docker/integration.sh`)
+
+실제 controller와 agent 이미지로 기존 시나리오(IDS, IPS, 검증 실패, 롤백, 재시작 복원)에 tap 시나리오를 더했다. ALL PASSED.
+
+| 항목 | 결과 |
+|---|---|
+| Hello의 tap 정보(엔드포인트, 플러그인 존재) | controller API에 표시 |
+| tap 인스턴스 | capture `plugin`으로 실행, ids·ips 전환과 무관하게 유지 |
+| `SetEndpointModes web=PREVENT` | 적용 후 컨테이너 안 클라이언트(`suritap-probe inspect`)가 mode prevent를 받고, blockme 요청이 drop(sid 9000002) |
+| `DETECT` | mode detect, 같은 요청이 `pass`(reason rule) |
+| `OFF` | mode off |
+| EVE 수집 | tap 인스턴스 alert가 `suritap.endpoint=web`과 함께 controller에 수집 |
+| agent 재시작(controller 없이) | tap 소켓 복원 |
+
+- controller: 노드 API에 `tap`(엔드포인트, 원하는 모드와 적용된 모드)을 추가했고, RPC `SetEndpointModes`(감사 로그 `node.tap_endpoints`)를 추가했다. sqlite 스키마는 v2(`endpoint_modes` 열, v1에서 자동 이전)다.
+- web: 노드 상세의 "Proxy endpoints" 탭에서 엔드포인트마다 Off/Detect/Prevent를 고르고, 적용 상태(pending)를 본다. agent가 prevent를 허용하지 않으면 선택할 수 없다.
+- `suritap-probe inspect -endpoint NAME`: 정책 모드와 판정을 JSON으로 출력하는 진단 도구다.
+
+## 11. 알려진 제약과 다음 단계
 
 - 단일 IPS 인스턴스에서 Detect(shadow) 모드로 쓰면, 처음 would-drop이 난 뒤로는 그 연결이 더 검사되지 않는다(flow drop).
 - drop된 flow는 RST가 처리되지 않으므로 `flow-timeouts.tcp.established` 동안 엔진 메모리에 남는다. 구분자 덕분에 정확성 문제는 없다.
@@ -580,4 +678,5 @@ SURICATA_PREFIX=... SURICATA_SRC=... test/tap/kong.sh        # E2E → ALL PASSE
   - 패치는 Traefik 버전마다 따로 유지해야 한다. 플러그인은 버전과 무관하지만 TCP 라우터를 검사하지 못하고 처리량이 낮다.
 - 다음 단계:
   - Traefik 플러그인의 해석 실행 비용 줄이기(요청당 할당·프레임 수 감소)
-  - 5단계: suricontroller 통합(agent의 `tap` 인스턴스, 엔드포인트별 Off/Detect/Prevent, 이미지)
+  - multi-arch 이미지(arm64, armv7)는 소스 빌드라 시간이 오래 걸린다. amd64만 검증했다.
+- 엔드포인트 정책은 엔드포인트 단위다. 라우트나 경로 단위의 세분화는 어댑터 설정(미들웨어, 플러그인 인스턴스)으로 한다.

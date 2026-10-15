@@ -23,7 +23,12 @@ import (
 //go:embed schema.sql
 var schema string
 
-const schemaVersion = 1
+const schemaVersion = 2
+
+// migrations upgrade a database from version i+1 to i+2.
+var migrations = []string{
+	`ALTER TABLE nodes ADD COLUMN endpoint_modes TEXT`,
+}
 
 // Store is a SQLite-backed store.Store.
 type Store struct {
@@ -69,6 +74,12 @@ func (s *Store) migrate() error {
 	if v == 0 {
 		if _, err := s.db.Exec(schema); err != nil {
 			return fmt.Errorf("sqlite: create schema: %w", err)
+		}
+	} else {
+		for i := v - 1; i < len(migrations); i++ {
+			if _, err := s.db.Exec(migrations[i]); err != nil {
+				return fmt.Errorf("sqlite: migrate to version %d: %w", i+2, err)
+			}
 		}
 	}
 	_, err := s.db.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion))
@@ -124,7 +135,7 @@ func isUniqueViolation(err error) bool {
 // --- nodes -------------------------------------------------------------------
 
 const nodeColumns = `id, public_key, fingerprint, enabled, description, created_at, updated_at, last_seen_at,
-	hello, interface_modes, log_policy, desired, desired_error, applied, last_report, last_report_at`
+	hello, interface_modes, log_policy, desired, desired_error, applied, last_report, last_report_at, endpoint_modes`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
@@ -134,10 +145,10 @@ func scanNode(r rowScanner) (*store.Node, error) {
 		enabled                              int
 		created, updated, lastSeen, reportAt int64
 		hello, modes, logPolicy              sql.NullString
-		desired, applied, report             sql.NullString
+		desired, applied, report, epModes    sql.NullString
 	)
 	if err := r.Scan(&n.ID, &n.PublicKey, &n.Fingerprint, &enabled, &n.Description, &created, &updated, &lastSeen,
-		&hello, &modes, &logPolicy, &desired, &n.DesiredError, &applied, &report, &reportAt); err != nil {
+		&hello, &modes, &logPolicy, &desired, &n.DesiredError, &applied, &report, &reportAt, &epModes); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, store.ErrNotFound
 		}
@@ -169,6 +180,16 @@ func scanNode(r rowScanner) (*store.Node, error) {
 		n.InterfaceModes = make(map[string]agentv1.InterfaceMode, len(m))
 		for k, v := range m {
 			n.InterfaceModes[k] = agentv1.InterfaceMode(agentv1.InterfaceMode_value[v])
+		}
+	}
+	if epModes.Valid && epModes.String != "" {
+		var m map[string]string
+		if err := json.Unmarshal([]byte(epModes.String), &m); err != nil {
+			return nil, err
+		}
+		n.EndpointModes = make(map[string]agentv1.EndpointMode, len(m))
+		for k, v := range m {
+			n.EndpointModes[k] = agentv1.EndpointMode(agentv1.EndpointMode_value[v])
 		}
 	}
 	return &n, nil
@@ -204,12 +225,21 @@ func nodeArgs(n *store.Node) ([]any, error) {
 		b, _ := json.Marshal(m)
 		modes = sql.NullString{String: string(b), Valid: true}
 	}
+	var epModes sql.NullString
+	if len(n.EndpointModes) > 0 {
+		m := make(map[string]string, len(n.EndpointModes))
+		for k, v := range n.EndpointModes {
+			m[k] = v.String()
+		}
+		b, _ := json.Marshal(m)
+		epModes = sql.NullString{String: string(b), Valid: true}
+	}
 	enabled := 0
 	if n.Enabled {
 		enabled = 1
 	}
 	return []any{n.ID, n.PublicKey, n.Fingerprint, enabled, n.Description, ms(n.CreatedAt), ms(n.UpdatedAt), ms(n.LastSeenAt),
-		hello, modes, logPolicy, desired, n.DesiredError, applied, report, ms(n.LastReportAt)}, nil
+		hello, modes, logPolicy, desired, n.DesiredError, applied, report, ms(n.LastReportAt), epModes}, nil
 }
 
 // CreateNode implements store.Store.
@@ -218,7 +248,7 @@ func (s *Store) CreateNode(ctx context.Context, n *store.Node) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO nodes (`+nodeColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, args...)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO nodes (`+nodeColumns+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, args...)
 	if isUniqueViolation(err) {
 		return store.ErrAlreadyExists
 	}
@@ -268,7 +298,7 @@ func (s *Store) UpdateNode(ctx context.Context, id string, fn func(n *store.Node
 		return nil, err
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE nodes SET public_key=?, fingerprint=?, enabled=?, description=?, created_at=?, updated_at=?, last_seen_at=?,
-		hello=?, interface_modes=?, log_policy=?, desired=?, desired_error=?, applied=?, last_report=?, last_report_at=? WHERE id=?`,
+		hello=?, interface_modes=?, log_policy=?, desired=?, desired_error=?, applied=?, last_report=?, last_report_at=?, endpoint_modes=? WHERE id=?`,
 		append(args[1:], id)...)
 	if err != nil {
 		return nil, err

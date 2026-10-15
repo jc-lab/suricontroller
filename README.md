@@ -34,6 +34,7 @@ TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 공�
 - `adapters/traefik-plugin`: Traefik 플러그인(Yaegi). 공식 Traefik에 그대로 로드되며 소켓 전송을 씁니다. 라우터별 미들웨어로 설정합니다.
 - `adapters/traefik` + `deploy/traefik`: 패치 빌드용 어댑터와 Traefik 패치(`make traefik`). 공유메모리를 쓰고 TLS 종단 TCP 라우터도 검사합니다(`entryPoints.<name>.suritap`).
 - `adapters/kong`: Kong 플러그인(Lua, `suritap`과 응답 prevent용 `suritap-response`). 소켓 전송을 cosocket으로 씁니다.
+- controller 통합: agent의 `tap` 인스턴스(`agent.yaml`의 `tap:`)와 엔드포인트별 Off/Detect/Prevent. 웹 UI의 노드 › Proxy endpoints에서 정하면, Suricata를 재시작하지 않고 프록시에 몇 초 안에 반영됩니다.
 
 명세와 검증 결과는 [docs/suritap.md](docs/suritap.md)를 참고하세요.
 

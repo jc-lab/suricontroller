@@ -1,12 +1,13 @@
 import {
   ApplyStage,
   ApplyStatus,
+  EndpointMode,
   InterfaceMode,
   LogType,
 } from "../gen/suricontroller/agent/v1/agent_pb";
 import { DeployKind, DeployMode, Repo, RotateInterval } from "../gen/suricontroller/api/v1/api_pb";
 
-export { ApplyStage, ApplyStatus, InterfaceMode, LogType, DeployKind, DeployMode, Repo, RotateInterval };
+export { ApplyStage, ApplyStatus, EndpointMode, InterfaceMode, LogType, DeployKind, DeployMode, Repo, RotateInterval };
 
 export const LOG_TYPES: { type: LogType; label: string; description: string }[] = [
   { type: LogType.EVE, label: "EVE", description: "eve.json events" },
@@ -42,6 +43,17 @@ export function interfaceModeLabel(m: InterfaceMode): string {
       return "IDS";
     case InterfaceMode.IPS:
       return "IPS";
+    default:
+      return "Off";
+  }
+}
+
+export function endpointModeLabel(m: EndpointMode): string {
+  switch (m) {
+    case EndpointMode.DETECT:
+      return "Detect";
+    case EndpointMode.PREVENT:
+      return "Prevent";
     default:
       return "Off";
   }

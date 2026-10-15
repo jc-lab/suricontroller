@@ -31,6 +31,8 @@ const (
 const (
 	InstanceIDS = "ids"
 	InstanceIPS = "ips"
+	// InstanceTap is the suritap instance fed by TLS-terminating proxies.
+	InstanceTap = "tap"
 )
 
 // ByteSize is a size accepting suffixes like "16MiB", "64MB", "1G".
@@ -80,6 +82,17 @@ type Interface struct {
 	IPS *bool `yaml:"ips"`
 }
 
+// TapEndpoint is a proxy endpoint whose inspection mode the controller may
+// set. Name is what the proxy adapter reports (Traefik: the endpoint
+// setting or middleware name; Kong: the endpoint setting or route name).
+type TapEndpoint struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	// Prevent allows Prevent mode (default true); false limits the
+	// controller to Off and Detect.
+	Prevent *bool `yaml:"prevent"`
+}
+
 // Instance configures one Suricata instance.
 type Instance struct {
 	// LogDir is forced as default-log-dir of the instance.
@@ -124,6 +137,26 @@ type Config struct {
 		FailOpen *bool  `yaml:"fail_open"`
 	} `yaml:"ips"`
 
+	// Tap configures the suritap instance: Suricata with the suritap capture
+	// plugin, fed by TLS-terminating proxies over the plugin's sockets.
+	Tap struct {
+		Enabled bool `yaml:"enabled"`
+		// Plugin is the suritap capture plugin library.
+		Plugin string `yaml:"plugin"`
+		// SocketDir holds the worker sockets the proxies connect to (share it
+		// with the proxies, e.g. as a volume).
+		SocketDir string `yaml:"socket_dir"`
+		// SocketMode is the octal mode of the sockets (e.g. "0660").
+		SocketMode string `yaml:"socket_mode"`
+		// Threads is the number of plugin workers ("auto": CPUs).
+		Threads string `yaml:"threads"`
+		// Config is the node user's Suricata settings for the tap instance
+		// only (e.g. stream depth, HOME_NET = the proxy listeners), merged
+		// over base_config; a missing file is fine.
+		Config    string        `yaml:"config"`
+		Endpoints []TapEndpoint `yaml:"endpoints"`
+	} `yaml:"tap"`
+
 	Suricata struct {
 		Binary        string              `yaml:"binary"`
 		BaseConfig    string              `yaml:"base_config"`
@@ -165,7 +198,12 @@ func Default() *Config {
 	c.Suricata.Instances = map[string]Instance{
 		InstanceIDS: {LogDir: "/var/log/suricata/ids"},
 		InstanceIPS: {LogDir: "/var/log/suricata/ips"},
+		InstanceTap: {LogDir: "/var/log/suricata/tap"},
 	}
+	c.Tap.Plugin = "/usr/lib/suricata/suritap.so"
+	c.Tap.SocketDir = "/run/suritap"
+	c.Tap.Threads = "auto"
+	c.Tap.Config = "/etc/suricata/tap.yaml"
 	c.Logs.QueueMaxBytes = 16 << 20
 	c.Logs.StartPosition = "end"
 	c.Logs.Rotation.Enabled = true
@@ -204,7 +242,7 @@ func Parse(b []byte) (*Config, error) {
 // Validate checks the configuration and makes local paths absolute.
 func (c *Config) Validate() error {
 	var errs []error
-	for _, p := range []*string{&c.StateDir, &c.RunDir, &c.KeyFile, &c.Suricata.BaseConfig, &c.Suricata.LocalRulesDir} {
+	for _, p := range []*string{&c.StateDir, &c.RunDir, &c.KeyFile, &c.Suricata.BaseConfig, &c.Suricata.LocalRulesDir, &c.Tap.Plugin, &c.Tap.SocketDir, &c.Tap.Config} {
 		if *p != "" {
 			if abs, err := filepath.Abs(*p); err == nil {
 				*p = abs
@@ -248,19 +286,77 @@ func (c *Config) Validate() error {
 	if c.Logs.StartPosition != "end" && c.Logs.StartPosition != "beginning" {
 		errs = append(errs, errors.New("logs.start_position must be end or beginning"))
 	}
+	dirs := map[string]string{}
 	for name, inst := range c.Suricata.Instances {
-		if name != InstanceIDS && name != InstanceIPS {
+		if name != InstanceIDS && name != InstanceIPS && name != InstanceTap {
 			errs = append(errs, fmt.Errorf("suricata.instances: unknown instance %q", name))
 		}
 		if !strings.HasPrefix(inst.LogDir, "/") {
 			errs = append(errs, fmt.Errorf("suricata.instances.%s.log_dir must be absolute", name))
 		}
+		if other, ok := dirs[inst.LogDir]; ok {
+			errs = append(errs, fmt.Errorf("suricata.instances: %s and %s must use different log directories", min(name, other), max(name, other)))
+		}
+		dirs[inst.LogDir] = name
 	}
-	if c.Suricata.Instances[InstanceIDS].LogDir == c.Suricata.Instances[InstanceIPS].LogDir {
-		errs = append(errs, errors.New("suricata.instances: ids and ips must use different log directories"))
-	}
+	errs = append(errs, c.validateTap()...)
 	return errors.Join(errs...)
 }
+
+// validEndpoint matches the endpoint names the suritap plugin accepts.
+func validEndpoint(s string) bool {
+	if s == "" || len(s) > 64 {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune("._:@/-", c)) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Config) validateTap() []error {
+	var errs []error
+	if c.Tap.SocketMode != "" {
+		if _, err := strconv.ParseUint(c.Tap.SocketMode, 8, 32); err != nil {
+			errs = append(errs, fmt.Errorf("tap.socket_mode: invalid octal mode %q", c.Tap.SocketMode))
+		}
+	}
+	if c.Tap.Threads != "auto" {
+		if n, err := strconv.Atoi(c.Tap.Threads); err != nil || n < 1 || n > 1024 {
+			errs = append(errs, fmt.Errorf("tap.threads: want auto or 1-1024, got %q", c.Tap.Threads))
+		}
+	}
+	if c.Tap.Enabled && (c.Tap.Plugin == "" || c.Tap.SocketDir == "") {
+		errs = append(errs, errors.New("tap: plugin and socket_dir are required"))
+	}
+	seen := map[string]bool{}
+	for _, ep := range c.Tap.Endpoints {
+		if !validEndpoint(ep.Name) {
+			errs = append(errs, fmt.Errorf("tap.endpoints: invalid name %q (1-64 of A-Z a-z 0-9 . _ : @ / -)", ep.Name))
+		}
+		if seen[ep.Name] {
+			errs = append(errs, fmt.Errorf("tap.endpoints: duplicate %q", ep.Name))
+		}
+		seen[ep.Name] = true
+	}
+	return errs
+}
+
+// TapEndpoint returns a declared tap endpoint.
+func (c *Config) TapEndpoint(name string) (TapEndpoint, bool) {
+	for _, ep := range c.Tap.Endpoints {
+		if ep.Name == name {
+			return ep, true
+		}
+	}
+	return TapEndpoint{}, false
+}
+
+// PreventAllowed reports whether the controller may set Prevent mode on a
+// tap endpoint.
+func (ep TapEndpoint) PreventAllowed() bool { return ep.Prevent == nil || *ep.Prevent }
 
 // IPSAllowed reports whether the controller may set IPS mode on iface.
 func (c *Config) IPSAllowed(iface string) bool {

@@ -313,6 +313,7 @@ func (s *Service) Recompute(ctx context.Context, nodeID string, force bool) (*ag
 		ds := &agentv1.DesiredState{
 			Bundle:         bundleRef,
 			InterfaceModes: interfaceModes(n),
+			EndpointModes:  endpointModes(n),
 			LogPolicy:      n.LogPolicy,
 		}
 		if ds.LogPolicy == nil {
@@ -366,6 +367,28 @@ func interfaceModes(n *store.Node) map[string]agentv1.InterfaceMode {
 			mode = agentv1.InterfaceMode_INTERFACE_MODE_IDS
 		}
 		out[ifc.Name] = mode
+	}
+	return out
+}
+
+// endpointModes builds the desired mode of every suritap endpoint the agent
+// manages (nil without any). Prevent is downgraded to Detect when the agent
+// does not allow it.
+func endpointModes(n *store.Node) map[string]agentv1.EndpointMode {
+	eps := n.Hello.GetTap().GetEndpoints()
+	if len(eps) == 0 {
+		return nil
+	}
+	out := map[string]agentv1.EndpointMode{}
+	for _, ep := range eps {
+		mode, ok := n.EndpointModes[ep.Name]
+		if !ok || mode == agentv1.EndpointMode_ENDPOINT_MODE_UNSPECIFIED {
+			mode = agentv1.EndpointMode_ENDPOINT_MODE_OFF
+		}
+		if mode == agentv1.EndpointMode_ENDPOINT_MODE_PREVENT && !ep.PreventAllowed {
+			mode = agentv1.EndpointMode_ENDPOINT_MODE_DETECT
+		}
+		out[ep.Name] = mode
 	}
 	return out
 }

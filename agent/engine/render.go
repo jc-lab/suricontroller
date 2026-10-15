@@ -24,6 +24,9 @@ type RenderInput struct {
 	// resolved against its directory).
 	BaseConfig string
 	Base       *yaml.Node
+	// InstanceConfig is the node user's settings for this instance only
+	// (tap), merged over Base; nil when there are none.
+	InstanceConfig *yaml.Node
 	// Managed is the controller overlay (nil when no bundle is applied).
 	Managed *yaml.Node
 	// RulesDir holds suricata.rules and optional classification/reference/
@@ -35,6 +38,17 @@ type RenderInput struct {
 	PidFile       string
 	AllowLua      bool
 	FailOpen      bool
+	// Tap holds the agent-owned suritap settings (CapturePlugin).
+	Tap *TapSettings
+}
+
+// TapSettings are the suritap plugin settings the agent owns.
+type TapSettings struct {
+	Plugin     string
+	SocketDir  string
+	SocketMode string
+	Threads    string
+	PolicyFile string
 }
 
 // Rendered is an effective instance configuration.
@@ -57,9 +71,14 @@ func Render(in RenderInput) (*Rendered, error) {
 		eff = yamlmerge.NewMap()
 	}
 	absolutizeIncludes(eff, filepath.Dir(in.BaseConfig))
+	user := in.Base
+	if in.InstanceConfig != nil {
+		yamlmerge.Merge(eff, in.InstanceConfig)
+		user = yamlmerge.Clone(eff)
+	}
 	var shadowed []string
 	if in.Managed != nil {
-		shadowed = yamlmerge.Shadowed(in.Base, in.Managed)
+		shadowed = yamlmerge.Shadowed(user, in.Managed)
 		yamlmerge.Merge(eff, in.Managed)
 	}
 	rt, err := runtimeLayer(in)
@@ -122,6 +141,20 @@ func runtimeLayer(in RenderInput) (*yaml.Node, error) {
 	switch in.Capture {
 	case CaptureAFPacket:
 		yamlmerge.Set(rt, afPacketList(in.Base, in.Interfaces), "af-packet")
+	case CapturePlugin:
+		if in.Tap == nil {
+			return nil, fmt.Errorf("engine: plugin capture without tap settings")
+		}
+		yamlmerge.Set(rt, seq(yamlmerge.Scalar(in.Tap.Plugin)), "plugins")
+		set(in.Tap.SocketDir, "suritap", "socket-dir")
+		set(in.Tap.PolicyFile, "suritap", "policy-file")
+		set(in.Tap.Threads, "suritap", "threads")
+		// The endpoint policy decides what blocks; the engine runs in IPS
+		// mode so that it reports drops.
+		set("yes", "suritap", "ips")
+		if in.Tap.SocketMode != "" {
+			set(in.Tap.SocketMode, "suritap", "socket-mode")
+		}
 	case CaptureNFQ:
 		nfq := yamlmerge.Clone(yamlmerge.Get(in.Base, "nfq"))
 		if nfq == nil || nfq.Kind != yaml.MappingNode {

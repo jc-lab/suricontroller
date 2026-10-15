@@ -28,6 +28,7 @@ commands:
   hold    open connections and wait (for crash-cleanup tests)
   backend HTTP and TCP echo upstreams for proxy tests
   httpbench  HTTP latency/throughput through a proxy
+  inspect send one payload for an endpoint; print its policy mode and the verdict
 `)
 	os.Exit(2)
 }
@@ -48,6 +49,8 @@ func main() {
 		os.Exit(runBackend(args))
 	case "httpbench":
 		os.Exit(runHTTPBench(args))
+	case "inspect":
+		os.Exit(runInspect(args))
 	default:
 		usage()
 	}

@@ -105,6 +105,8 @@ service NodeService {
   rpc UpdateNode(UpdateNodeRequest) returns (UpdateNodeResponse);
   rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
   rpc SetInterfaceModes(SetInterfaceModesRequest) returns (SetInterfaceModesResponse);
+  // Sets the suritap endpoint modes (Off / Detect / Prevent) of a node.
+  rpc SetEndpointModes(SetEndpointModesRequest) returns (SetEndpointModesResponse);
   rpc ListApplyHistory(ListApplyHistoryRequest) returns (ListApplyHistoryResponse);
 }
 
@@ -118,6 +120,24 @@ message NodeInterface {
   suricontroller.agent.v1.InterfaceMode mode = 6;
   // Mode currently applied on the node.
   suricontroller.agent.v1.InterfaceMode applied_mode = 7;
+}
+
+// NodeTapEndpoint is a suritap proxy endpoint declared by the agent.
+message NodeTapEndpoint {
+  string name = 1;
+  bool prevent_allowed = 2;
+  string description = 3;
+  // Desired mode set by the administrator.
+  suricontroller.agent.v1.EndpointMode mode = 4;
+  // Mode currently applied on the node.
+  suricontroller.agent.v1.EndpointMode applied_mode = 5;
+}
+
+message NodeTap {
+  bool enabled = 1;
+  string socket_dir = 2;
+  bool plugin_present = 3;
+  repeated NodeTapEndpoint endpoints = 4;
 }
 
 message NodeDeployState {
@@ -155,6 +175,7 @@ message Node {
   repeated suricontroller.agent.v1.LogSource log_sources = 17;
   suricontroller.agent.v1.LogQueueStats log_queue = 18;
   NodeDeployState deploy = 19;
+  NodeTap tap = 20;
 }
 
 message ListNodesRequest {}
@@ -202,6 +223,15 @@ message SetInterfaceModesRequest {
 }
 
 message SetInterfaceModesResponse {
+  Node node = 1;
+}
+
+message SetEndpointModesRequest {
+  string id = 1;
+  map<string, suricontroller.agent.v1.EndpointMode> modes = 2;
+}
+
+message SetEndpointModesResponse {
   Node node = 1;
 }
 

@@ -196,6 +196,61 @@ func (InterfaceMode) EnumDescriptor() ([]byte, []int) {
 	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{2}
 }
 
+// EndpointMode is the inspection mode of a proxy endpoint. The plugin pushes
+// it to the proxies: Off skips inspection, Detect inspects without waiting
+// and never blocks, Prevent blocks on drop verdicts.
+type EndpointMode int32
+
+const (
+	EndpointMode_ENDPOINT_MODE_UNSPECIFIED EndpointMode = 0
+	EndpointMode_ENDPOINT_MODE_OFF         EndpointMode = 1
+	EndpointMode_ENDPOINT_MODE_DETECT      EndpointMode = 2
+	EndpointMode_ENDPOINT_MODE_PREVENT     EndpointMode = 3
+)
+
+// Enum value maps for EndpointMode.
+var (
+	EndpointMode_name = map[int32]string{
+		0: "ENDPOINT_MODE_UNSPECIFIED",
+		1: "ENDPOINT_MODE_OFF",
+		2: "ENDPOINT_MODE_DETECT",
+		3: "ENDPOINT_MODE_PREVENT",
+	}
+	EndpointMode_value = map[string]int32{
+		"ENDPOINT_MODE_UNSPECIFIED": 0,
+		"ENDPOINT_MODE_OFF":         1,
+		"ENDPOINT_MODE_DETECT":      2,
+		"ENDPOINT_MODE_PREVENT":     3,
+	}
+)
+
+func (x EndpointMode) Enum() *EndpointMode {
+	p := new(EndpointMode)
+	*p = x
+	return p
+}
+
+func (x EndpointMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EndpointMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_suricontroller_agent_v1_agent_proto_enumTypes[3].Descriptor()
+}
+
+func (EndpointMode) Type() protoreflect.EnumType {
+	return &file_suricontroller_agent_v1_agent_proto_enumTypes[3]
+}
+
+func (x EndpointMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EndpointMode.Descriptor instead.
+func (EndpointMode) EnumDescriptor() ([]byte, []int) {
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{3}
+}
+
 type ApplyStage int32
 
 const (
@@ -250,11 +305,11 @@ func (x ApplyStage) String() string {
 }
 
 func (ApplyStage) Descriptor() protoreflect.EnumDescriptor {
-	return file_suricontroller_agent_v1_agent_proto_enumTypes[3].Descriptor()
+	return file_suricontroller_agent_v1_agent_proto_enumTypes[4].Descriptor()
 }
 
 func (ApplyStage) Type() protoreflect.EnumType {
-	return &file_suricontroller_agent_v1_agent_proto_enumTypes[3]
+	return &file_suricontroller_agent_v1_agent_proto_enumTypes[4]
 }
 
 func (x ApplyStage) Number() protoreflect.EnumNumber {
@@ -263,7 +318,7 @@ func (x ApplyStage) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ApplyStage.Descriptor instead.
 func (ApplyStage) EnumDescriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{3}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{4}
 }
 
 type ApplyStatus int32
@@ -307,11 +362,11 @@ func (x ApplyStatus) String() string {
 }
 
 func (ApplyStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_suricontroller_agent_v1_agent_proto_enumTypes[4].Descriptor()
+	return file_suricontroller_agent_v1_agent_proto_enumTypes[5].Descriptor()
 }
 
 func (ApplyStatus) Type() protoreflect.EnumType {
-	return &file_suricontroller_agent_v1_agent_proto_enumTypes[4]
+	return &file_suricontroller_agent_v1_agent_proto_enumTypes[5]
 }
 
 func (x ApplyStatus) Number() protoreflect.EnumNumber {
@@ -320,7 +375,7 @@ func (x ApplyStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ApplyStatus.Descriptor instead.
 func (ApplyStatus) EnumDescriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{4}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{5}
 }
 
 type LogType int32
@@ -366,11 +421,11 @@ func (x LogType) String() string {
 }
 
 func (LogType) Descriptor() protoreflect.EnumDescriptor {
-	return file_suricontroller_agent_v1_agent_proto_enumTypes[5].Descriptor()
+	return file_suricontroller_agent_v1_agent_proto_enumTypes[6].Descriptor()
 }
 
 func (LogType) Type() protoreflect.EnumType {
-	return &file_suricontroller_agent_v1_agent_proto_enumTypes[5]
+	return &file_suricontroller_agent_v1_agent_proto_enumTypes[6]
 }
 
 func (x LogType) Number() protoreflect.EnumNumber {
@@ -379,7 +434,7 @@ func (x LogType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LogType.Descriptor instead.
 func (LogType) EnumDescriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{5}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{6}
 }
 
 // HandshakeInit is the payload of Noise message 1 (agent -> controller).
@@ -955,10 +1010,12 @@ type Hello struct {
 	Platform     *PlatformInfo          `protobuf:"bytes,3,opt,name=platform,proto3" json:"platform,omitempty"`
 	Engine       *EngineInfo            `protobuf:"bytes,4,opt,name=engine,proto3" json:"engine,omitempty"`
 	// Interfaces the agent allows the controller to manage (from agent.yaml).
-	Interfaces    []*InterfaceInfo `protobuf:"bytes,5,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
-	Applied       *AppliedState    `protobuf:"bytes,6,opt,name=applied,proto3" json:"applied,omitempty"`
-	Warnings      []*Warning       `protobuf:"bytes,7,rep,name=warnings,proto3" json:"warnings,omitempty"`
-	LogSources    []*LogSource     `protobuf:"bytes,8,rep,name=log_sources,json=logSources,proto3" json:"log_sources,omitempty"`
+	Interfaces []*InterfaceInfo `protobuf:"bytes,5,rep,name=interfaces,proto3" json:"interfaces,omitempty"`
+	Applied    *AppliedState    `protobuf:"bytes,6,opt,name=applied,proto3" json:"applied,omitempty"`
+	Warnings   []*Warning       `protobuf:"bytes,7,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	LogSources []*LogSource     `protobuf:"bytes,8,rep,name=log_sources,json=logSources,proto3" json:"log_sources,omitempty"`
+	// suritap: proxy endpoints the agent allows the controller to manage.
+	Tap           *TapInfo `protobuf:"bytes,9,opt,name=tap,proto3" json:"tap,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1045,6 +1102,13 @@ func (x *Hello) GetWarnings() []*Warning {
 func (x *Hello) GetLogSources() []*LogSource {
 	if x != nil {
 		return x.LogSources
+	}
+	return nil
+}
+
+func (x *Hello) GetTap() *TapInfo {
+	if x != nil {
+		return x.Tap
 	}
 	return nil
 }
@@ -1401,6 +1465,141 @@ func (x *Warning) GetMessage() string {
 	return ""
 }
 
+// TapInfo describes the suritap instance (Suricata fed by TLS-terminating
+// proxies through the suritap capture plugin), from agent.yaml.
+type TapInfo struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Enabled bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// Directory of the plugin's worker sockets the proxies connect to.
+	SocketDir string             `protobuf:"bytes,2,opt,name=socket_dir,json=socketDir,proto3" json:"socket_dir,omitempty"`
+	Endpoints []*TapEndpointInfo `protobuf:"bytes,3,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	// Whether the plugin library exists on the node.
+	PluginPresent bool `protobuf:"varint,4,opt,name=plugin_present,json=pluginPresent,proto3" json:"plugin_present,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TapInfo) Reset() {
+	*x = TapInfo{}
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TapInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TapInfo) ProtoMessage() {}
+
+func (x *TapInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TapInfo.ProtoReflect.Descriptor instead.
+func (*TapInfo) Descriptor() ([]byte, []int) {
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *TapInfo) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *TapInfo) GetSocketDir() string {
+	if x != nil {
+		return x.SocketDir
+	}
+	return ""
+}
+
+func (x *TapInfo) GetEndpoints() []*TapEndpointInfo {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
+func (x *TapInfo) GetPluginPresent() bool {
+	if x != nil {
+		return x.PluginPresent
+	}
+	return false
+}
+
+// TapEndpointInfo is a proxy endpoint (the name the adapters report, e.g. a
+// Traefik entry point or a Kong route) the controller may manage.
+type TapEndpointInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Whether the agent allows Prevent mode (agent decides).
+	PreventAllowed bool   `protobuf:"varint,2,opt,name=prevent_allowed,json=preventAllowed,proto3" json:"prevent_allowed,omitempty"`
+	Description    string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *TapEndpointInfo) Reset() {
+	*x = TapEndpointInfo{}
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TapEndpointInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TapEndpointInfo) ProtoMessage() {}
+
+func (x *TapEndpointInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TapEndpointInfo.ProtoReflect.Descriptor instead.
+func (*TapEndpointInfo) Descriptor() ([]byte, []int) {
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *TapEndpointInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *TapEndpointInfo) GetPreventAllowed() bool {
+	if x != nil {
+		return x.PreventAllowed
+	}
+	return false
+}
+
+func (x *TapEndpointInfo) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
 type BundleRef struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Hex sha256 of the bundle archive.
@@ -1414,7 +1613,7 @@ type BundleRef struct {
 
 func (x *BundleRef) Reset() {
 	*x = BundleRef{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1426,7 +1625,7 @@ func (x *BundleRef) String() string {
 func (*BundleRef) ProtoMessage() {}
 
 func (x *BundleRef) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[14]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1439,7 +1638,7 @@ func (x *BundleRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BundleRef.ProtoReflect.Descriptor instead.
 func (*BundleRef) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{14}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *BundleRef) GetBundleId() string {
@@ -1478,13 +1677,14 @@ type DesiredState struct {
 	Bundle         *BundleRef               `protobuf:"bytes,2,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	InterfaceModes map[string]InterfaceMode `protobuf:"bytes,3,rep,name=interface_modes,json=interfaceModes,proto3" json:"interface_modes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=suricontroller.agent.v1.InterfaceMode"`
 	LogPolicy      *LogCollectionPolicy     `protobuf:"bytes,4,opt,name=log_policy,json=logPolicy,proto3" json:"log_policy,omitempty"`
+	EndpointModes  map[string]EndpointMode  `protobuf:"bytes,5,rep,name=endpoint_modes,json=endpointModes,proto3" json:"endpoint_modes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=suricontroller.agent.v1.EndpointMode"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *DesiredState) Reset() {
 	*x = DesiredState{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1496,7 +1696,7 @@ func (x *DesiredState) String() string {
 func (*DesiredState) ProtoMessage() {}
 
 func (x *DesiredState) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[15]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1509,7 +1709,7 @@ func (x *DesiredState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DesiredState.ProtoReflect.Descriptor instead.
 func (*DesiredState) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{15}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DesiredState) GetGeneration() uint64 {
@@ -1540,18 +1740,26 @@ func (x *DesiredState) GetLogPolicy() *LogCollectionPolicy {
 	return nil
 }
 
+func (x *DesiredState) GetEndpointModes() map[string]EndpointMode {
+	if x != nil {
+		return x.EndpointModes
+	}
+	return nil
+}
+
 type AppliedState struct {
 	state          protoimpl.MessageState   `protogen:"open.v1"`
 	Generation     uint64                   `protobuf:"varint,1,opt,name=generation,proto3" json:"generation,omitempty"`
 	Bundle         *BundleRef               `protobuf:"bytes,2,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	InterfaceModes map[string]InterfaceMode `protobuf:"bytes,3,rep,name=interface_modes,json=interfaceModes,proto3" json:"interface_modes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=suricontroller.agent.v1.InterfaceMode"`
+	EndpointModes  map[string]EndpointMode  `protobuf:"bytes,4,rep,name=endpoint_modes,json=endpointModes,proto3" json:"endpoint_modes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=suricontroller.agent.v1.EndpointMode"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AppliedState) Reset() {
 	*x = AppliedState{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1563,7 +1771,7 @@ func (x *AppliedState) String() string {
 func (*AppliedState) ProtoMessage() {}
 
 func (x *AppliedState) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[16]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1576,7 +1784,7 @@ func (x *AppliedState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppliedState.ProtoReflect.Descriptor instead.
 func (*AppliedState) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{16}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AppliedState) GetGeneration() uint64 {
@@ -1600,6 +1808,13 @@ func (x *AppliedState) GetInterfaceModes() map[string]InterfaceMode {
 	return nil
 }
 
+func (x *AppliedState) GetEndpointModes() map[string]EndpointMode {
+	if x != nil {
+		return x.EndpointModes
+	}
+	return nil
+}
+
 type RuleError struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	File          string                 `protobuf:"bytes,1,opt,name=file,proto3" json:"file,omitempty"`
@@ -1612,7 +1827,7 @@ type RuleError struct {
 
 func (x *RuleError) Reset() {
 	*x = RuleError{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[17]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1624,7 +1839,7 @@ func (x *RuleError) String() string {
 func (*RuleError) ProtoMessage() {}
 
 func (x *RuleError) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[17]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1637,7 +1852,7 @@ func (x *RuleError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuleError.ProtoReflect.Descriptor instead.
 func (*RuleError) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{17}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RuleError) GetFile() string {
@@ -1689,7 +1904,7 @@ type ApplyReport struct {
 
 func (x *ApplyReport) Reset() {
 	*x = ApplyReport{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[18]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1701,7 +1916,7 @@ func (x *ApplyReport) String() string {
 func (*ApplyReport) ProtoMessage() {}
 
 func (x *ApplyReport) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[18]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1714,7 +1929,7 @@ func (x *ApplyReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyReport.ProtoReflect.Descriptor instead.
 func (*ApplyReport) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{18}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ApplyReport) GetGeneration() uint64 {
@@ -1801,7 +2016,7 @@ type StatusReport struct {
 
 func (x *StatusReport) Reset() {
 	*x = StatusReport{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[19]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1813,7 +2028,7 @@ func (x *StatusReport) String() string {
 func (*StatusReport) ProtoMessage() {}
 
 func (x *StatusReport) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[19]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1826,7 +2041,7 @@ func (x *StatusReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusReport.ProtoReflect.Descriptor instead.
 func (*StatusReport) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{19}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *StatusReport) GetTimeUnixMs() int64 {
@@ -1873,9 +2088,9 @@ func (x *StatusReport) GetLogSources() []*LogSource {
 
 type InstanceStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// ids | ips
+	// ids | ips | tap
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// af-packet | nfq
+	// af-packet | nfq | plugin
 	Capture       string            `protobuf:"bytes,2,opt,name=capture,proto3" json:"capture,omitempty"`
 	Running       bool              `protobuf:"varint,3,opt,name=running,proto3" json:"running,omitempty"`
 	UptimeSeconds int64             `protobuf:"varint,4,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
@@ -1891,7 +2106,7 @@ type InstanceStatus struct {
 
 func (x *InstanceStatus) Reset() {
 	*x = InstanceStatus{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[20]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1903,7 +2118,7 @@ func (x *InstanceStatus) String() string {
 func (*InstanceStatus) ProtoMessage() {}
 
 func (x *InstanceStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[20]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1916,7 +2131,7 @@ func (x *InstanceStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstanceStatus.ProtoReflect.Descriptor instead.
 func (*InstanceStatus) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{20}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *InstanceStatus) GetName() string {
@@ -2004,7 +2219,7 @@ type LogSource struct {
 
 func (x *LogSource) Reset() {
 	*x = LogSource{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[21]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2016,7 +2231,7 @@ func (x *LogSource) String() string {
 func (*LogSource) ProtoMessage() {}
 
 func (x *LogSource) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[21]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2029,7 +2244,7 @@ func (x *LogSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogSource.ProtoReflect.Descriptor instead.
 func (*LogSource) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{21}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *LogSource) GetType() LogType {
@@ -2074,7 +2289,7 @@ type LogCollectionPolicy struct {
 
 func (x *LogCollectionPolicy) Reset() {
 	*x = LogCollectionPolicy{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[22]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2086,7 +2301,7 @@ func (x *LogCollectionPolicy) String() string {
 func (*LogCollectionPolicy) ProtoMessage() {}
 
 func (x *LogCollectionPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[22]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2099,7 +2314,7 @@ func (x *LogCollectionPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogCollectionPolicy.ProtoReflect.Descriptor instead.
 func (*LogCollectionPolicy) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{22}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *LogCollectionPolicy) GetEnabled() bool {
@@ -2142,7 +2357,7 @@ type LogQueueStats struct {
 
 func (x *LogQueueStats) Reset() {
 	*x = LogQueueStats{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[23]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2154,7 +2369,7 @@ func (x *LogQueueStats) String() string {
 func (*LogQueueStats) ProtoMessage() {}
 
 func (x *LogQueueStats) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[23]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2167,7 +2382,7 @@ func (x *LogQueueStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogQueueStats.ProtoReflect.Descriptor instead.
 func (*LogQueueStats) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{23}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *LogQueueStats) GetBytes() uint64 {
@@ -2214,7 +2429,7 @@ type LogBatch struct {
 
 func (x *LogBatch) Reset() {
 	*x = LogBatch{}
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[24]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2226,7 +2441,7 @@ func (x *LogBatch) String() string {
 func (*LogBatch) ProtoMessage() {}
 
 func (x *LogBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[24]
+	mi := &file_suricontroller_agent_v1_agent_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2239,7 +2454,7 @@ func (x *LogBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogBatch.ProtoReflect.Descriptor instead.
 func (*LogBatch) Descriptor() ([]byte, []int) {
-	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{24}
+	return file_suricontroller_agent_v1_agent_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *LogBatch) GetSeq() uint64 {
@@ -2323,7 +2538,7 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Error\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\x05\n" +
-	"\x03Ack\"\xd1\x03\n" +
+	"\x03Ack\"\x85\x04\n" +
 	"\x05Hello\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12#\n" +
 	"\ragent_version\x18\x02 \x01(\tR\fagentVersion\x12A\n" +
@@ -2335,7 +2550,8 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\aapplied\x18\x06 \x01(\v2%.suricontroller.agent.v1.AppliedStateR\aapplied\x12<\n" +
 	"\bwarnings\x18\a \x03(\v2 .suricontroller.agent.v1.WarningR\bwarnings\x12C\n" +
 	"\vlog_sources\x18\b \x03(\v2\".suricontroller.agent.v1.LogSourceR\n" +
-	"logSources\"\xa0\x01\n" +
+	"logSources\x122\n" +
+	"\x03tap\x18\t \x01(\v2 .suricontroller.agent.v1.TapInfoR\x03tap\"\xa0\x01\n" +
 	"\bHelloAck\x12-\n" +
 	"\x13server_time_unix_ms\x18\x01 \x01(\x03R\x10serverTimeUnixMs\x12-\n" +
 	"\x12controller_version\x18\x02 \x01(\tR\x11controllerVersion\x126\n" +
@@ -2364,12 +2580,22 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\taddresses\x18\x05 \x03(\tR\taddresses\"7\n" +
 	"\aWarning\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x84\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xb1\x01\n" +
+	"\aTapInfo\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1d\n" +
+	"\n" +
+	"socket_dir\x18\x02 \x01(\tR\tsocketDir\x12F\n" +
+	"\tendpoints\x18\x03 \x03(\v2(.suricontroller.agent.v1.TapEndpointInfoR\tendpoints\x12%\n" +
+	"\x0eplugin_present\x18\x04 \x01(\bR\rpluginPresent\"p\n" +
+	"\x0fTapEndpointInfo\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12'\n" +
+	"\x0fprevent_allowed\x18\x02 \x01(\bR\x0epreventAllowed\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"\x84\x01\n" +
 	"\tBundleRef\x12\x1b\n" +
 	"\tbundle_id\x18\x01 \x01(\tR\bbundleId\x12!\n" +
 	"\frules_commit\x18\x02 \x01(\tR\vrulesCommit\x12#\n" +
 	"\rconfig_commit\x18\x03 \x01(\tR\fconfigCommit\x12\x12\n" +
-	"\x04size\x18\x04 \x01(\x04R\x04size\"\x86\x03\n" +
+	"\x04size\x18\x04 \x01(\x04R\x04size\"\xd0\x04\n" +
 	"\fDesiredState\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x01 \x01(\x04R\n" +
@@ -2377,19 +2603,27 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\x06bundle\x18\x02 \x01(\v2\".suricontroller.agent.v1.BundleRefR\x06bundle\x12b\n" +
 	"\x0finterface_modes\x18\x03 \x03(\v29.suricontroller.agent.v1.DesiredState.InterfaceModesEntryR\x0einterfaceModes\x12K\n" +
 	"\n" +
-	"log_policy\x18\x04 \x01(\v2,.suricontroller.agent.v1.LogCollectionPolicyR\tlogPolicy\x1ai\n" +
+	"log_policy\x18\x04 \x01(\v2,.suricontroller.agent.v1.LogCollectionPolicyR\tlogPolicy\x12_\n" +
+	"\x0eendpoint_modes\x18\x05 \x03(\v28.suricontroller.agent.v1.DesiredState.EndpointModesEntryR\rendpointModes\x1ai\n" +
 	"\x13InterfaceModesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\x05value:\x028\x01\"\xb9\x02\n" +
+	"\x05value\x18\x02 \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\x05value:\x028\x01\x1ag\n" +
+	"\x12EndpointModesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12;\n" +
+	"\x05value\x18\x02 \x01(\x0e2%.suricontroller.agent.v1.EndpointModeR\x05value:\x028\x01\"\x83\x04\n" +
 	"\fAppliedState\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x01 \x01(\x04R\n" +
 	"generation\x12:\n" +
 	"\x06bundle\x18\x02 \x01(\v2\".suricontroller.agent.v1.BundleRefR\x06bundle\x12b\n" +
-	"\x0finterface_modes\x18\x03 \x03(\v29.suricontroller.agent.v1.AppliedState.InterfaceModesEntryR\x0einterfaceModes\x1ai\n" +
+	"\x0finterface_modes\x18\x03 \x03(\v29.suricontroller.agent.v1.AppliedState.InterfaceModesEntryR\x0einterfaceModes\x12_\n" +
+	"\x0eendpoint_modes\x18\x04 \x03(\v28.suricontroller.agent.v1.AppliedState.EndpointModesEntryR\rendpointModes\x1ai\n" +
 	"\x13InterfaceModesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\x05value:\x028\x01\"_\n" +
+	"\x05value\x18\x02 \x01(\x0e2&.suricontroller.agent.v1.InterfaceModeR\x05value:\x028\x01\x1ag\n" +
+	"\x12EndpointModesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12;\n" +
+	"\x05value\x18\x02 \x01(\x0e2%.suricontroller.agent.v1.EndpointModeR\x05value:\x028\x01\"_\n" +
 	"\tRuleError\x12\x12\n" +
 	"\x04file\x18\x01 \x01(\tR\x04file\x12\x12\n" +
 	"\x04line\x18\x02 \x01(\rR\x04line\x12\x10\n" +
@@ -2479,7 +2713,12 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\x1aINTERFACE_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12INTERFACE_MODE_OFF\x10\x01\x12\x16\n" +
 	"\x12INTERFACE_MODE_IDS\x10\x02\x12\x16\n" +
-	"\x12INTERFACE_MODE_IPS\x10\x03*\x8c\x02\n" +
+	"\x12INTERFACE_MODE_IPS\x10\x03*y\n" +
+	"\fEndpointMode\x12\x1d\n" +
+	"\x19ENDPOINT_MODE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11ENDPOINT_MODE_OFF\x10\x01\x12\x18\n" +
+	"\x14ENDPOINT_MODE_DETECT\x10\x02\x12\x19\n" +
+	"\x15ENDPOINT_MODE_PREVENT\x10\x03*\x8c\x02\n" +
 	"\n" +
 	"ApplyStage\x12\x1b\n" +
 	"\x17APPLY_STAGE_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -2518,87 +2757,98 @@ func file_suricontroller_agent_v1_agent_proto_rawDescGZIP() []byte {
 	return file_suricontroller_agent_v1_agent_proto_rawDescData
 }
 
-var file_suricontroller_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_suricontroller_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_suricontroller_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_suricontroller_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_suricontroller_agent_v1_agent_proto_goTypes = []any{
 	(RejectReason)(0),           // 0: suricontroller.agent.v1.RejectReason
 	(StreamType)(0),             // 1: suricontroller.agent.v1.StreamType
 	(InterfaceMode)(0),          // 2: suricontroller.agent.v1.InterfaceMode
-	(ApplyStage)(0),             // 3: suricontroller.agent.v1.ApplyStage
-	(ApplyStatus)(0),            // 4: suricontroller.agent.v1.ApplyStatus
-	(LogType)(0),                // 5: suricontroller.agent.v1.LogType
-	(*HandshakeInit)(nil),       // 6: suricontroller.agent.v1.HandshakeInit
-	(*HandshakeResponse)(nil),   // 7: suricontroller.agent.v1.HandshakeResponse
-	(*StreamHeader)(nil),        // 8: suricontroller.agent.v1.StreamHeader
-	(*BlobRequest)(nil),         // 9: suricontroller.agent.v1.BlobRequest
-	(*BlobResponse)(nil),        // 10: suricontroller.agent.v1.BlobResponse
-	(*Envelope)(nil),            // 11: suricontroller.agent.v1.Envelope
-	(*Error)(nil),               // 12: suricontroller.agent.v1.Error
-	(*Ack)(nil),                 // 13: suricontroller.agent.v1.Ack
-	(*Hello)(nil),               // 14: suricontroller.agent.v1.Hello
-	(*HelloAck)(nil),            // 15: suricontroller.agent.v1.HelloAck
-	(*PlatformInfo)(nil),        // 16: suricontroller.agent.v1.PlatformInfo
-	(*EngineInfo)(nil),          // 17: suricontroller.agent.v1.EngineInfo
-	(*InterfaceInfo)(nil),       // 18: suricontroller.agent.v1.InterfaceInfo
-	(*Warning)(nil),             // 19: suricontroller.agent.v1.Warning
-	(*BundleRef)(nil),           // 20: suricontroller.agent.v1.BundleRef
-	(*DesiredState)(nil),        // 21: suricontroller.agent.v1.DesiredState
-	(*AppliedState)(nil),        // 22: suricontroller.agent.v1.AppliedState
-	(*RuleError)(nil),           // 23: suricontroller.agent.v1.RuleError
-	(*ApplyReport)(nil),         // 24: suricontroller.agent.v1.ApplyReport
-	(*StatusReport)(nil),        // 25: suricontroller.agent.v1.StatusReport
-	(*InstanceStatus)(nil),      // 26: suricontroller.agent.v1.InstanceStatus
-	(*LogSource)(nil),           // 27: suricontroller.agent.v1.LogSource
-	(*LogCollectionPolicy)(nil), // 28: suricontroller.agent.v1.LogCollectionPolicy
-	(*LogQueueStats)(nil),       // 29: suricontroller.agent.v1.LogQueueStats
-	(*LogBatch)(nil),            // 30: suricontroller.agent.v1.LogBatch
-	nil,                         // 31: suricontroller.agent.v1.DesiredState.InterfaceModesEntry
-	nil,                         // 32: suricontroller.agent.v1.AppliedState.InterfaceModesEntry
-	nil,                         // 33: suricontroller.agent.v1.InstanceStatus.CountersEntry
+	(EndpointMode)(0),           // 3: suricontroller.agent.v1.EndpointMode
+	(ApplyStage)(0),             // 4: suricontroller.agent.v1.ApplyStage
+	(ApplyStatus)(0),            // 5: suricontroller.agent.v1.ApplyStatus
+	(LogType)(0),                // 6: suricontroller.agent.v1.LogType
+	(*HandshakeInit)(nil),       // 7: suricontroller.agent.v1.HandshakeInit
+	(*HandshakeResponse)(nil),   // 8: suricontroller.agent.v1.HandshakeResponse
+	(*StreamHeader)(nil),        // 9: suricontroller.agent.v1.StreamHeader
+	(*BlobRequest)(nil),         // 10: suricontroller.agent.v1.BlobRequest
+	(*BlobResponse)(nil),        // 11: suricontroller.agent.v1.BlobResponse
+	(*Envelope)(nil),            // 12: suricontroller.agent.v1.Envelope
+	(*Error)(nil),               // 13: suricontroller.agent.v1.Error
+	(*Ack)(nil),                 // 14: suricontroller.agent.v1.Ack
+	(*Hello)(nil),               // 15: suricontroller.agent.v1.Hello
+	(*HelloAck)(nil),            // 16: suricontroller.agent.v1.HelloAck
+	(*PlatformInfo)(nil),        // 17: suricontroller.agent.v1.PlatformInfo
+	(*EngineInfo)(nil),          // 18: suricontroller.agent.v1.EngineInfo
+	(*InterfaceInfo)(nil),       // 19: suricontroller.agent.v1.InterfaceInfo
+	(*Warning)(nil),             // 20: suricontroller.agent.v1.Warning
+	(*TapInfo)(nil),             // 21: suricontroller.agent.v1.TapInfo
+	(*TapEndpointInfo)(nil),     // 22: suricontroller.agent.v1.TapEndpointInfo
+	(*BundleRef)(nil),           // 23: suricontroller.agent.v1.BundleRef
+	(*DesiredState)(nil),        // 24: suricontroller.agent.v1.DesiredState
+	(*AppliedState)(nil),        // 25: suricontroller.agent.v1.AppliedState
+	(*RuleError)(nil),           // 26: suricontroller.agent.v1.RuleError
+	(*ApplyReport)(nil),         // 27: suricontroller.agent.v1.ApplyReport
+	(*StatusReport)(nil),        // 28: suricontroller.agent.v1.StatusReport
+	(*InstanceStatus)(nil),      // 29: suricontroller.agent.v1.InstanceStatus
+	(*LogSource)(nil),           // 30: suricontroller.agent.v1.LogSource
+	(*LogCollectionPolicy)(nil), // 31: suricontroller.agent.v1.LogCollectionPolicy
+	(*LogQueueStats)(nil),       // 32: suricontroller.agent.v1.LogQueueStats
+	(*LogBatch)(nil),            // 33: suricontroller.agent.v1.LogBatch
+	nil,                         // 34: suricontroller.agent.v1.DesiredState.InterfaceModesEntry
+	nil,                         // 35: suricontroller.agent.v1.DesiredState.EndpointModesEntry
+	nil,                         // 36: suricontroller.agent.v1.AppliedState.InterfaceModesEntry
+	nil,                         // 37: suricontroller.agent.v1.AppliedState.EndpointModesEntry
+	nil,                         // 38: suricontroller.agent.v1.InstanceStatus.CountersEntry
 }
 var file_suricontroller_agent_v1_agent_proto_depIdxs = []int32{
 	0,  // 0: suricontroller.agent.v1.HandshakeResponse.reason:type_name -> suricontroller.agent.v1.RejectReason
 	1,  // 1: suricontroller.agent.v1.StreamHeader.type:type_name -> suricontroller.agent.v1.StreamType
-	9,  // 2: suricontroller.agent.v1.StreamHeader.blob:type_name -> suricontroller.agent.v1.BlobRequest
-	14, // 3: suricontroller.agent.v1.Envelope.hello:type_name -> suricontroller.agent.v1.Hello
-	15, // 4: suricontroller.agent.v1.Envelope.hello_ack:type_name -> suricontroller.agent.v1.HelloAck
-	21, // 5: suricontroller.agent.v1.Envelope.desired_state:type_name -> suricontroller.agent.v1.DesiredState
-	24, // 6: suricontroller.agent.v1.Envelope.apply_report:type_name -> suricontroller.agent.v1.ApplyReport
-	25, // 7: suricontroller.agent.v1.Envelope.status:type_name -> suricontroller.agent.v1.StatusReport
-	12, // 8: suricontroller.agent.v1.Envelope.error:type_name -> suricontroller.agent.v1.Error
-	13, // 9: suricontroller.agent.v1.Envelope.ack:type_name -> suricontroller.agent.v1.Ack
-	16, // 10: suricontroller.agent.v1.Hello.platform:type_name -> suricontroller.agent.v1.PlatformInfo
-	17, // 11: suricontroller.agent.v1.Hello.engine:type_name -> suricontroller.agent.v1.EngineInfo
-	18, // 12: suricontroller.agent.v1.Hello.interfaces:type_name -> suricontroller.agent.v1.InterfaceInfo
-	22, // 13: suricontroller.agent.v1.Hello.applied:type_name -> suricontroller.agent.v1.AppliedState
-	19, // 14: suricontroller.agent.v1.Hello.warnings:type_name -> suricontroller.agent.v1.Warning
-	27, // 15: suricontroller.agent.v1.Hello.log_sources:type_name -> suricontroller.agent.v1.LogSource
-	20, // 16: suricontroller.agent.v1.DesiredState.bundle:type_name -> suricontroller.agent.v1.BundleRef
-	31, // 17: suricontroller.agent.v1.DesiredState.interface_modes:type_name -> suricontroller.agent.v1.DesiredState.InterfaceModesEntry
-	28, // 18: suricontroller.agent.v1.DesiredState.log_policy:type_name -> suricontroller.agent.v1.LogCollectionPolicy
-	20, // 19: suricontroller.agent.v1.AppliedState.bundle:type_name -> suricontroller.agent.v1.BundleRef
-	32, // 20: suricontroller.agent.v1.AppliedState.interface_modes:type_name -> suricontroller.agent.v1.AppliedState.InterfaceModesEntry
-	4,  // 21: suricontroller.agent.v1.ApplyReport.status:type_name -> suricontroller.agent.v1.ApplyStatus
-	3,  // 22: suricontroller.agent.v1.ApplyReport.stage:type_name -> suricontroller.agent.v1.ApplyStage
-	23, // 23: suricontroller.agent.v1.ApplyReport.rule_errors:type_name -> suricontroller.agent.v1.RuleError
-	22, // 24: suricontroller.agent.v1.ApplyReport.applied:type_name -> suricontroller.agent.v1.AppliedState
-	19, // 25: suricontroller.agent.v1.ApplyReport.warnings:type_name -> suricontroller.agent.v1.Warning
-	26, // 26: suricontroller.agent.v1.StatusReport.instances:type_name -> suricontroller.agent.v1.InstanceStatus
-	29, // 27: suricontroller.agent.v1.StatusReport.log_queue:type_name -> suricontroller.agent.v1.LogQueueStats
-	19, // 28: suricontroller.agent.v1.StatusReport.warnings:type_name -> suricontroller.agent.v1.Warning
-	18, // 29: suricontroller.agent.v1.StatusReport.interfaces:type_name -> suricontroller.agent.v1.InterfaceInfo
-	27, // 30: suricontroller.agent.v1.StatusReport.log_sources:type_name -> suricontroller.agent.v1.LogSource
-	33, // 31: suricontroller.agent.v1.InstanceStatus.counters:type_name -> suricontroller.agent.v1.InstanceStatus.CountersEntry
-	5,  // 32: suricontroller.agent.v1.LogSource.type:type_name -> suricontroller.agent.v1.LogType
-	5,  // 33: suricontroller.agent.v1.LogCollectionPolicy.types:type_name -> suricontroller.agent.v1.LogType
-	5,  // 34: suricontroller.agent.v1.LogBatch.type:type_name -> suricontroller.agent.v1.LogType
-	2,  // 35: suricontroller.agent.v1.DesiredState.InterfaceModesEntry.value:type_name -> suricontroller.agent.v1.InterfaceMode
-	2,  // 36: suricontroller.agent.v1.AppliedState.InterfaceModesEntry.value:type_name -> suricontroller.agent.v1.InterfaceMode
-	37, // [37:37] is the sub-list for method output_type
-	37, // [37:37] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	10, // 2: suricontroller.agent.v1.StreamHeader.blob:type_name -> suricontroller.agent.v1.BlobRequest
+	15, // 3: suricontroller.agent.v1.Envelope.hello:type_name -> suricontroller.agent.v1.Hello
+	16, // 4: suricontroller.agent.v1.Envelope.hello_ack:type_name -> suricontroller.agent.v1.HelloAck
+	24, // 5: suricontroller.agent.v1.Envelope.desired_state:type_name -> suricontroller.agent.v1.DesiredState
+	27, // 6: suricontroller.agent.v1.Envelope.apply_report:type_name -> suricontroller.agent.v1.ApplyReport
+	28, // 7: suricontroller.agent.v1.Envelope.status:type_name -> suricontroller.agent.v1.StatusReport
+	13, // 8: suricontroller.agent.v1.Envelope.error:type_name -> suricontroller.agent.v1.Error
+	14, // 9: suricontroller.agent.v1.Envelope.ack:type_name -> suricontroller.agent.v1.Ack
+	17, // 10: suricontroller.agent.v1.Hello.platform:type_name -> suricontroller.agent.v1.PlatformInfo
+	18, // 11: suricontroller.agent.v1.Hello.engine:type_name -> suricontroller.agent.v1.EngineInfo
+	19, // 12: suricontroller.agent.v1.Hello.interfaces:type_name -> suricontroller.agent.v1.InterfaceInfo
+	25, // 13: suricontroller.agent.v1.Hello.applied:type_name -> suricontroller.agent.v1.AppliedState
+	20, // 14: suricontroller.agent.v1.Hello.warnings:type_name -> suricontroller.agent.v1.Warning
+	30, // 15: suricontroller.agent.v1.Hello.log_sources:type_name -> suricontroller.agent.v1.LogSource
+	21, // 16: suricontroller.agent.v1.Hello.tap:type_name -> suricontroller.agent.v1.TapInfo
+	22, // 17: suricontroller.agent.v1.TapInfo.endpoints:type_name -> suricontroller.agent.v1.TapEndpointInfo
+	23, // 18: suricontroller.agent.v1.DesiredState.bundle:type_name -> suricontroller.agent.v1.BundleRef
+	34, // 19: suricontroller.agent.v1.DesiredState.interface_modes:type_name -> suricontroller.agent.v1.DesiredState.InterfaceModesEntry
+	31, // 20: suricontroller.agent.v1.DesiredState.log_policy:type_name -> suricontroller.agent.v1.LogCollectionPolicy
+	35, // 21: suricontroller.agent.v1.DesiredState.endpoint_modes:type_name -> suricontroller.agent.v1.DesiredState.EndpointModesEntry
+	23, // 22: suricontroller.agent.v1.AppliedState.bundle:type_name -> suricontroller.agent.v1.BundleRef
+	36, // 23: suricontroller.agent.v1.AppliedState.interface_modes:type_name -> suricontroller.agent.v1.AppliedState.InterfaceModesEntry
+	37, // 24: suricontroller.agent.v1.AppliedState.endpoint_modes:type_name -> suricontroller.agent.v1.AppliedState.EndpointModesEntry
+	5,  // 25: suricontroller.agent.v1.ApplyReport.status:type_name -> suricontroller.agent.v1.ApplyStatus
+	4,  // 26: suricontroller.agent.v1.ApplyReport.stage:type_name -> suricontroller.agent.v1.ApplyStage
+	26, // 27: suricontroller.agent.v1.ApplyReport.rule_errors:type_name -> suricontroller.agent.v1.RuleError
+	25, // 28: suricontroller.agent.v1.ApplyReport.applied:type_name -> suricontroller.agent.v1.AppliedState
+	20, // 29: suricontroller.agent.v1.ApplyReport.warnings:type_name -> suricontroller.agent.v1.Warning
+	29, // 30: suricontroller.agent.v1.StatusReport.instances:type_name -> suricontroller.agent.v1.InstanceStatus
+	32, // 31: suricontroller.agent.v1.StatusReport.log_queue:type_name -> suricontroller.agent.v1.LogQueueStats
+	20, // 32: suricontroller.agent.v1.StatusReport.warnings:type_name -> suricontroller.agent.v1.Warning
+	19, // 33: suricontroller.agent.v1.StatusReport.interfaces:type_name -> suricontroller.agent.v1.InterfaceInfo
+	30, // 34: suricontroller.agent.v1.StatusReport.log_sources:type_name -> suricontroller.agent.v1.LogSource
+	38, // 35: suricontroller.agent.v1.InstanceStatus.counters:type_name -> suricontroller.agent.v1.InstanceStatus.CountersEntry
+	6,  // 36: suricontroller.agent.v1.LogSource.type:type_name -> suricontroller.agent.v1.LogType
+	6,  // 37: suricontroller.agent.v1.LogCollectionPolicy.types:type_name -> suricontroller.agent.v1.LogType
+	6,  // 38: suricontroller.agent.v1.LogBatch.type:type_name -> suricontroller.agent.v1.LogType
+	2,  // 39: suricontroller.agent.v1.DesiredState.InterfaceModesEntry.value:type_name -> suricontroller.agent.v1.InterfaceMode
+	3,  // 40: suricontroller.agent.v1.DesiredState.EndpointModesEntry.value:type_name -> suricontroller.agent.v1.EndpointMode
+	2,  // 41: suricontroller.agent.v1.AppliedState.InterfaceModesEntry.value:type_name -> suricontroller.agent.v1.InterfaceMode
+	3,  // 42: suricontroller.agent.v1.AppliedState.EndpointModesEntry.value:type_name -> suricontroller.agent.v1.EndpointMode
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_suricontroller_agent_v1_agent_proto_init() }
@@ -2620,8 +2870,8 @@ func file_suricontroller_agent_v1_agent_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_suricontroller_agent_v1_agent_proto_rawDesc), len(file_suricontroller_agent_v1_agent_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   28,
+			NumEnums:      7,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
