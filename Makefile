@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/jc-lab/suricontroller/pkg/version.Version=$(VERSION)
 GO      ?= go
 
-.PHONY: all build controller agent web proto test lint integration docker-agent docker-controller clean
+.PHONY: all build controller agent snort2suricata web proto test lint integration docker-agent docker-controller clean
 
 all: build
 
@@ -13,6 +13,9 @@ controller:
 
 agent:
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/suri-node-agent ./cmd/suri-node-agent
+
+snort2suricata:
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/snort2suricata ./cmd/snort2suricata
 
 # Builds the web UI into web/dist (embedded by the next controller build).
 web:

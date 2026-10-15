@@ -10,6 +10,7 @@ import {
   Modal,
   NavLink,
   NumberInput,
+  PasswordInput,
   Select,
   Stack,
   Switch,
@@ -50,6 +51,29 @@ function splitInterval(seconds: number): { value: number; unit: string } {
   return { value: Math.round(seconds / 60), unit: "60" };
 }
 
+// Masked value the API returns for secret options (rules.MaskedSecret).
+const MASKED_SECRET = "********";
+
+const SNORT_RULESETS = [
+  { value: "auto", label: "Auto: subscription of the oinkcode, community without one" },
+  { value: "registered", label: "snortrules-snapshot (Registered / Subscriber)" },
+  { value: "lightspd", label: "Talos LightSPD package" },
+  { value: "community", label: "Community (no oinkcode)" },
+];
+
+const SNORT_POLICIES = [
+  { value: "connectivity", label: "Connectivity over security" },
+  { value: "balanced", label: "Balanced (Talos default)" },
+  { value: "security", label: "Security over connectivity" },
+  { value: "max-detect", label: "Maximum detection" },
+  { value: "all", label: "All rules" },
+];
+
+const SNORT_APPROX = [
+  { value: "include", label: "Include (marked with a comment)" },
+  { value: "exclude", label: "Exclude (listed in the report)" },
+];
+
 function ProviderEditModal({ provider, onClose }: { provider: Provider | null; onClose: () => void }) {
   return (
     <Modal opened={!!provider} onClose={onClose} title={provider ? `Provider ${provider.name}` : ""}>
@@ -65,6 +89,17 @@ function ProviderEditForm({ provider, onClose }: { provider: Provider; onClose: 
   const [unit, setUnit] = useState(init.unit);
   const [version, setVersion] = useState(provider.options["suricata_version"] ?? "");
   const [url, setUrl] = useState(provider.options["url"] ?? "");
+  const snort = provider.type === "snort";
+  const hasOinkcode = provider.options["oinkcode"] === MASKED_SECRET;
+  // Empty keeps the stored oinkcode; clearOinkcode removes it.
+  const [oinkcode, setOinkcode] = useState("");
+  const [clearOinkcode, setClearOinkcode] = useState(false);
+  const [ruleset, setRuleset] = useState(provider.options["ruleset"] || "auto");
+  const [policy, setPolicy] = useState(provider.options["policy"] || "balanced");
+  const [snortVersion, setSnortVersion] = useState(provider.options["snort_version"] ?? "");
+  const [approx, setApprox] = useState(provider.options["approx"] || "include");
+  const oinkcodeError =
+    oinkcode !== "" && !/^[0-9a-fA-F]{40}$/.test(oinkcode.trim()) ? "40 hexadecimal characters" : undefined;
   const seconds = Math.round(interval * Number(unit));
   const save = useMutation({
     mutationFn: () => {
@@ -72,7 +107,19 @@ function ProviderEditForm({ provider, onClose }: { provider: Provider; onClose: 
       if (provider.type === "et-open") {
         if (version.trim() !== (provider.options["suricata_version"] ?? "")) options["suricata_version"] = version.trim();
       }
-      if (provider.fetches && url.trim() !== (provider.options["url"] ?? "")) options["url"] = url.trim();
+      if (snort) {
+        if (clearOinkcode) options["oinkcode"] = "";
+        else if (oinkcode.trim() !== "") options["oinkcode"] = oinkcode.trim();
+        const changed = (k: string, v: string, def: string) => {
+          if (v !== (provider.options[k] || def)) options[k] = v;
+        };
+        changed("ruleset", ruleset, "auto");
+        changed("policy", policy, "balanced");
+        changed("approx", approx, "include");
+        if (snortVersion.trim() !== (provider.options["snort_version"] ?? "")) options["snort_version"] = snortVersion.trim();
+      } else if (provider.fetches && url.trim() !== (provider.options["url"] ?? "")) {
+        options["url"] = url.trim();
+      }
       return api.rules.updateProvider({
         name: provider.name,
         intervalSeconds: provider.fetches ? seconds : undefined,
@@ -119,7 +166,58 @@ function ProviderEditForm({ provider, onClose }: { provider: Provider; onClose: 
             onChange={(e) => setVersion(e.currentTarget.value)}
           />
         )}
-        {provider.fetches && (
+        {snort && (
+          <>
+            <PasswordInput
+              label="Oinkcode"
+              description="From your snort.org account. snort.org serves what your subscription allows: current rules for Snort Subscriber Rule Set subscribers, rules 30 days old for registered users."
+              placeholder={hasOinkcode ? "Stored (leave empty to keep it)" : "40 hexadecimal characters"}
+              value={oinkcode}
+              disabled={clearOinkcode}
+              onChange={(e) => setOinkcode(e.currentTarget.value)}
+              error={oinkcodeError}
+              autoComplete="off"
+            />
+            {hasOinkcode && (
+              <Switch
+                label="Remove the stored oinkcode"
+                checked={clearOinkcode}
+                onChange={(e) => setClearOinkcode(e.currentTarget.checked)}
+              />
+            )}
+            <Select
+              label="Ruleset"
+              data={SNORT_RULESETS}
+              value={ruleset}
+              onChange={(v) => setRuleset(v ?? "auto")}
+              allowDeselect={false}
+            />
+            <Select
+              label="IPS policy"
+              description="Talos policy whose rules are enabled; the others are written commented out (enable.conf can turn them on). Not used for the community ruleset."
+              data={SNORT_POLICIES}
+              value={policy}
+              onChange={(v) => setPolicy(v ?? "balanced")}
+              allowDeselect={false}
+            />
+            <Select
+              label="Approximate conversions"
+              description="Rules converted with a documented change in meaning (docs/snort2suricata.md)."
+              data={SNORT_APPROX}
+              value={approx}
+              onChange={(v) => setApprox(v ?? "include")}
+              allowDeselect={false}
+            />
+            <TextInput
+              label="Snort version"
+              description="Selects snortrules-snapshot-<version>; every Snort 3 snapshot has the same text rules, 2.x selects the Snort 2 rules. Empty uses the controller default."
+              placeholder="e.g. 3.9.0.0"
+              value={snortVersion}
+              onChange={(e) => setSnortVersion(e.currentTarget.value)}
+            />
+          </>
+        )}
+        {provider.fetches && !snort && (
           <TextInput
             label="Download URL"
             description={
@@ -137,7 +235,7 @@ function ProviderEditForm({ provider, onClose }: { provider: Provider; onClose: 
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" loading={save.isPending} disabled={provider.fetches && seconds < 600}>
+          <Button type="submit" loading={save.isPending} disabled={(provider.fetches && seconds < 600) || !!oinkcodeError}>
             Save
           </Button>
         </Group>
