@@ -334,3 +334,26 @@ func TestTransientFailureIsRetried(t *testing.T) {
 		t.Fatal("validation failure scheduled for retry")
 	}
 }
+
+// Without kernel NFQUEUE support (e.g. OpenWrt without kmod-nft-queue) an
+// IPS request fails in the POLICY stage with what to install, before the
+// firewall is touched; IDS still applies.
+func TestIPSWithoutQueueSupport(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t, t.TempDir())
+	e.rec.d.QueueSupport = func(context.Context) error {
+		return errors.New("the kernel lacks NFQUEUE support (opkg install kmod-nft-queue kmod-nfnetlink-queue)")
+	}
+	rep := e.rec.apply(ctx, &agentv1.DesiredState{Generation: 1, InterfaceModes: modes("eth0", "IPS")})
+	if rep.Status != agentv1.ApplyStatus_APPLY_STATUS_FAILED || rep.Stage != agentv1.ApplyStage_APPLY_STAGE_POLICY ||
+		!strings.Contains(rep.Message, "kmod-nft-queue") {
+		t.Fatalf("IPS: %v %v %s", rep.Status, rep.Stage, rep.Message)
+	}
+	if len(e.fw.plan.Interfaces) != 0 {
+		t.Fatalf("firewall touched: %+v", e.fw.plan)
+	}
+	rep = e.rec.apply(ctx, &agentv1.DesiredState{Generation: 2, InterfaceModes: modes("eth0", "IDS")})
+	if rep.Status != agentv1.ApplyStatus_APPLY_STATUS_SUCCEEDED {
+		t.Fatalf("IDS: %v %s", rep.Status, rep.Message)
+	}
+}

@@ -65,6 +65,9 @@ type Deps struct {
 	OnInstances func([]Instance)
 	// OnLogPolicy is called when the log collection policy changes.
 	OnLogPolicy func(*agentv1.LogCollectionPolicy)
+	// QueueSupport reports a kernel that cannot steer traffic to NFQUEUE
+	// (nil: supported or unknown).
+	QueueSupport func(context.Context) error
 }
 
 // Reconciler applies desired states, one at a time.
@@ -547,6 +550,11 @@ func (r *Reconciler) apply(ctx context.Context, ds *agentv1.DesiredState) *agent
 			}
 			if !r.d.EngineInfo.NFQ {
 				return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_FAILED, agentv1.ApplyStage_APPLY_STAGE_POLICY, "suricata was built without NFQ support")
+			}
+			if r.d.QueueSupport != nil {
+				if err := r.d.QueueSupport(ctx); err != nil {
+					return rp.finish(agentv1.ApplyStatus_APPLY_STATUS_FAILED, agentv1.ApplyStage_APPLY_STAGE_POLICY, "IPS is unavailable on "+name+": "+err.Error())
+				}
 			}
 		case agentv1.InterfaceMode_INTERFACE_MODE_IDS:
 			if !r.d.EngineInfo.AFPacket {

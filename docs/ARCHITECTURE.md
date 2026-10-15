@@ -799,6 +799,7 @@ logs:
   - `nft -f`는 트랜잭션이라 원자적으로 적용됩니다.
   - iptables backend는 `SURICONTROLLER` 체인에 `-j NFQUEUE --queue-balance 0:1 --queue-bypass`를 넣습니다.
 - **OpenWRT 주의사항**: software/hardware flow offloading이 켜져 있으면 established flow가 netfilter와 CPU를 우회하므로 IDS/IPS가 사실상 무력화됩니다. agent가 이를 감지해 경고로 보고합니다(자동으로 끄지는 않음).
+- **NFQUEUE 커널 지원**: IPS에는 nftables `queue`(nft_queue, iptables는 xt_NFQUEUE)와 nfnetlink_queue가 필요합니다. OpenWrt 기본 이미지에는 없습니다(`kmod-nft-queue kmod-nfnetlink-queue`). agent는 `nft -c`(커널까지 확인하되 적용하지 않음)로 미리 확인해 5분간 캐시합니다. 지원하지 않으면 경고 `nfqueue_unsupported`를 보내고, 인터페이스를 `ips_allowed=false`로 보고하며, IPS 요청은 POLICY 단계에서 거부합니다.
 - **Endpoint PC/서버**: forward보다 input/output hook이 중심입니다. Docker 호스트라면 DOCKER 체인과 공존하도록 priority를 확인해야 합니다.
 
 ### 6.6 적용 파이프라인

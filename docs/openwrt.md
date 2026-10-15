@@ -21,6 +21,23 @@ opkg install dockerd docker docker-compose luci-app-dockerman   # luci-app-docke
 
 docker data-root는 외부 저장 장치에 두는 것을 권장합니다(`/etc/config/dockerd`의 `data_root`).
 
+### IPS를 쓰려면: NFQUEUE 커널 모듈
+
+IPS는 트래픽을 NFQUEUE로 Suricata에 넘깁니다. OpenWrt 기본 이미지에는 이 커널 모듈이 없으므로 설치해야 합니다. IDS(af-packet)만 쓴다면 필요 없습니다.
+
+```sh
+opkg update
+opkg install kmod-nft-queue kmod-nfnetlink-queue      # fw4(nftables)
+# iptables(legacy)를 쓰는 구성이면: opkg install kmod-ipt-nfqueue iptables-mod-nfqueue kmod-nfnetlink-queue
+```
+
+- 모듈이 없을 때 nft는 엉뚱한 메시지를 냅니다: `Error: No such file or directory; did you mean table 'fw4' in family inet?`
+- 에이전트는 시작할 때 `nft -c`로 queue 지원 여부를 미리 확인합니다(커널까지 확인하지만 아무것도 적용하지 않음). 지원하지 않으면 다음과 같이 동작합니다.
+  - 경고 `nfqueue_unsupported`에 설치할 패키지를 적어 보고합니다.
+  - 인터페이스를 IPS 불가로 보고하므로, controller UI에서 IPS를 고를 수 없습니다.
+  - IPS 요청은 방화벽을 건드리기 전에 POLICY 단계에서 거부합니다.
+- 모듈을 설치하면 5분 안에 다시 확인해 IPS를 허용합니다. 바로 반영하려면 에이전트를 재시작합니다.
+
 ## 2. 에이전트 설정
 
 ```sh

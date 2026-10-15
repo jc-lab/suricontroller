@@ -2,6 +2,7 @@ package firewall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -109,4 +110,51 @@ func ExampleNftables_Script() {
 	// 		oifname { "br-lan" } queue num 0-1 bypass,fanout
 	// 	}
 	// }
+}
+
+type errExec struct {
+	recordExec
+	err map[string]string // call prefix -> error text
+}
+
+func (e *errExec) Run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error) {
+	_, _ = e.recordExec.Run(ctx, name, args, stdin)
+	call := name + " " + strings.Join(args, " ")
+	for prefix, msg := range e.err {
+		if strings.HasPrefix(call, prefix) {
+			return nil, fmt.Errorf("%s: exit status 1: %s", call, msg)
+		}
+	}
+	return nil, nil
+}
+
+// A kernel without nft_queue: the probe (nft -c) and Apply name the
+// missing modules instead of nft's misleading "did you mean table fw4".
+func TestQueueUnsupported(t *testing.T) {
+	enoent := "/dev/stdin:3:12-25: Error: No such file or directory; did you mean table 'fw4' in family inet?"
+	ex := &errExec{err: map[string]string{"nft -c": enoent, "nft -f": enoent}}
+	n := &Nftables{Exec: ex}
+	err := n.ProbeQueue(context.Background())
+	if !errors.Is(err, ErrQueueUnsupported) || !strings.Contains(err.Error(), "kmod-nft-queue") {
+		t.Fatalf("probe: %v", err)
+	}
+	err = n.Apply(context.Background(), Plan{Interfaces: []string{"br-lan"}})
+	if !errors.Is(err, ErrQueueUnsupported) {
+		t.Fatalf("apply: %v", err)
+	}
+	if err := n.Apply(context.Background(), Plan{}); errors.Is(err, ErrQueueUnsupported) {
+		t.Fatalf("removing the table is not a queue problem: %v", err)
+	}
+	ok := &Nftables{Exec: &recordExec{}}
+	if err := ok.ProbeQueue(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if c := ok.Exec.(*recordExec).calls; len(c) != 1 || c[0] != "nft -c -f -" {
+		t.Fatalf("probe must only check: %v", c)
+	}
+
+	ipt := &Iptables{Exec: &errExec{err: map[string]string{"iptables -w -A": "iptables: No chain/target/match by that name."}}}
+	if err := ipt.ProbeQueue(context.Background()); !errors.Is(err, ErrQueueUnsupported) || !strings.Contains(err.Error(), "kmod-ipt-nfqueue") {
+		t.Fatalf("iptables probe: %v", err)
+	}
 }
