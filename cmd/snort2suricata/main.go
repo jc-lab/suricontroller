@@ -3,7 +3,7 @@
 //
 //	snort2suricata [-dialect auto|snort2|snort3] [-o out.rules]
 //	    [-rejected rejected.rules] [-report report.json] [-exact-only]
-//	    [-enable-all] [file...]
+//	    [-enable-all] [-version] [file...]
 //
 // Rules that cannot be converted are left out of the output (and written to
 // -rejected with the reasons). Rules converted with a documented change in
@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/jc-lab/suricontroller/pkg/snortconv"
+	"github.com/jc-lab/suricontroller/pkg/version"
 )
 
 type ruleReport struct {
@@ -63,7 +64,16 @@ func run() error {
 	exactOnly := flag.Bool("exact-only", false, "reject rules that only convert approximately")
 	enableAll := flag.Bool("enable-all", false, "enable rules that are commented out in the input")
 	quiet := flag.Bool("q", false, "do not print the summary")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: snort2suricata [flags] [file...]\n\nConverts Snort 2.9 / Snort 3 rules to Suricata 8 rules (stdin when no file is given).\n\nFlags:\n")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("snort2suricata", version.Version)
+		return nil
+	}
 
 	d, err := snortconv.ParseDialect(*dialect)
 	if err != nil {

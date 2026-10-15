@@ -2,6 +2,8 @@
 
 Snort 2.9 / Snort 3 룰을 Suricata 8 룰로 변환합니다. 변환 로직은 `pkg/snortconv` 패키지에 있고, `cmd/snort2suricata`는 이를 감싼 CLI입니다.
 
+GitHub Releases에 linux/macOS(amd64, arm64)용 `snort2suricata_<버전>_<os>_<arch>.tar.gz`와 Windows용 `.zip`이 올라갑니다. 소스에서 빌드하려면 `make snort2suricata`를 실행합니다.
+
 ```sh
 go build -o bin/snort2suricata ./cmd/snort2suricata
 
@@ -21,6 +23,7 @@ bin/snort2suricata -o community.rules community.rules
 | `-report` | JSON 리포트(룰별 상태와 이슈) |
 | `-exact-only` | 근사(approx) 변환 룰도 거부합니다. |
 | `-enable-all` | 주석 처리된 룰을 활성화해서 변환합니다. |
+| `-version` | 버전을 출력합니다. |
 
 룰마다 결과는 셋 중 하나입니다.
 

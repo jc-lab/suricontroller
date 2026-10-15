@@ -110,7 +110,7 @@ make integration   # Docker + 실제 Suricata E2E (IDS 경보, IPS 차단, 검�
 | `deploy/` | Dockerfile, docker-compose |
 | `test/` | 통합 테스트 |
 
-Snort 2/3 룰을 Suricata 룰로 바꾸는 `snort2suricata`(`cmd/snort2suricata`)는 [docs/snort2suricata.md](docs/snort2suricata.md)를 참고하세요.
+Snort 2/3 룰을 Suricata 룰로 바꾸는 독립 CLI `snort2suricata`(`cmd/snort2suricata`)는 릴리스에 linux/macOS/Windows용 바이너리로 올라갑니다. 사용법은 [docs/snort2suricata.md](docs/snort2suricata.md)를 참고하세요.
 
 ## 라이선스
 
