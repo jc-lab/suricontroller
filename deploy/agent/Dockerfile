@@ -14,7 +14,10 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOARM=${TARGETVARIANT#v} \
     -o /out/suri-node-agent ./cmd/suri-node-agent
 
 FROM alpine:3.24
-RUN apk add --no-cache suricata tini nftables iptables ip6tables ca-certificates tzdata \
+# Exact apk version to install (e.g. 8.0.7-r0); empty installs the repo's current
+# one. CI pins it so the image tag and the layer cache follow the Suricata release.
+ARG SURICATA_VERSION=
+RUN apk add --no-cache suricata${SURICATA_VERSION:+=$SURICATA_VERSION} tini nftables iptables ip6tables ca-certificates tzdata \
  && suricata -V \
  && mkdir -p /usr/share/suri-agent/suricata /etc/suri-agent /var/lib/suri-agent /var/log/suricata \
  && cp -a /etc/suricata/. /usr/share/suri-agent/suricata/ \

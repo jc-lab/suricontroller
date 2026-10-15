@@ -5,6 +5,14 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  # Rebuild the agent image for the selected branch/tag when Alpine ships a new
+  # Suricata; it is a no-op if an image for that commit + Suricata already exists.
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild even if the image for the current Suricata version already exists
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -51,18 +59,70 @@ jobs:
       - run: sudo modprobe nfnetlink_queue nft_queue || true
       - run: make integration
 
+  # Resolves the Suricata version the agent image will ship (it comes from the
+  # Alpine repo, so it can change without a commit) and decides what to build.
+  resolve:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      suricata: ${{ steps.suricata.outputs.version }}
+      suricata-tag: ${{ steps.suricata.outputs.tag }}
+      images: ${{ steps.plan.outputs.images }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve Suricata version
+        id: suricata
+        run: |
+          base=$(sed -nE 's/^FROM (alpine:[^ ]+).*/\1/p' deploy/agent/Dockerfile | tail -n1)
+          pkg=$(docker run --rm "$base" sh -c 'apk update -q >/dev/null && apk search -x suricata')
+          version=${pkg#suricata-}
+          if [[ ! $version =~ ^[0-9][^[:space:]]*-r[0-9]+$ ]]; then
+            echo "::error::unexpected apk output from $base: $pkg"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=${version%-r*}" >> "$GITHUB_OUTPUT"
+          echo "Suricata in \`$base\`: \`$version\`" >> "$GITHUB_STEP_SUMMARY"
+      - if: github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Plan
+        id: plan
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/suri-node-agent
+          SURICATA_TAG: ${{ steps.suricata.outputs.tag }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          images='["suri-node-agent","suri-controller"]'
+          if [[ $GITHUB_EVENT_NAME == workflow_dispatch ]]; then
+            # Same tag images-merge produces via metadata-action's type=sha.
+            ref="$IMAGE:sha-${GITHUB_SHA::7}-suricata$SURICATA_TAG"
+            if [[ $FORCE != true ]] && docker buildx imagetools inspect "$ref" >/dev/null 2>&1; then
+              echo "\`$ref\` already exists; nothing to build." >> "$GITHUB_STEP_SUMMARY"
+              images='[]'
+            else
+              images='["suri-node-agent"]'
+            fi
+          fi
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+
   # Each platform is built natively on its own runner (amd64 / arm64) and pushed
   # by digest; images-merge then stitches the digests into one multi-arch tag.
   images:
-    needs: [go, web]
+    needs: [resolve, go, web]
+    if: needs.resolve.outputs.images != '[]'
     strategy:
       fail-fast: false
       matrix:
+        image: ${{ fromJSON(needs.resolve.outputs.images) }}
+        platform: [linux/amd64, linux/arm64]
         include:
-          - { image: suri-node-agent, dockerfile: deploy/agent/Dockerfile, platform: linux/amd64, runner: ubuntu-24.04 }
-          - { image: suri-node-agent, dockerfile: deploy/agent/Dockerfile, platform: linux/arm64, runner: ubuntu-24.04-arm }
-          - { image: suri-controller, dockerfile: deploy/controller/Dockerfile, platform: linux/amd64, runner: ubuntu-24.04 }
-          - { image: suri-controller, dockerfile: deploy/controller/Dockerfile, platform: linux/arm64, runner: ubuntu-24.04-arm }
+          - { platform: linux/amd64, runner: ubuntu-24.04 }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -95,9 +155,11 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: deploy/${{ matrix.image == 'suri-node-agent' && 'agent' || 'controller' }}/Dockerfile
           platforms: ${{ matrix.platform }}
-          build-args: VERSION=${{ steps.prep.outputs.version }}
+          build-args: |
+            VERSION=${{ steps.prep.outputs.version }}
+            ${{ matrix.image == 'suri-node-agent' && format('SURICATA_VERSION={0}', needs.resolve.outputs.suricata) || '' }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ env.PUSH }}
           cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.prep.outputs.pair }}
@@ -117,18 +179,19 @@ jobs:
           retention-days: 1
 
   images-merge:
-    if: github.event_name != 'pull_request'
-    needs: [images]
+    if: github.event_name != 'pull_request' && needs.resolve.outputs.images != '[]'
+    needs: [resolve, images]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        image: [suri-node-agent, suri-controller]
+        image: ${{ fromJSON(needs.resolve.outputs.images) }}
     permissions:
       contents: read
       packages: write
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+      SURICATA_SUFFIX: ${{ matrix.image == 'suri-node-agent' && format('-suricata{0}', needs.resolve.outputs.suricata-tag) || '' }}
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -148,12 +211,18 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           flavor: latest=false
+          # The agent also gets immutable "-suricata<version>" variants; the plain
+          # tags follow the most recent build.
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
+            type=ref,event=branch,suffix=${{ env.SURICATA_SUFFIX }},enable=${{ env.SURICATA_SUFFIX != '' }}
+            type=semver,pattern={{version}},suffix=${{ env.SURICATA_SUFFIX }},enable=${{ env.SURICATA_SUFFIX != '' }}
+            type=semver,pattern={{major}}.{{minor}},suffix=${{ env.SURICATA_SUFFIX }},enable=${{ env.SURICATA_SUFFIX != '' }}
+            type=sha,suffix=${{ env.SURICATA_SUFFIX }},enable=${{ env.SURICATA_SUFFIX != '' }}
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
