@@ -31,7 +31,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
-	github.com/jc-lab/suricontroller/adapters/traefik-plugin v0.0.0-00010101000000-000000000000
+	github.com/jc-lab/suritap-traefik v0.0.0-00010101000000-000000000000
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
@@ -47,4 +47,4 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-replace github.com/jc-lab/suricontroller/adapters/traefik-plugin => ./adapters/traefik-plugin
+replace github.com/jc-lab/suritap-traefik => ./adapters/traefik-plugin

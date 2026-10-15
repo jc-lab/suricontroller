@@ -1,0 +1,3 @@
+[submodule "adapters/traefik-plugin"]
+	path = adapters/traefik-plugin
+	url = https://github.com/jc-lab/suritap-traefik.git

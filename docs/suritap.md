@@ -9,7 +9,7 @@ TLS를 종단하는 프록시(Traefik, Kong 등)가 복호화한 평문을 Suric
 | `tap/suritap` | Rust | 프로토콜·공유메모리 링·패킷 합성 엔진·서버 워커·**Rust 클라이언트**(libsuritap 역할), `suritap-mockd` | MPL-2.0 |
 | `tap/suritap-plugin` | Rust (+ 얇은 C glue) | Suricata 8 capture plugin `suritap.so` | GPL-2.0-only |
 | `pkg/suritap` | Go | **Go 클라이언트**(libsuritap 역할) | MPL-2.0 |
-| `adapters/traefik-plugin` | Go (표준 라이브러리만) | **Traefik 플러그인**(Yaegi, 소켓 전송). 공식 Traefik 바이너리에 그대로 로드된다. HTTP 검사 로직은 패치 방식과 공유한다 | MPL-2.0 |
+| `adapters/traefik-plugin` | Go (표준 라이브러리만) | **Traefik 플러그인**(Yaegi, 소켓 전송). 공식 Traefik 바이너리에 그대로 로드된다. HTTP 검사 로직은 패치 방식과 공유한다. 별도 저장소 [jc-lab/suritap-traefik](https://github.com/jc-lab/suritap-traefik)(모듈 `github.com/jc-lab/suritap-traefik`)의 submodule이다 | MPL-2.0 |
 | `adapters/traefik` | Go | 패치 방식 Traefik 어댑터(`suritaptraefik`). 플러그인의 HTTP 로직을 공유메모리 클라이언트로 쓰고, TLS 종단 TCP 라우터용 래퍼를 더한다 | MPL-2.0 |
 | `deploy/traefik` | patch / sh | 패치 방식용 Traefik v3.7.14 연결 패치와 빌드 스크립트 | — |
 | `adapters/kong` | Lua (OpenResty) | **Kong 플러그인** `suritap`과 짝 플러그인 `suritap-response`, 순수 Lua 소켓 전송 클라이언트 | MPL-2.0 |
@@ -311,14 +311,14 @@ HTTP 처리 로직(요청 정규화, 바디·응답 처리, 차단 응답)은 �
 
 ### 8.2 플러그인 설정
 
-플러그인은 표준 라이브러리만 쓰므로 `unsafe`/`syscall` 허용(`useUnsafe`)이 필요 없다. 로컬 플러그인으로 쓸 때는 소스를 Traefik 작업 디렉터리의 `plugins-local/src/github.com/jc-lab/suricontroller/adapters/traefik-plugin/`에 둔다(`go.mod`, `.traefik.yml`, `*.go`).
+플러그인은 표준 라이브러리만 쓰므로 `unsafe`/`syscall` 허용(`useUnsafe`)이 필요 없다. 로컬 플러그인으로 쓸 때는 소스를 Traefik 작업 디렉터리의 `plugins-local/src/github.com/jc-lab/suritap-traefik/`에 둔다(`go.mod`, `.traefik.yml`, `*.go`).
 
 ```yaml
 # static
 experimental:
   localPlugins:
     suritap:
-      moduleName: github.com/jc-lab/suricontroller/adapters/traefik-plugin
+      moduleName: github.com/jc-lab/suritap-traefik
 
 # dynamic
 http:

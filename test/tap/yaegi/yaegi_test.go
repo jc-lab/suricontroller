@@ -24,7 +24,7 @@ import (
 	"github.com/traefik/yaegi/stdlib"
 )
 
-const module = "github.com/jc-lab/suricontroller/adapters/traefik-plugin"
+const module = "github.com/jc-lab/suritap-traefik"
 
 func repoRoot() string {
 	_, file, _, _ := runtime.Caller(0)

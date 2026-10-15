@@ -8,7 +8,8 @@ import (
 	"net/http"
 	"net/netip"
 
-	plugin "github.com/jc-lab/suricontroller/adapters/traefik-plugin"
+	plugin "github.com/jc-lab/suritap-traefik"
+
 	"github.com/jc-lab/suricontroller/pkg/suritap"
 )
 

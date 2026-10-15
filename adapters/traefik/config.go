@@ -19,7 +19,7 @@ import (
 	"context"
 	"net"
 
-	plugin "github.com/jc-lab/suricontroller/adapters/traefik-plugin"
+	plugin "github.com/jc-lab/suritap-traefik"
 )
 
 // Config is the entry point configuration (Traefik static configuration
