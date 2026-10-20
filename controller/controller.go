@@ -77,8 +77,11 @@ type Options struct {
 	// TrustProxyHeaders trusts X-Forwarded-For / CF-Connecting-IP for the
 	// client address (login rate limiting, logs).
 	TrustProxyHeaders bool
-	Logger            *slog.Logger
-	Hooks             Hooks
+	// SessionRecheckInterval is how often connected nodes are looked up
+	// again (see agentgw.Config). Zero uses the default (60s).
+	SessionRecheckInterval time.Duration
+	Logger                 *slog.Logger
+	Hooks                  Hooks
 }
 
 // Controller is a running suri-controller instance.
@@ -177,6 +180,8 @@ func New(opts Options) (*Controller, error) {
 		Logger:            opts.Logger,
 		ControllerVersion: version.Version,
 		TrustProxyHeaders: opts.TrustProxyHeaders,
+
+		SessionRecheckInterval: opts.SessionRecheckInterval,
 	})
 	if c.logs, err = logs.New(ctx, logs.Config{
 		Store: c.store, Sink: opts.LogSink, Dir: filepath.Join(opts.DataDir, "logs"), Logger: opts.Logger,
