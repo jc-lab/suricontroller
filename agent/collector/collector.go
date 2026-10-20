@@ -4,6 +4,10 @@
 // read them too); the collector only tails them, tracking inode and offset
 // across restarts and rotations. Records go through a byte-bounded memory
 // queue that drops the oldest records when full.
+//
+// File positions are saved only up to lines that were delivered (Commit),
+// so after a restart the collector reads again every line that was queued
+// or in flight but not acknowledged.
 package collector
 
 import (
@@ -48,7 +52,31 @@ type Config struct {
 type record struct {
 	typ      agentv1.LogType
 	instance string
-	line     []byte
+	Record
+}
+
+// Record is one collected log line.
+type Record struct {
+	Line []byte
+	// Path, Inode and Offset locate a line read from a file; Path is empty
+	// for engine process output and the agent's own log. Offset is the
+	// position of the line's first byte, so the triple identifies the line
+	// across agent restarts.
+	Path   string
+	Inode  uint64
+	Offset int64
+	// end is the position after the line's newline.
+	end int64
+}
+
+// Batch is a group of records of one log type and instance.
+type Batch struct {
+	Type     agentv1.LogType
+	Instance string
+	Records  []Record
+	// Dropped is the number of records the queue dropped since the
+	// previous batch.
+	Dropped uint64
 }
 
 // Collector tails logs and ships them.
@@ -66,9 +94,14 @@ type Collector struct {
 	sources   []Source
 	tailers   map[string]*tailer
 	engineLog map[string]bool // instances whose engine log comes from process output
-	offsets   map[string]offset
-	sent      uint64
-	lastDrop  uint64
+	// offsets are the positions persisted in OffsetsFile.
+	offsets map[string]offset
+	// committed is the end of the last delivered line of each file and
+	// outstanding the number of its lines queued or in flight.
+	committed   map[string]offset
+	outstanding map[string]int
+	sent        uint64
+	lastDrop    uint64
 }
 
 type offset struct {
@@ -85,13 +118,25 @@ func New(cfg Config) *Collector {
 		cfg.QueueMaxBytes = 16 << 20
 	}
 	c := &Collector{
-		cfg:       cfg,
-		log:       cfg.Logger.With("component", "collector"),
-		queue:     ringqueue.New(cfg.QueueMaxBytes, func(r record) int { return len(r.line) + 32 }),
-		tailers:   map[string]*tailer{},
-		engineLog: map[string]bool{},
-		offsets:   map[string]offset{},
+		cfg:         cfg,
+		log:         cfg.Logger.With("component", "collector"),
+		queue:       ringqueue.New(cfg.QueueMaxBytes, func(r record) int { return len(r.Line) + 32 }),
+		tailers:     map[string]*tailer{},
+		engineLog:   map[string]bool{},
+		offsets:     map[string]offset{},
+		committed:   map[string]offset{},
+		outstanding: map[string]int{},
 	}
+	// A dropped line is given up: it no longer holds back the saved
+	// position of its file. (It runs with the queue locked; c.mu is never
+	// held while pushing.)
+	c.queue.SetOnDrop(func(r record) {
+		if r.Path != "" {
+			c.mu.Lock()
+			c.outstanding[r.Path]--
+			c.mu.Unlock()
+		}
+	})
 	if b, err := os.ReadFile(cfg.OffsetsFile); err == nil {
 		_ = json.Unmarshal(b, &c.offsets)
 	}
@@ -201,11 +246,16 @@ func eventType(line []byte) string {
 	return string(rest[1 : 1+end])
 }
 
-func (c *Collector) push(t agentv1.LogType, instance string, line []byte) {
-	if !c.wantLine(t, line) {
+func (c *Collector) push(t agentv1.LogType, instance string, r Record) {
+	if !c.wantLine(t, r.Line) {
 		return
 	}
-	c.queue.Push(record{typ: t, instance: instance, line: line})
+	if r.Path != "" {
+		c.mu.Lock()
+		c.outstanding[r.Path]++
+		c.mu.Unlock()
+	}
+	c.queue.Push(record{typ: t, instance: instance, Record: r})
 }
 
 // PushEngineLine handles a line of engine process output.
@@ -214,7 +264,7 @@ func (c *Collector) PushEngineLine(instance, line string) {
 	use := c.engineLog[instance]
 	c.mu.Unlock()
 	if use && c.allowed(agentv1.LogType_LOG_TYPE_SURICATA) {
-		c.push(agentv1.LogType_LOG_TYPE_SURICATA, instance, []byte(line))
+		c.push(agentv1.LogType_LOG_TYPE_SURICATA, instance, Record{Line: []byte(line)})
 	}
 }
 
@@ -227,7 +277,7 @@ func (a agentLog) Write(p []byte) (int, error) {
 	if a.c.allowed(agentv1.LogType_LOG_TYPE_AGENT) {
 		for _, l := range bytes.Split(bytes.TrimRight(p, "\n"), []byte("\n")) {
 			if len(l) > 0 {
-				a.c.queue.Push(record{typ: agentv1.LogType_LOG_TYPE_AGENT, line: append([]byte(nil), l...)})
+				a.c.queue.Push(record{typ: agentv1.LogType_LOG_TYPE_AGENT, Record: Record{Line: append([]byte(nil), l...)}})
 			}
 		}
 	}
@@ -278,8 +328,16 @@ func (c *Collector) saveOffsets() {
 	defer c.pollMu.Unlock()
 	c.mu.Lock()
 	for p, t := range c.tailers {
-		if t.f != nil {
-			c.offsets[p] = offset{Inode: t.inode, Offset: t.pos}
+		if t.f == nil {
+			continue
+		}
+		if c.outstanding[p] <= 0 {
+			// Nothing pending: everything up to the start of the
+			// unfinished last line is done (delivered, filtered or
+			// skipped).
+			c.offsets[p] = offset{Inode: t.inode, Offset: t.pos - int64(len(t.partial))}
+		} else if cp, ok := c.committed[p]; ok {
+			c.offsets[p] = cp
 		}
 	}
 	b, _ := json.Marshal(c.offsets)
@@ -414,6 +472,7 @@ func (t *tailer) read(c *Collector) error {
 		return err
 	}
 	buf = buf[:got]
+	start := t.pos - int64(len(t.partial)) // file position of data[0]
 	t.pos += int64(got)
 	data := append(t.partial, buf...)
 	for {
@@ -422,20 +481,71 @@ func (t *tailer) read(c *Collector) error {
 			break
 		}
 		if i > 0 {
-			c.push(t.src.Type, t.src.Instance, data[:i])
+			c.push(t.src.Type, t.src.Instance, Record{Line: data[:i], Path: t.src.Path, Inode: t.inode, Offset: start, end: start + int64(i) + 1})
 		}
 		data = data[i+1:]
+		start += int64(i) + 1
 	}
 	if len(data) > 1<<20 {
-		c.push(t.src.Type, t.src.Instance, data)
+		c.push(t.src.Type, t.src.Instance, Record{Line: data, Path: t.src.Path, Inode: t.inode, Offset: start, end: start + int64(len(data))})
 		data = nil
 	}
 	t.partial = append([]byte(nil), data...)
 	return nil
 }
 
+// Next waits for queued records and returns them grouped by log type and
+// instance, at most maxRecords records and about maxBytes bytes in total.
+func (c *Collector) Next(ctx context.Context, maxRecords int, maxBytes int64) ([]*Batch, error) {
+	recs, err := c.queue.PopBatch(ctx, maxRecords, maxBytes)
+	if err != nil {
+		return nil, err
+	}
+	type key struct {
+		t agentv1.LogType
+		i string
+	}
+	groups := map[key]*Batch{}
+	var out []*Batch
+	for _, r := range recs {
+		k := key{r.typ, r.instance}
+		b, ok := groups[k]
+		if !ok {
+			b = &Batch{Type: r.typ, Instance: r.instance}
+			groups[k] = b
+			out = append(out, b)
+		}
+		b.Records = append(b.Records, r.Record)
+	}
+	st := c.queue.Stats()
+	c.mu.Lock()
+	out[0].Dropped = st.Dropped - c.lastDrop
+	c.lastDrop = st.Dropped
+	c.mu.Unlock()
+	return out, nil
+}
+
+// Commit marks the records of b as delivered: the saved file positions may
+// advance past them. Commit batches in the order Next returned them; lines
+// of batches never committed are read again after an agent restart.
+func (c *Collector) Commit(b *Batch) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sent += uint64(len(b.Records))
+	for _, r := range b.Records {
+		if r.Path == "" {
+			continue
+		}
+		c.outstanding[r.Path]--
+		if cp, ok := c.committed[r.Path]; !ok || cp.Inode != r.Inode || cp.Offset < r.end {
+			c.committed[r.Path] = offset{Inode: r.Inode, Offset: r.end}
+		}
+	}
+}
+
 // Ship sends queued records over a log stream until the stream fails or
-// ctx is cancelled.
+// ctx is cancelled. A record counts as delivered once it is written to the
+// stream.
 func (c *Collector) Ship(ctx context.Context, ms *wire.MsgStream) error {
 	enc, err := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1), zstd.WithEncoderLevel(zstd.SpeedFastest))
 	if err != nil {
@@ -446,43 +556,33 @@ func (c *Collector) Ship(ctx context.Context, ms *wire.MsgStream) error {
 	stop := context.AfterFunc(ctx, func() { ms.Close() })
 	defer stop()
 	for {
-		recs, err := c.queue.PopBatch(ctx, 2000, 512<<10)
+		batches, err := c.Next(ctx, 2000, 512<<10)
 		if err != nil {
 			return err
 		}
-		type key struct {
-			t agentv1.LogType
-			i string
-		}
-		groups := map[key][][]byte{}
-		var order []key
-		for _, r := range recs {
-			k := key{r.typ, r.instance}
-			if _, ok := groups[k]; !ok {
-				order = append(order, k)
-			}
-			groups[k] = append(groups[k], r.line)
-		}
-		st := c.queue.Stats()
-		c.mu.Lock()
-		dropped := st.Dropped - c.lastDrop
-		c.lastDrop = st.Dropped
-		c.mu.Unlock()
-		for _, k := range order {
-			lines := groups[k]
-			raw := bytes.Join(lines, []byte("\n"))
-			raw = append(raw, '\n')
+		for _, b := range batches {
 			seq++
 			if err := ms.Send(&agentv1.LogBatch{
-				Seq: seq, Type: k.t, Instance: k.i, ZstdRecords: enc.EncodeAll(raw, nil),
-				RecordCount: uint32(len(lines)), DroppedSinceLast: dropped,
+				Seq: seq, Type: b.Type, Instance: b.Instance, ZstdRecords: enc.EncodeAll(JoinLines(b.Records), nil),
+				RecordCount: uint32(len(b.Records)), DroppedSinceLast: b.Dropped,
 			}); err != nil {
 				return err
 			}
-			dropped = 0
-			c.mu.Lock()
-			c.sent += uint64(len(lines))
-			c.mu.Unlock()
+			c.Commit(b)
 		}
 	}
+}
+
+// JoinLines returns the lines of recs, each followed by a newline.
+func JoinLines(recs []Record) []byte {
+	n := 0
+	for _, r := range recs {
+		n += len(r.Line) + 1
+	}
+	out := make([]byte, 0, n)
+	for _, r := range recs {
+		out = append(out, r.Line...)
+		out = append(out, '\n')
+	}
+	return out
 }
