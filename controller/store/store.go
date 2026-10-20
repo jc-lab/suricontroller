@@ -16,6 +16,9 @@ var (
 	ErrNotFound = errors.New("store: not found")
 	// ErrAlreadyExists is returned when creating a duplicate record.
 	ErrAlreadyExists = errors.New("store: already exists")
+	// ErrNotImplemented is returned by optional methods a store does not
+	// support. Callers fall back to their built-in behavior.
+	ErrNotImplemented = errors.New("store: not implemented")
 )
 
 // Node is a registered agent and its persisted state.
@@ -101,6 +104,14 @@ type Store interface {
 	// If fn returns an error the node is left unchanged.
 	UpdateNode(ctx context.Context, id string, fn func(n *Node) error) (*Node, error)
 	DeleteNode(ctx context.Context, id string) error
+	// LookupNodeByX25519 finds the node whose public key has the given
+	// X25519 form. It returns ErrNotFound if there is none.
+	//
+	// It is optional: a store returning ErrNotImplemented makes the node
+	// service keep an in-memory key index loaded at startup. A store shared
+	// with other programs implements it so that nodes added or disabled
+	// elsewhere take effect without restarting the controller.
+	LookupNodeByX25519(ctx context.Context, key []byte) (nodeID string, enabled bool, err error)
 
 	AppendApplyHistory(ctx context.Context, e *ApplyHistoryEntry) error
 	ListApplyHistory(ctx context.Context, nodeID string, limit int) ([]*ApplyHistoryEntry, error)

@@ -302,6 +302,8 @@ func (a *Agent) connectLoop(ctx context.Context) {
 				a.log.Warn("local clock differs from the controller; correcting handshake time", "offset", a.clockOffset.Round(time.Second))
 				sleep(ctx, time.Second)
 				continue
+			case errors.As(err, &re) && re.Reason == agentv1.RejectReason_REJECT_REASON_UNAVAILABLE:
+				a.log.Warn("controller cannot check this agent right now", "retry_in", backoff)
 			case errors.As(err, &re) && re.Reason == agentv1.RejectReason_REJECT_REASON_UNKNOWN_KEY:
 				a.log.Error("controller does not know this agent; register its public key", "public_key", a.PublicKey())
 				backoff = max(backoff, 30*time.Second)

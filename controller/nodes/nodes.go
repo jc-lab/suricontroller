@@ -20,16 +20,23 @@ import (
 var ErrInvalidArgument = errors.New("invalid argument")
 
 // Service manages nodes. It implements agentgw.NodeLookup.
+//
+// Key lookups go to the store when it implements LookupNodeByX25519
+// (delegated mode), so that a store shared with another program sees nodes
+// added or disabled there. Otherwise the service keeps an in-memory key
+// index loaded at startup.
 type Service struct {
 	store store.Store
 	now   func() time.Time
+	// delegated is set when the store answers key lookups itself.
+	delegated bool
 
 	// OnChange is called after a change that affects a node's desired state
 	// (interface modes, enable/disable, log policy, new facts).
 	OnChange func(nodeID string)
 
 	mu     sync.RWMutex
-	byKey  map[string]keyEntry // hex x25519 -> node
+	byKey  map[string]keyEntry // hex x25519 -> node; unused when delegated
 	status map[string]*agentv1.StatusReport
 }
 
@@ -38,9 +45,16 @@ type keyEntry struct {
 	enabled bool
 }
 
-// New creates the service and loads the key index.
+// New creates the service. Unless the store answers key lookups itself, it
+// loads the key index.
 func New(ctx context.Context, st store.Store) (*Service, error) {
 	s := &Service{store: st, now: time.Now, byKey: map[string]keyEntry{}, status: map[string]*agentv1.StatusReport{}}
+	// Probe with a key no node has. Any answer other than ErrNotImplemented
+	// (including a transient error) means the store implements lookups.
+	if _, _, err := st.LookupNodeByX25519(ctx, make([]byte, 32)); !errors.Is(err, store.ErrNotImplemented) {
+		s.delegated = true
+		return s, nil
+	}
 	nodes, err := st.ListNodes(ctx)
 	if err != nil {
 		return nil, err
@@ -54,6 +68,9 @@ func New(ctx context.Context, st store.Store) (*Service, error) {
 }
 
 func (s *Service) index(n *store.Node) error {
+	if s.delegated {
+		return nil
+	}
 	pk, err := sshkey.ParsePublicKey(n.PublicKey)
 	if err != nil {
 		return err
@@ -85,12 +102,22 @@ func (s *Service) changed(id string) {
 	}
 }
 
-// LookupNodeByX25519 implements agentgw.NodeLookup.
-func (s *Service) LookupNodeByX25519(key []byte) (string, bool, bool) {
+// Delegated reports whether key lookups go to the store.
+func (s *Service) Delegated() bool { return s.delegated }
+
+// LookupNodeByX25519 implements agentgw.NodeLookup. It returns
+// store.ErrNotFound for an unknown key.
+func (s *Service) LookupNodeByX25519(ctx context.Context, key []byte) (string, bool, error) {
+	if s.delegated {
+		return s.store.LookupNodeByX25519(ctx, key)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	e, ok := s.byKey[hex.EncodeToString(key)]
-	return e.id, e.enabled, ok
+	if !ok {
+		return "", false, store.ErrNotFound
+	}
+	return e.id, e.enabled, nil
 }
 
 // Add registers a node from its public key line; the node id is the key
@@ -111,9 +138,13 @@ func (s *Service) Add(ctx context.Context, publicKey, description string) (*stor
 		return nil, fmt.Errorf("%w: %v", ErrInvalidArgument, err)
 	}
 	// Different ed25519 keys can map to the same X25519 key; the agent is
-	// identified by the latter.
-	if _, _, exists := s.LookupNodeByX25519(x); exists {
+	// identified by the latter. In delegated mode the store's unique
+	// constraint is the final guard against a concurrent insert.
+	switch _, _, err := s.LookupNodeByX25519(ctx, x); {
+	case err == nil:
 		return nil, fmt.Errorf("%w: a node with this key already exists", store.ErrAlreadyExists)
+	case !errors.Is(err, store.ErrNotFound):
+		return nil, err
 	}
 	now := s.now()
 	n := &store.Node{

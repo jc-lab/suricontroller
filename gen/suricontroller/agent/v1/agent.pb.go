@@ -37,6 +37,9 @@ const (
 	RejectReason_REJECT_REASON_CLOCK_SKEW       RejectReason = 4
 	RejectReason_REJECT_REASON_REPLAY           RejectReason = 5
 	RejectReason_REJECT_REASON_PROTOCOL         RejectReason = 6
+	// The controller could not check the key (e.g. its database is down).
+	// The agent retries later.
+	RejectReason_REJECT_REASON_UNAVAILABLE RejectReason = 7
 )
 
 // Enum value maps for RejectReason.
@@ -49,6 +52,7 @@ var (
 		4: "REJECT_REASON_CLOCK_SKEW",
 		5: "REJECT_REASON_REPLAY",
 		6: "REJECT_REASON_PROTOCOL",
+		7: "REJECT_REASON_UNAVAILABLE",
 	}
 	RejectReason_value = map[string]int32{
 		"REJECT_REASON_UNSPECIFIED":      0,
@@ -58,6 +62,7 @@ var (
 		"REJECT_REASON_CLOCK_SKEW":       4,
 		"REJECT_REASON_REPLAY":           5,
 		"REJECT_REASON_PROTOCOL":         6,
+		"REJECT_REASON_UNAVAILABLE":      7,
 	}
 )
 
@@ -2460,7 +2465,7 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\binstance\x18\x03 \x01(\tR\binstance\x12!\n" +
 	"\fzstd_records\x18\x04 \x01(\fR\vzstdRecords\x12!\n" +
 	"\frecord_count\x18\x05 \x01(\rR\vrecordCount\x12,\n" +
-	"\x12dropped_since_last\x18\x06 \x01(\x04R\x10droppedSinceLast*\xe0\x01\n" +
+	"\x12dropped_since_last\x18\x06 \x01(\x04R\x10droppedSinceLast*\xff\x01\n" +
 	"\fRejectReason\x12\x1d\n" +
 	"\x19REJECT_REASON_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19REJECT_REASON_UNKNOWN_KEY\x10\x01\x12\x1a\n" +
@@ -2468,7 +2473,8 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\x1eREJECT_REASON_NODE_ID_MISMATCH\x10\x03\x12\x1c\n" +
 	"\x18REJECT_REASON_CLOCK_SKEW\x10\x04\x12\x18\n" +
 	"\x14REJECT_REASON_REPLAY\x10\x05\x12\x1a\n" +
-	"\x16REJECT_REASON_PROTOCOL\x10\x06*n\n" +
+	"\x16REJECT_REASON_PROTOCOL\x10\x06\x12\x1d\n" +
+	"\x19REJECT_REASON_UNAVAILABLE\x10\a*n\n" +
 	"\n" +
 	"StreamType\x12\x1b\n" +
 	"\x17STREAM_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +

@@ -30,6 +30,9 @@ enum RejectReason {
   REJECT_REASON_CLOCK_SKEW = 4;
   REJECT_REASON_REPLAY = 5;
   REJECT_REASON_PROTOCOL = 6;
+  // The controller could not check the key (e.g. its database is down).
+  // The agent retries later.
+  REJECT_REASON_UNAVAILABLE = 7;
 }
 
 // HandshakeResponse is the payload of Noise message 2 (controller -> agent).
