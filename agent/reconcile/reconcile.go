@@ -56,8 +56,10 @@ type Deps struct {
 	Engine     engine.Runtime
 	EngineInfo engine.Info
 	Firewall   firewall.Backend
-	// HostKey verifies bundle signatures (controller host key).
-	HostKey ed25519.PublicKey
+	// HostKey returns the key that verifies bundle signatures: the host key
+	// of the controller the agent is connected to (nil before the first
+	// connection when the endpoint is learned at run time).
+	HostKey func() ed25519.PublicKey
 	Logger  *slog.Logger
 	// Report sends an apply report to the controller, if connected.
 	Report func(*agentv1.ApplyReport)
@@ -780,7 +782,11 @@ func (r *Reconciler) extract(id string) error {
 		return err
 	}
 	defer f.Close()
-	b, err := bundle.Read(f, id, r.d.HostKey, bundle.DefaultLimits)
+	key := r.d.HostKey()
+	if key == nil {
+		return errors.New("controller host key unknown")
+	}
+	b, err := bundle.Read(f, id, key, bundle.DefaultLimits)
 	if err != nil {
 		return err
 	}

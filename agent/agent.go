@@ -48,6 +48,10 @@ type Options struct {
 	// session. It also owns the collection policy: the policy in the
 	// controller's desired state is ignored.
 	LogOutput LogOutput
+	// Controller, if set, supplies the controller endpoint instead of the
+	// controller section (see config.Config.ExternalController). When the
+	// endpoint changes, only the controller session reconnects.
+	Controller EndpointSource
 }
 
 // LogOutput ships collected logs somewhere other than the controller.
@@ -60,21 +64,25 @@ type LogOutput interface {
 
 // Agent is a running suri-node-agent.
 type Agent struct {
-	cfg     *config.Config
-	log     *slog.Logger
-	key     *sshkey.PrivateKey
-	hostKey *sshkey.PublicKey
-	fs      platform.HostFS
-	ex      platform.Exec
-	info    platform.Info
-	eng     engine.Runtime
-	engInfo engine.Info
-	fw      firewall.Backend
-	st      *state.Store
-	rec     *reconcile.Reconciler
-	col     *collector.Collector
-	client  *http.Client
-	out     LogOutput
+	cfg *config.Config
+	log *slog.Logger
+	key *sshkey.PrivateKey
+	src EndpointSource
+	// staticKey is controller.host_key; hostKey the key of the controller
+	// of the current or last session (mu).
+	staticKey *sshkey.PublicKey
+	hostKey   *sshkey.PublicKey
+	fs        platform.HostFS
+	ex        platform.Exec
+	info      platform.Info
+	eng       engine.Runtime
+	engInfo   engine.Info
+	fw        firewall.Backend
+	st        *state.Store
+	rec       *reconcile.Reconciler
+	col       *collector.Collector
+	client    *http.Client
+	out       LogOutput
 
 	mu        sync.Mutex
 	sess      *conn.Session
@@ -102,7 +110,7 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 	if log == nil {
 		log = slog.Default()
 	}
-	a := &Agent{cfg: cfg, log: log, statusNow: make(chan struct{}, 1), out: opts.LogOutput}
+	a := &Agent{cfg: cfg, log: log, statusNow: make(chan struct{}, 1), out: opts.LogOutput, src: opts.Controller}
 	var err error
 	var created bool
 	if a.key, created, err = LoadKey(cfg); err != nil {
@@ -111,8 +119,11 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 	if created {
 		log.Info("generated agent key; register this public key on the controller", "public_key", a.key.Public(cfg.NodeID).String())
 	}
-	if a.hostKey, err = sshkey.ParsePublicKey(cfg.Controller.HostKey); err != nil {
-		return nil, err
+	if cfg.Controller.HostKey != "" || a.src == nil {
+		if a.staticKey, err = sshkey.ParsePublicKey(cfg.Controller.HostKey); err != nil {
+			return nil, err
+		}
+		a.hostKey = a.staticKey
 	}
 
 	switch cfg.Platform.Profile {
@@ -173,7 +184,7 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 		onLogPolicy = func(*agentv1.LogCollectionPolicy) {}
 	}
 	a.rec = reconcile.New(reconcile.Deps{
-		Config: cfg, State: a.st, Engine: a.eng, EngineInfo: a.engInfo, Firewall: a.fw, HostKey: a.hostKey.Key, Logger: log,
+		Config: cfg, State: a.st, Engine: a.eng, EngineInfo: a.engInfo, Firewall: a.fw, HostKey: a.bundleKey, Logger: log,
 		Report: a.report, QueueSupport: a.queueSupport,
 		OnInstances: func(insts []reconcile.Instance) {
 			out := make([]collector.Instance, len(insts))
@@ -319,9 +330,17 @@ func (a *Agent) connectLoop(ctx context.Context) {
 		headers.Set(k, v)
 	}
 	for ctx.Err() == nil {
+		ep, changed, err := a.endpoint(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				a.log.Warn("controller endpoint unavailable", "err", err)
+				sleep(ctx, jitter(backoff))
+			}
+			continue
+		}
 		offset := a.clockOffset
 		sess, err := conn.Dial(ctx, conn.Config{
-			URL: a.cfg.Controller.URL, Headers: headers, HTTPClient: a.client, Key: a.key, ServerKey: a.hostKey,
+			URL: ep.URL, Headers: headers, HTTPClient: a.client, Key: a.key, ServerKey: ep.HostKey,
 			NodeID: a.cfg.NodeID, AgentVersion: version.Version, Now: func() time.Time { return time.Now().Add(offset) },
 		}, a.hello(), a.handle)
 		if err != nil {
@@ -343,14 +362,29 @@ func (a *Agent) connectLoop(ctx context.Context) {
 			default:
 				a.log.Warn("connect to controller failed", "err", err, "retry_in", backoff)
 			}
-			sleep(ctx, jitter(backoff))
+			if sleepOrChange(ctx, jitter(backoff), changed) {
+				a.log.Info("controller endpoint changed", "url", ep.URL)
+				backoff = time.Second
+				continue
+			}
 			backoff = min(backoff*2, time.Minute)
 			continue
 		}
 		backoff = time.Second
-		a.log.Info("connected to controller", "url", a.cfg.Controller.URL, "controller_version", sess.HelloAck().ControllerVersion)
+		a.log.Info("connected to controller", "url", ep.URL, "controller_version", sess.HelloAck().ControllerVersion)
+		a.setHostKey(ep.HostKey)
 		a.setSession(sess)
 		sessCtx, cancel := context.WithCancel(ctx)
+		if changed != nil {
+			go func() {
+				select {
+				case <-changed:
+					a.log.Info("controller endpoint changed; reconnecting")
+					cancel()
+				case <-sessCtx.Done():
+				}
+			}()
+		}
 		interval := time.Duration(sess.HelloAck().StatusIntervalSeconds) * time.Second
 		go a.statusLoop(sessCtx, sess, interval)
 		if a.out == nil {

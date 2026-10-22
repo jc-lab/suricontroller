@@ -127,7 +127,7 @@ func newEnv(t *testing.T, dir string) *env {
 	}
 	e := &env{cfg: cfg, st: st, eng: &fakeEngine{}, fw: &fakeFirewall{}, key: priv, bundles: map[string][]byte{}}
 	e.rec = New(Deps{
-		Config: cfg, State: st, Engine: e.eng, EngineInfo: engine.Info{NFQ: true, AFPacket: true}, Firewall: e.fw, HostKey: pub,
+		Config: cfg, State: st, Engine: e.eng, EngineInfo: engine.Info{NFQ: true, AFPacket: true}, Firewall: e.fw, HostKey: func() ed25519.PublicKey { return pub },
 		Report: func(r *agentv1.ApplyReport) { e.reports = append(e.reports, r) },
 	})
 	e.rec.SetFetcher(func(ctx context.Context, id string, offset uint64) (io.ReadCloser, uint64, error) {
