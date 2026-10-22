@@ -416,6 +416,8 @@ type Authorizer interface {
 /et-open/emerging-*.rules
 /et-open/classification.config
 /et-open/reference.config
+/snort/snort3-*.rules     # Snort 룰을 Suricata 룰로 변환한 결과 (snort provider)
+/snort/snort2suricata-report.txt
 /local/*.rules            # UI 에서 편집하는 사용자 룰 (local provider)
 /{custom}/...             # (향후) URL provider
 ```
@@ -432,6 +434,12 @@ type Provider interface {
   - `.md5`를 먼저 받아 변경 여부를 확인하고, 바뀌었으면 tar.gz를 받아 `rules/`만 `/et-open/`에 반영합니다. tree가 실제로 달라졌을 때만 커밋합니다.
   - 설정: `enabled`, `interval`(기본 24h + jitter), `suricata_version`, 수동 `SyncNow`.
   - **노드마다 Suricata 버전이 다른 경우**: provider 인스턴스를 여러 개 둡니다(`et-open-7.0`, `et-open-8.0`). 노드별 `sources.yaml`로 어느 것을 쓸지 고릅니다.
+- **snort**: Talos Snort 룰셋을 받아 `pkg/snortconv`로 Suricata 룰로 변환합니다. 첫 실행 때 비활성 상태로 만들어집니다.
+  - oinkcode가 있으면 `https://www.snort.org/rules/snortrules-snapshot-{ver}.tar.gz?oinkcode=…`를, 없으면 커뮤니티 룰셋을 받습니다(`ruleset: auto`). snort.org가 oinkcode 계정의 구독에 맞는 룰을 줍니다. Subscriber는 최신 룰, Registered는 30일 지난 룰을 받습니다. `ruleset`으로 `registered`, `lightspd`(Talos LightSPD 패키지), `community`를 직접 고를 수도 있습니다.
+  - `.md5`를 먼저 받아 바뀌었을 때만 내려받습니다. checksum에는 변환기 버전도 넣어서, 변환기가 바뀌면 같은 원본이라도 다시 변환합니다.
+  - Talos IPS 정책(`policy`: connectivity/balanced/security/max-detect/all, 기본 balanced)에 속한 룰만 활성으로 쓰고, 나머지는 주석 처리해서 enable.conf로 켤 수 있게 둡니다. 활성 룰이 `isset,a|b`로 검사하는 flowbit을 설정하는 룰은 noalert로 켭니다.
+  - Suricata에 대응 기능이 없는 룰, 그리고 기본 `suricata.yaml`에서 꺼진 app-layer(modbus/dnp3)가 필요한 룰은 쓰지 않고 `snort2suricata-report.txt`에 이유와 함께 남깁니다. 룰 하나라도 로드에 실패하면 노드 검증(`suricata -T`)이 통째로 실패하기 때문입니다. Suricata 기본 설정에 없는 `$SIP_SERVERS`는 Snort 기본값대로 `$HOME_NET`으로 바꿉니다.
+  - oinkcode는 API 응답에서 `********`로 가리고, 같은 값을 다시 보내면 저장된 값을 유지합니다. 오류 메시지와 커밋에도 남기지 않습니다.
 - **local**: UI 편집기로 파일을 CRUD하고 커밋합니다.
 
 #### config.git — Suricata 설정 (controller 자신의 설정 아님)

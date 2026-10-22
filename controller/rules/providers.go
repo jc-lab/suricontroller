@@ -60,6 +60,8 @@ type TypeInfo struct {
 	Fetcher         Fetcher // nil for providers edited in place (local)
 	DefaultInterval time.Duration
 	DefaultOptions  map[string]string
+	// Validate, if set, checks the options after an update.
+	Validate func(options map[string]string) error
 }
 
 // ETOpen fetches the Emerging Threats Open ruleset.
