@@ -290,6 +290,12 @@ func (s *Store) DeleteNode(ctx context.Context, id string) error {
 
 // --- apply history -----------------------------------------------------------
 
+// LookupNodeByX25519 implements store.Store. The controller keeps the key
+// index in memory for this store.
+func (s *Store) LookupNodeByX25519(context.Context, []byte) (string, bool, error) {
+	return "", false, store.ErrNotImplemented
+}
+
 // AppendApplyHistory implements store.Store.
 func (s *Store) AppendApplyHistory(ctx context.Context, e *store.ApplyHistoryEntry) error {
 	rep, err := marshalProto(e.Report)

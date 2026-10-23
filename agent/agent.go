@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,27 +44,49 @@ type Options struct {
 	Engine engine.Runtime
 	// Firewall overrides the firewall backend (tests).
 	Firewall firewall.Backend
+	// LogOutput, if set, ships the collected logs instead of the controller
+	// session. It also owns the collection policy: the policy in the
+	// controller's desired state is ignored.
+	LogOutput LogOutput
+	// Controller, if set, supplies the controller endpoint instead of the
+	// controller section (see config.Config.ExternalController). When the
+	// endpoint changes, only the controller session reconnects.
+	Controller EndpointSource
+}
+
+// LogOutput ships collected logs somewhere other than the controller.
+type LogOutput interface {
+	// ShipLogs takes batches from c (Next) and confirms the delivered ones
+	// (Commit) until ctx is cancelled. It sets the collection policy with
+	// c.SetPolicy.
+	ShipLogs(ctx context.Context, c *collector.Collector) error
 }
 
 // Agent is a running suri-node-agent.
 type Agent struct {
-	cfg     *config.Config
-	log     *slog.Logger
-	key     *sshkey.PrivateKey
-	hostKey *sshkey.PublicKey
-	fs      platform.HostFS
-	ex      platform.Exec
-	info    platform.Info
-	eng     engine.Runtime
-	engInfo engine.Info
-	fw      firewall.Backend
-	st      *state.Store
-	rec     *reconcile.Reconciler
-	col     *collector.Collector
-	client  *http.Client
+	cfg *config.Config
+	log *slog.Logger
+	key *sshkey.PrivateKey
+	src EndpointSource
+	// staticKey is controller.host_key; hostKey the key of the controller
+	// of the current or last session (mu).
+	staticKey *sshkey.PublicKey
+	hostKey   *sshkey.PublicKey
+	fs        platform.HostFS
+	ex        platform.Exec
+	info      platform.Info
+	eng       engine.Runtime
+	engInfo   engine.Info
+	fw        firewall.Backend
+	st        *state.Store
+	rec       *reconcile.Reconciler
+	col       *collector.Collector
+	client    *http.Client
+	out       LogOutput
 
-	mu   sync.Mutex
-	sess *conn.Session
+	mu        sync.Mutex
+	sess      *conn.Session
+	instances []collector.Instance
 	// clockOffset corrects handshake timestamps on hosts with a wrong clock
 	// (e.g. routers without RTC before NTP sync).
 	clockOffset time.Duration
@@ -87,7 +110,7 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 	if log == nil {
 		log = slog.Default()
 	}
-	a := &Agent{cfg: cfg, log: log, statusNow: make(chan struct{}, 1)}
+	a := &Agent{cfg: cfg, log: log, statusNow: make(chan struct{}, 1), out: opts.LogOutput, src: opts.Controller}
 	var err error
 	var created bool
 	if a.key, created, err = LoadKey(cfg); err != nil {
@@ -96,8 +119,11 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 	if created {
 		log.Info("generated agent key; register this public key on the controller", "public_key", a.key.Public(cfg.NodeID).String())
 	}
-	if a.hostKey, err = sshkey.ParsePublicKey(cfg.Controller.HostKey); err != nil {
-		return nil, err
+	if cfg.Controller.HostKey != "" || a.src == nil {
+		if a.staticKey, err = sshkey.ParsePublicKey(cfg.Controller.HostKey); err != nil {
+			return nil, err
+		}
+		a.hostKey = a.staticKey
 	}
 
 	switch cfg.Platform.Profile {
@@ -153,8 +179,12 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 	if opts.LogTee != nil {
 		opts.LogTee.SetTarget(a.col.AgentLogWriter())
 	}
+	onLogPolicy := a.col.SetPolicy
+	if a.out != nil {
+		onLogPolicy = func(*agentv1.LogCollectionPolicy) {}
+	}
 	a.rec = reconcile.New(reconcile.Deps{
-		Config: cfg, State: a.st, Engine: a.eng, EngineInfo: a.engInfo, Firewall: a.fw, HostKey: a.hostKey.Key, Logger: log,
+		Config: cfg, State: a.st, Engine: a.eng, EngineInfo: a.engInfo, Firewall: a.fw, HostKey: a.bundleKey, Logger: log,
 		Report: a.report, QueueSupport: a.queueSupport,
 		OnInstances: func(insts []reconcile.Instance) {
 			out := make([]collector.Instance, len(insts))
@@ -162,9 +192,12 @@ func New(ctx context.Context, cfg *config.Config, opts Options) (*Agent, error) 
 				out[i] = collector.Instance{Name: in.Name, LogDir: in.LogDir, Effective: in.Effective}
 			}
 			a.col.SetInstances(out)
+			a.mu.Lock()
+			a.instances = out
+			a.mu.Unlock()
 			a.pokeStatus()
 		},
-		OnLogPolicy: a.col.SetPolicy,
+		OnLogPolicy: onLogPolicy,
 	})
 	if a.client, err = httpClient(cfg); err != nil {
 		return nil, err
@@ -210,11 +243,19 @@ func (a *Agent) Run(ctx context.Context) error {
 		"firewall", a.fw.Name(), "os", a.info.OSName+" "+a.info.OSVersion)
 	a.rec.Restore(ctx)
 	var wg sync.WaitGroup
-	for _, fn := range []func(context.Context){
+	workers := []func(context.Context){
 		func(ctx context.Context) { _ = a.rec.Run(ctx) },
 		a.col.Run,
 		a.pumpEngineOutput,
-	} {
+	}
+	if a.out != nil {
+		workers = append(workers, func(ctx context.Context) {
+			if err := a.out.ShipLogs(ctx, a.col); err != nil && ctx.Err() == nil {
+				a.log.Error("log output stopped", "err", err)
+			}
+		})
+	}
+	for _, fn := range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -289,9 +330,17 @@ func (a *Agent) connectLoop(ctx context.Context) {
 		headers.Set(k, v)
 	}
 	for ctx.Err() == nil {
+		ep, changed, err := a.endpoint(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				a.log.Warn("controller endpoint unavailable", "err", err)
+				sleep(ctx, jitter(backoff))
+			}
+			continue
+		}
 		offset := a.clockOffset
 		sess, err := conn.Dial(ctx, conn.Config{
-			URL: a.cfg.Controller.URL, Headers: headers, HTTPClient: a.client, Key: a.key, ServerKey: a.hostKey,
+			URL: ep.URL, Headers: headers, HTTPClient: a.client, Key: a.key, ServerKey: ep.HostKey,
 			NodeID: a.cfg.NodeID, AgentVersion: version.Version, Now: func() time.Time { return time.Now().Add(offset) },
 		}, a.hello(), a.handle)
 		if err != nil {
@@ -302,6 +351,8 @@ func (a *Agent) connectLoop(ctx context.Context) {
 				a.log.Warn("local clock differs from the controller; correcting handshake time", "offset", a.clockOffset.Round(time.Second))
 				sleep(ctx, time.Second)
 				continue
+			case errors.As(err, &re) && re.Reason == agentv1.RejectReason_REJECT_REASON_UNAVAILABLE:
+				a.log.Warn("controller cannot check this agent right now", "retry_in", backoff)
 			case errors.As(err, &re) && re.Reason == agentv1.RejectReason_REJECT_REASON_UNKNOWN_KEY:
 				a.log.Error("controller does not know this agent; register its public key", "public_key", a.PublicKey())
 				backoff = max(backoff, 30*time.Second)
@@ -311,17 +362,34 @@ func (a *Agent) connectLoop(ctx context.Context) {
 			default:
 				a.log.Warn("connect to controller failed", "err", err, "retry_in", backoff)
 			}
-			sleep(ctx, jitter(backoff))
+			if sleepOrChange(ctx, jitter(backoff), changed) {
+				a.log.Info("controller endpoint changed", "url", ep.URL)
+				backoff = time.Second
+				continue
+			}
 			backoff = min(backoff*2, time.Minute)
 			continue
 		}
 		backoff = time.Second
-		a.log.Info("connected to controller", "url", a.cfg.Controller.URL, "controller_version", sess.HelloAck().ControllerVersion)
+		a.log.Info("connected to controller", "url", ep.URL, "controller_version", sess.HelloAck().ControllerVersion)
+		a.setHostKey(ep.HostKey)
 		a.setSession(sess)
 		sessCtx, cancel := context.WithCancel(ctx)
+		if changed != nil {
+			go func() {
+				select {
+				case <-changed:
+					a.log.Info("controller endpoint changed; reconnecting")
+					cancel()
+				case <-sessCtx.Done():
+				}
+			}()
+		}
 		interval := time.Duration(sess.HelloAck().StatusIntervalSeconds) * time.Second
 		go a.statusLoop(sessCtx, sess, interval)
-		go a.shipLogs(sessCtx, sess)
+		if a.out == nil {
+			go a.shipLogs(sessCtx, sess)
+		}
 		err = sess.Run(sessCtx)
 		cancel()
 		a.setSession(nil)
@@ -486,6 +554,30 @@ func (a *Agent) hello() *agentv1.Hello {
 	}
 }
 
+// Status returns a status report like the one sent to the controller.
+func (a *Agent) Status(ctx context.Context) *agentv1.StatusReport { return a.status(ctx) }
+
+// Hello returns the facts the agent reports in its Hello: platform, engine,
+// managed interfaces and warnings.
+func (a *Agent) Hello() *agentv1.Hello { return a.hello() }
+
+// LogSources returns the logs the agent can collect.
+func (a *Agent) LogSources() []*agentv1.LogSource { return a.col.Sources() }
+
+// Collector returns the log collector.
+func (a *Agent) Collector() *collector.Collector { return a.col }
+
+// Instances returns the running Suricata instances with their effective
+// configuration (empty until the first release is applied).
+func (a *Agent) Instances() []collector.Instance {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.instances)
+}
+
+// NodeID returns the configured node id.
+func (a *Agent) NodeID() string { return a.cfg.NodeID }
+
 func (a *Agent) status(ctx context.Context) *agentv1.StatusReport {
 	st := &agentv1.StatusReport{
 		TimeUnixMs: time.Now().UnixMilli(),
@@ -499,6 +591,7 @@ func (a *Agent) status(ctx context.Context) *agentv1.StatusReport {
 			Name: in.Name, Capture: string(in.Capture), Running: in.Running, UptimeSeconds: int64(in.Uptime / time.Second),
 			RssBytes: in.RSSBytes, Interfaces: in.Interfaces, Counters: in.Counters,
 			RulesLoaded: uint32(in.RulesLoaded), RulesFailed: uint32(in.RulesFailed), LastError: in.LastError,
+			HomeNetAddresses: a.rec.HomeNetAddresses(in.Name),
 		})
 	}
 	return st

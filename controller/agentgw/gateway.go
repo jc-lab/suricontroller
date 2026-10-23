@@ -21,14 +21,17 @@ import (
 	"github.com/hashicorp/yamux"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/jc-lab/suricontroller/controller/store"
 	agentv1 "github.com/jc-lab/suricontroller/gen/suricontroller/agent/v1"
 	"github.com/jc-lab/suricontroller/pkg/noiseconn"
 	"github.com/jc-lab/suricontroller/pkg/wire"
 )
 
-// NodeLookup resolves a node from the X25519 form of its static key.
+// NodeLookup resolves a node from the X25519 form of its static key. It
+// returns store.ErrNotFound for an unknown key; other errors are treated as
+// temporary (the store is unavailable).
 type NodeLookup interface {
-	LookupNodeByX25519(key []byte) (nodeID string, enabled bool, ok bool)
+	LookupNodeByX25519(ctx context.Context, key []byte) (nodeID string, enabled bool, err error)
 }
 
 // Handler receives session events. Methods are called from per-session
@@ -62,6 +65,11 @@ type Config struct {
 	// TrustProxyHeaders uses CF-Connecting-IP / X-Forwarded-For as the
 	// remote address shown in logs and the UI.
 	TrustProxyHeaders bool
+	// SessionRecheckInterval is how often the key of a connected node is
+	// looked up again; the session is closed when the node was removed,
+	// disabled or renamed. Lookup errors keep the session. Default 60s;
+	// negative disables the check.
+	SessionRecheckInterval time.Duration
 }
 
 // Gateway implements http.Handler for the agent endpoint.
@@ -84,6 +92,9 @@ func New(cfg Config) *Gateway {
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.SessionRecheckInterval == 0 {
+		cfg.SessionRecheckInterval = time.Minute
 	}
 	return &Gateway{
 		cfg:      cfg,
@@ -143,7 +154,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sc, _, err := noiseconn.Server(ctx, nc, noiseconn.ServerConfig{
 		StaticKey: g.cfg.StaticKey,
 		Accept: func(peer, payload []byte) ([]byte, bool) {
-			nodeID, reject = g.authenticate(peer, payload)
+			nodeID, reject = g.authenticate(ctx, peer, payload)
 			resp := &agentv1.HandshakeResponse{
 				Accepted:         reject == agentv1.RejectReason_REJECT_REASON_UNSPECIFIED,
 				Reason:           reject,
@@ -170,6 +181,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s := &Session{
 		gw:          g,
 		NodeID:      nodeID,
+		peerKey:     sc.PeerStatic(),
 		RemoteAddr:  remote,
 		ConnectedAt: g.cfg.Now(),
 		mux:         mux,
@@ -196,14 +208,18 @@ func proxiedAddr(r *http.Request) string {
 
 // authenticate validates the handshake payload. It must not change any state
 // other than the replay timestamp, because message 1 can be replayed.
-func (g *Gateway) authenticate(peer, payload []byte) (string, agentv1.RejectReason) {
+func (g *Gateway) authenticate(ctx context.Context, peer, payload []byte) (string, agentv1.RejectReason) {
 	init := &agentv1.HandshakeInit{}
 	if err := proto.Unmarshal(payload, init); err != nil {
 		return "", agentv1.RejectReason_REJECT_REASON_PROTOCOL
 	}
-	nodeID, enabled, ok := g.cfg.Nodes.LookupNodeByX25519(peer)
-	if !ok {
+	nodeID, enabled, err := g.cfg.Nodes.LookupNodeByX25519(ctx, peer)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
 		return init.NodeId, agentv1.RejectReason_REJECT_REASON_UNKNOWN_KEY
+	case err != nil:
+		g.log.Warn("node key lookup failed", "node", init.NodeId, "err", err)
+		return init.NodeId, agentv1.RejectReason_REJECT_REASON_UNAVAILABLE
 	}
 	if !enabled {
 		return nodeID, agentv1.RejectReason_REJECT_REASON_DISABLED
@@ -256,8 +272,10 @@ func (g *Gateway) unregister(s *Session) bool {
 
 // Session is one connected agent.
 type Session struct {
-	gw          *Gateway
-	NodeID      string
+	gw     *Gateway
+	NodeID string
+	// peerKey is the X25519 static key the agent authenticated with.
+	peerKey     []byte
 	RemoteAddr  string
 	ConnectedAt time.Time
 
@@ -353,12 +371,54 @@ func (s *Session) serve() error {
 	// Accept data streams before OnConnect: yamux closes the session if a
 	// stream the agent opens is not accepted within StreamOpenTimeout.
 	go s.acceptStreams()
+	go s.recheck()
 	s.announced.Store(true)
 	if err := g.cfg.Handler.OnConnect(s.ctx, s, hello); err != nil {
 		return fmt.Errorf("connect handler: %w", err)
 	}
 	g.log.Info("agent connected", "node", s.NodeID, "remote", s.RemoteAddr, "agent_version", hello.AgentVersion)
 	return peer.Run(s.ctx)
+}
+
+// recheck closes the session once the node's key no longer authorizes it
+// (node removed, disabled or renamed in the store). Lookup errors keep the
+// session: a database outage must not disconnect every node.
+func (s *Session) recheck() {
+	every := s.gw.cfg.SessionRecheckInterval
+	if every < 0 {
+		return
+	}
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-t.C:
+		}
+		ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+		id, enabled, err := s.gw.cfg.Nodes.LookupNodeByX25519(ctx, s.peerKey)
+		cancel()
+		var why string
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			why = "node removed"
+		case err != nil:
+			if s.ctx.Err() == nil {
+				s.gw.log.Warn("session recheck failed; keeping session", "node", s.NodeID, "err", err)
+			}
+			continue
+		case !enabled:
+			why = "node disabled"
+		case id != s.NodeID:
+			why = "node id changed"
+		default:
+			continue
+		}
+		s.gw.log.Info("closing session", "node", s.NodeID, "reason", why)
+		s.Close()
+		return
+	}
 }
 
 func acceptWithTimeout(mux *yamux.Session, d time.Duration) (*wire.MsgStream, *agentv1.StreamHeader, error) {

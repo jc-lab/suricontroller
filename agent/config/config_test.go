@@ -63,6 +63,22 @@ func TestValidateErrors(t *testing.T) {
 	}
 }
 
+func TestExternalController(t *testing.T) {
+	noController := "node_id: router-01\n"
+	if _, err := Parse([]byte(noController)); err == nil || !strings.Contains(err.Error(), "controller.url") {
+		t.Fatalf("Parse without controller: %v", err)
+	}
+	c, err := ParseWith([]byte(noController), ParseOptions{ExternalController: true})
+	if err != nil || !c.ExternalController {
+		t.Fatalf("ParseWith: %v", err)
+	}
+	// A controller section that is there is still checked.
+	partial := noController + "controller:\n  url: wss://suri.example.com/agent/v1/connect\n"
+	if _, err := ParseWith([]byte(partial), ParseOptions{ExternalController: true}); err == nil || !strings.Contains(err.Error(), "controller.host_key") {
+		t.Fatalf("ParseWith partial: %v", err)
+	}
+}
+
 func TestByteSize(t *testing.T) {
 	for in, want := range map[string]int64{"16MiB": 16 << 20, "64MB": 64e6, "1G": 1 << 30, "512": 512, "1.5KiB": 1536} {
 		got, err := ParseByteSize(in)

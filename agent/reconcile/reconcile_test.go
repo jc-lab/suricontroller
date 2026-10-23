@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,13 +122,17 @@ func newEnv(t *testing.T, dir string) *env {
 	cfg.Suricata.LocalRulesDir = filepath.Join(dir, "rules.local")
 	cfg.Suricata.Instances = map[string]config.Instance{"ids": {LogDir: filepath.Join(dir, "log/ids")}, "ips": {LogDir: filepath.Join(dir, "log/ips")}}
 	os.WriteFile(cfg.Suricata.BaseConfig, []byte("vars:\n  address-groups:\n    HOME_NET: '[192.168.0.0/16]'\n"), 0o644)
+	// No host interface leaks into the tests (TestHomeNet* set their own).
+	orig := ifaceAddrs
+	ifaceAddrs = func(string) ([]netip.Addr, error) { return nil, errors.New("no such interface") }
+	t.Cleanup(func() { ifaceAddrs = orig })
 	st, err := state.Open(cfg.StateDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	e := &env{cfg: cfg, st: st, eng: &fakeEngine{}, fw: &fakeFirewall{}, key: priv, bundles: map[string][]byte{}}
 	e.rec = New(Deps{
-		Config: cfg, State: st, Engine: e.eng, EngineInfo: engine.Info{NFQ: true, AFPacket: true}, Firewall: e.fw, HostKey: pub,
+		Config: cfg, State: st, Engine: e.eng, EngineInfo: engine.Info{NFQ: true, AFPacket: true}, Firewall: e.fw, HostKey: func() ed25519.PublicKey { return pub },
 		Report: func(r *agentv1.ApplyReport) { e.reports = append(e.reports, r) },
 	})
 	e.rec.SetFetcher(func(ctx context.Context, id string, offset uint64) (io.ReadCloser, uint64, error) {

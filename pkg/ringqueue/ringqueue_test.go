@@ -3,6 +3,7 @@ package ringqueue
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -91,5 +92,18 @@ func TestSetCapacityShrinks(t *testing.T) {
 	q.SetCapacity(25)
 	if st := q.Stats(); st.Len != 2 || st.Bytes != 20 || st.Dropped != 8 {
 		t.Fatalf("stats = %+v", st)
+	}
+}
+
+func TestOnDrop(t *testing.T) {
+	q := New[int](3, func(int) int { return 1 })
+	var dropped []int
+	q.SetOnDrop(func(v int) { dropped = append(dropped, v) })
+	for i := 1; i <= 5; i++ {
+		q.Push(i)
+	}
+	q.SetCapacity(1)
+	if fmt.Sprint(dropped) != "[1 2 3 4]" {
+		t.Fatalf("dropped = %v", dropped)
 	}
 }

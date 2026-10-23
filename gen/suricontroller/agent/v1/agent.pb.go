@@ -37,6 +37,9 @@ const (
 	RejectReason_REJECT_REASON_CLOCK_SKEW       RejectReason = 4
 	RejectReason_REJECT_REASON_REPLAY           RejectReason = 5
 	RejectReason_REJECT_REASON_PROTOCOL         RejectReason = 6
+	// The controller could not check the key (e.g. its database is down).
+	// The agent retries later.
+	RejectReason_REJECT_REASON_UNAVAILABLE RejectReason = 7
 )
 
 // Enum value maps for RejectReason.
@@ -49,6 +52,7 @@ var (
 		4: "REJECT_REASON_CLOCK_SKEW",
 		5: "REJECT_REASON_REPLAY",
 		6: "REJECT_REASON_PROTOCOL",
+		7: "REJECT_REASON_UNAVAILABLE",
 	}
 	RejectReason_value = map[string]int32{
 		"REJECT_REASON_UNSPECIFIED":      0,
@@ -58,6 +62,7 @@ var (
 		"REJECT_REASON_CLOCK_SKEW":       4,
 		"REJECT_REASON_REPLAY":           5,
 		"REJECT_REASON_PROTOCOL":         6,
+		"REJECT_REASON_UNAVAILABLE":      7,
 	}
 )
 
@@ -1885,8 +1890,11 @@ type InstanceStatus struct {
 	RulesLoaded   uint32            `protobuf:"varint,8,opt,name=rules_loaded,json=rulesLoaded,proto3" json:"rules_loaded,omitempty"`
 	RulesFailed   uint32            `protobuf:"varint,9,opt,name=rules_failed,json=rulesFailed,proto3" json:"rules_failed,omitempty"`
 	LastError     string            `protobuf:"bytes,10,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Interface addresses added to the instance's HOME_NET
+	// (suricata.home_net_interface_addresses).
+	HomeNetAddresses []string `protobuf:"bytes,11,rep,name=home_net_addresses,json=homeNetAddresses,proto3" json:"home_net_addresses,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *InstanceStatus) Reset() {
@@ -1987,6 +1995,13 @@ func (x *InstanceStatus) GetLastError() string {
 		return x.LastError
 	}
 	return ""
+}
+
+func (x *InstanceStatus) GetHomeNetAddresses() []string {
+	if x != nil {
+		return x.HomeNetAddresses
+	}
+	return nil
 }
 
 // LogSource describes a log the agent can collect on the node. Log file
@@ -2420,7 +2435,7 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"interfaces\x18\x05 \x03(\v2&.suricontroller.agent.v1.InterfaceInfoR\n" +
 	"interfaces\x12C\n" +
 	"\vlog_sources\x18\x06 \x03(\v2\".suricontroller.agent.v1.LogSourceR\n" +
-	"logSources\"\xb1\x03\n" +
+	"logSources\"\xdf\x03\n" +
 	"\x0eInstanceStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\acapture\x18\x02 \x01(\tR\acapture\x12\x18\n" +
@@ -2435,7 +2450,8 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\frules_failed\x18\t \x01(\rR\vrulesFailed\x12\x1d\n" +
 	"\n" +
 	"last_error\x18\n" +
-	" \x01(\tR\tlastError\x1a;\n" +
+	" \x01(\tR\tlastError\x12,\n" +
+	"\x12home_net_addresses\x18\v \x03(\tR\x10homeNetAddresses\x1a;\n" +
 	"\rCountersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x04R\x05value:\x028\x01\"\x8e\x01\n" +
@@ -2460,7 +2476,7 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\binstance\x18\x03 \x01(\tR\binstance\x12!\n" +
 	"\fzstd_records\x18\x04 \x01(\fR\vzstdRecords\x12!\n" +
 	"\frecord_count\x18\x05 \x01(\rR\vrecordCount\x12,\n" +
-	"\x12dropped_since_last\x18\x06 \x01(\x04R\x10droppedSinceLast*\xe0\x01\n" +
+	"\x12dropped_since_last\x18\x06 \x01(\x04R\x10droppedSinceLast*\xff\x01\n" +
 	"\fRejectReason\x12\x1d\n" +
 	"\x19REJECT_REASON_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19REJECT_REASON_UNKNOWN_KEY\x10\x01\x12\x1a\n" +
@@ -2468,7 +2484,8 @@ const file_suricontroller_agent_v1_agent_proto_rawDesc = "" +
 	"\x1eREJECT_REASON_NODE_ID_MISMATCH\x10\x03\x12\x1c\n" +
 	"\x18REJECT_REASON_CLOCK_SKEW\x10\x04\x12\x18\n" +
 	"\x14REJECT_REASON_REPLAY\x10\x05\x12\x1a\n" +
-	"\x16REJECT_REASON_PROTOCOL\x10\x06*n\n" +
+	"\x16REJECT_REASON_PROTOCOL\x10\x06\x12\x1d\n" +
+	"\x19REJECT_REASON_UNAVAILABLE\x10\a*n\n" +
 	"\n" +
 	"StreamType\x12\x1b\n" +
 	"\x17STREAM_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +

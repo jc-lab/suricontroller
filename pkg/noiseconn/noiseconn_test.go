@@ -181,3 +181,21 @@ func relay(dst, src net.Conn, tamperFrame int) {
 		}
 	}
 }
+
+func TestPrologueMismatchFails(t *testing.T) {
+	ck, sk := genKey(t), genKey(t)
+	cr, sr := handshake(t,
+		ClientConfig{StaticKey: ck, PeerStatic: sk.Public, Prologue: "other/1"},
+		ServerConfig{StaticKey: sk, Accept: func(_, _ []byte) ([]byte, bool) { return nil, true }},
+	)
+	if sr.err == nil && cr.err == nil {
+		t.Fatal("handshake with different prologues succeeded")
+	}
+	cr, sr = handshake(t,
+		ClientConfig{StaticKey: ck, PeerStatic: sk.Public, Prologue: "other/1"},
+		ServerConfig{StaticKey: sk, Prologue: "other/1", Accept: func(_, _ []byte) ([]byte, bool) { return nil, true }},
+	)
+	if cr.err != nil || sr.err != nil {
+		t.Fatalf("handshake with matching custom prologue: client=%v server=%v", cr.err, sr.err)
+	}
+}

@@ -81,11 +81,20 @@ func TestEventType(t *testing.T) {
 	}
 }
 
-func drain(c *Collector) []record {
+// drain takes every queued record and, unless keep is set, marks it
+// delivered.
+func drain(c *Collector, keep ...bool) []record {
 	var out []record
 	for c.queue.Stats().Len > 0 {
-		recs, _ := c.queue.PopBatch(context.Background(), 1000, 1<<30)
-		out = append(out, recs...)
+		batches, _ := c.Next(context.Background(), 1000, 1<<30)
+		for _, b := range batches {
+			for _, r := range b.Records {
+				out = append(out, record{typ: b.Type, instance: b.Instance, Record: r})
+			}
+			if len(keep) == 0 || !keep[0] {
+				c.Commit(b)
+			}
+		}
 	}
 	return out
 }
@@ -111,13 +120,13 @@ func TestTailFilterRotate(t *testing.T) {
 	fmt.Fprint(f, `{"event_type":"alert","n":3}`) // partial line
 	c.pollAll()
 	got := drain(c)
-	if len(got) != 1 || !strings.Contains(string(got[0].line), `"n":1`) || got[0].instance != "ids" {
+	if len(got) != 1 || !strings.Contains(string(got[0].Line), `"n":1`) || got[0].instance != "ids" {
 		t.Fatalf("records = %v", got)
 	}
 	fmt.Fprintln(f, ``)
 	f.Close()
 	c.pollAll()
-	if got = drain(c); len(got) != 1 || !strings.Contains(string(got[0].line), `"n":3`) {
+	if got = drain(c); len(got) != 1 || !strings.Contains(string(got[0].Line), `"n":3`) {
 		t.Fatalf("partial line: %v", got)
 	}
 
@@ -133,7 +142,7 @@ func TestTailFilterRotate(t *testing.T) {
 	c.pollAll()
 	c.pollAll()
 	got = drain(c)
-	if reopened != 1 || len(got) != 7 || !strings.Contains(string(got[6].line), `"n":10`) {
+	if reopened != 1 || len(got) != 7 || !strings.Contains(string(got[6].Line), `"n":10`) {
 		t.Fatalf("rotation: reopened=%d records=%d", reopened, len(got))
 	}
 	if _, err := os.Stat(eve + ".1"); err != nil {
@@ -149,7 +158,7 @@ func TestTailFilterRotate(t *testing.T) {
 	c2.SetInstances([]Instance{{Name: "ids", Effective: root}})
 	c2.SetPolicy(&agentv1.LogCollectionPolicy{Enabled: true, Types: []agentv1.LogType{agentv1.LogType_LOG_TYPE_EVE}, EveAllTypes: true})
 	c2.pollAll()
-	if got = drain(c2); len(got) != 1 || !strings.Contains(string(got[0].line), `"n":11`) {
+	if got = drain(c2); len(got) != 1 || !strings.Contains(string(got[0].Line), `"n":11`) {
 		t.Fatalf("resume: %v", got)
 	}
 
@@ -175,8 +184,8 @@ func TestShip(t *testing.T) {
 		c := New(Config{QueueMaxBytes: 1 << 20})
 		c.SetPolicy(&agentv1.LogCollectionPolicy{Enabled: true, Types: []agentv1.LogType{agentv1.LogType_LOG_TYPE_EVE, agentv1.LogType_LOG_TYPE_SURICATA}, EveAllTypes: true})
 		c.engineLog["ips"] = true
-		c.push(agentv1.LogType_LOG_TYPE_EVE, "ids", []byte(`{"event_type":"alert"}`))
-		c.push(agentv1.LogType_LOG_TYPE_EVE, "ids", []byte(`{"event_type":"dns"}`))
+		c.push(agentv1.LogType_LOG_TYPE_EVE, "ids", Record{Line: []byte(`{"event_type":"alert"}`)})
+		c.push(agentv1.LogType_LOG_TYPE_EVE, "ids", Record{Line: []byte(`{"event_type":"dns"}`)})
 		c.PushEngineLine("ips", "i: suricata: started")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -201,5 +210,87 @@ func TestShip(t *testing.T) {
 			t.Fatalf("batch %+v content %q", &lb, raw)
 		}
 		total += int(lb.RecordCount)
+	}
+}
+
+// Lines that were read but not delivered are read again after a restart,
+// and so is an unfinished last line.
+func TestUndeliveredLinesAreReadAgain(t *testing.T) {
+	dir := t.TempDir()
+	logDir := filepath.Join(dir, "ids")
+	os.MkdirAll(logDir, 0o755)
+	eve := filepath.Join(logDir, "eve.json")
+	os.WriteFile(eve, nil, 0o644)
+	root, _ := yamlmerge.Parse([]byte(fmt.Sprintf(effective, logDir)))
+	policy := &agentv1.LogCollectionPolicy{Enabled: true, Types: []agentv1.LogType{agentv1.LogType_LOG_TYPE_EVE}, EveAllTypes: true}
+	open := func() *Collector {
+		c := New(Config{StartAtEnd: true, OffsetsFile: filepath.Join(dir, "offsets.json")})
+		c.SetInstances([]Instance{{Name: "ids", Effective: root}})
+		c.SetPolicy(policy)
+		return c
+	}
+	appendLog := func(s string) {
+		f, _ := os.OpenFile(eve, os.O_APPEND|os.O_WRONLY, 0o644)
+		fmt.Fprint(f, s)
+		f.Close()
+	}
+
+	c := open()
+	c.pollAll()
+	appendLog("{\"n\":1}\n{\"n\":2}\n")
+	c.pollAll()
+	delivered := drain(c)
+	if len(delivered) != 2 || delivered[0].Offset != 0 || delivered[1].Offset != 8 || delivered[0].Path != eve {
+		t.Fatalf("records = %+v", delivered)
+	}
+	appendLog("{\"n\":3}\n{\"n\":4")
+	c.pollAll()
+	inFlight := drain(c, true) // taken but never acknowledged
+	if len(inFlight) != 1 || inFlight[0].Offset != 16 {
+		t.Fatalf("in flight = %+v", inFlight)
+	}
+	c.saveOffsets()
+
+	c2 := open()
+	c2.pollAll()
+	appendLog("}\n")
+	c2.pollAll()
+	got := drain(c2)
+	if len(got) != 2 || string(got[0].Line) != `{"n":3}` || got[0].Offset != 16 || string(got[1].Line) != `{"n":4}` {
+		t.Fatalf("after restart = %+v", got)
+	}
+	// Everything delivered and no line pending: the position moves to the
+	// end, so a third start reads nothing old.
+	c2.saveOffsets()
+	c3 := open()
+	c3.pollAll()
+	if got := drain(c3); len(got) != 0 {
+		t.Fatalf("third start re-read %d lines", len(got))
+	}
+}
+
+// A line dropped by the full queue no longer holds back the saved position.
+func TestDroppedLinesDoNotPinOffsets(t *testing.T) {
+	dir := t.TempDir()
+	logDir := filepath.Join(dir, "ids")
+	os.MkdirAll(logDir, 0o755)
+	eve := filepath.Join(logDir, "eve.json")
+	os.WriteFile(eve, nil, 0o644)
+	root, _ := yamlmerge.Parse([]byte(fmt.Sprintf(effective, logDir)))
+	c := New(Config{StartAtEnd: true, QueueMaxBytes: 64, OffsetsFile: filepath.Join(dir, "offsets.json")})
+	c.SetInstances([]Instance{{Name: "ids", Effective: root}})
+	c.SetPolicy(&agentv1.LogCollectionPolicy{Enabled: true, Types: []agentv1.LogType{agentv1.LogType_LOG_TYPE_EVE}, EveAllTypes: true})
+	c.pollAll()
+	f, _ := os.OpenFile(eve, os.O_APPEND|os.O_WRONLY, 0o644)
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(f, "{\"n\":%d}\n", i)
+	}
+	f.Close()
+	c.pollAll()
+	drain(c) // the survivors are delivered; the rest were dropped
+	c.saveOffsets()
+	fi, _ := os.Stat(eve)
+	if got := c.offsets[eve].Offset; got != fi.Size() {
+		t.Fatalf("saved offset = %d, want %d", got, fi.Size())
 	}
 }

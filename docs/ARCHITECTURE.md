@@ -733,6 +733,7 @@ suricata:
   base_config: /etc/suricata/suricata.yaml   # 사용자 소유, 자유 편집
   local_rules_dir: /etc/suricata/rules.local # 사용자 로컬 룰 (항상 포함)
   allow_lua: false                            # true 일 때만 lua 룰/출력 허용
+  home_net_interface_addresses: true          # 캡처 인터페이스 주소를 HOME_NET에 추가 (DHCP/PPPoE 추종)
   instances:                                  # 인스턴스별 로그 디렉터리 (default-log-dir 로 강제)
     ids: { log_dir: /var/log/suricata/ids }
     ips: { log_dir: /var/log/suricata/ips }
@@ -767,6 +768,12 @@ logs:
   - controller가 탈취되어도 노드에서 임의 코드가 실행되지 않도록 하기 위한 것입니다.
 - **Lua**: Suricata 8은 `security.lua.allow-rules`를 기본으로 켭니다(sandbox). 그래서 runtime 레이어가 `allow_lua`가 꺼져 있으면 이 값을 `no`로 강제합니다. `security.lua.allow-rules`는 agent 로컬 설정 `allow_lua`로만 켤 수 있습니다. 꺼져 있으면 번들 룰에 `lua:`/`luajit:` 키워드가 있을 때 거부합니다. 최근 Lua 관련 CVE(예: CVE-2026-45763, 8.0.5에서 수정)가 있으므로 이미지는 8.0.5 이상으로 고정합니다.
 - 사용자 로컬 룰 `local_rules_dir/*.rules`는 ③에서 `rule-files`에 항상 추가합니다.
+- **HOME_NET 인터페이스 주소** (`home_net_interface_addresses`, 기본 켬): 인스턴스가 캡처하는 인터페이스(IDS: af-packet, IPS: NFQUEUE 대상)의 주소를 그 인스턴스의 HOME_NET에 호스트 주소로 더합니다. WAN에서 캡처하는 인스턴스가 노드의 공인 주소를 home으로 보게 하기 위해서입니다.
+  - 값은 `[<사용자 값>,<주소들>]`로 감쌉니다(`[[192.168.0.0/16,!192.168.1.5],203.0.113.10]`). 사용자 값의 부정 항목은 의미가 유지되고, `any`면 손대지 않습니다.
+  - 주소는 인터페이스 index로 읽으므로 라벨이 붙은 주소(`eth2:vip`)도 포함됩니다. loopback·link-local·multicast는 뺍니다. 주소가 하나도 남지 않은 인터페이스(PPPoE 끊김, VIP가 상대 라우터로 이동, 장치 사라짐)는 직전 주소를 유지합니다.
+  - 5초마다 읽고, 바뀐 값이 5초 이상 유지되면 적용합니다. 적용 간격은 최소 1분입니다. 비차단 재적재는 탐지 엔진을 하나 더 만들어 메모리가 잠시 두 배가 되기 때문입니다.
+  - 적용은 running 설정 파일만 다시 쓰고 룰 재적재로 합니다. Suricata는 재적재 때 address-groups를 다시 읽습니다(7.0.10에서 패킷으로 확인). 재시작 판단 해시(ConfigHash)는 주소를 뺀 렌더 결과로 계산하므로 주소 변경으로 재시작하지 않습니다.
+  - 추가된 주소는 인스턴스 상태(`InstanceStatus.home_net_addresses`)로 보고합니다.
 - **설정 파일은 두 벌입니다.**
   - staging: `releases/{id}/rules`를 직접 가리키며, `-T` 검증용입니다.
   - running: 안정 경로 `active/rules`(심링크 `active → releases/{id}`)를 가리킵니다.

@@ -37,11 +37,26 @@ type Queue[T any] struct {
 	notify   chan struct{}
 	closed   bool
 	stats    Stats
+	onDrop   func(T)
 }
 
 // New creates a queue holding at most capacity bytes, as measured by sizeOf.
 func New[T any](capacity int64, sizeOf func(T) int) *Queue[T] {
 	return &Queue[T]{capacity: capacity, sizeOf: sizeOf, notify: make(chan struct{})}
+}
+
+// SetOnDrop registers f to be called with every item the queue drops. f runs
+// with the queue locked and must not call methods of the queue.
+func (q *Queue[T]) SetOnDrop(f func(T)) {
+	q.mu.Lock()
+	q.onDrop = f
+	q.mu.Unlock()
+}
+
+func (q *Queue[T]) dropped(v T) {
+	if q.onDrop != nil {
+		q.onDrop(v)
+	}
 }
 
 // Push appends v, dropping the oldest items as needed. An item larger than
@@ -52,11 +67,13 @@ func (q *Queue[T]) Push(v T) int {
 	defer q.mu.Unlock()
 	if q.closed {
 		q.stats.Dropped++
+		q.dropped(v)
 		return 1
 	}
 	q.stats.Pushed++
 	if size > q.capacity {
 		q.stats.Dropped++
+		q.dropped(v)
 		return 1
 	}
 	dropped := q.evict(q.capacity - size)
@@ -71,6 +88,7 @@ func (q *Queue[T]) evict(limit int64) int {
 	n := 0
 	for q.bytes > limit && q.head < len(q.items) {
 		q.bytes -= q.items[q.head].size
+		q.dropped(q.items[q.head].v)
 		var zero entry[T]
 		q.items[q.head] = zero
 		q.head++

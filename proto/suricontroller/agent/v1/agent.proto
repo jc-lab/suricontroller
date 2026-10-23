@@ -30,6 +30,9 @@ enum RejectReason {
   REJECT_REASON_CLOCK_SKEW = 4;
   REJECT_REASON_REPLAY = 5;
   REJECT_REASON_PROTOCOL = 6;
+  // The controller could not check the key (e.g. its database is down).
+  // The agent retries later.
+  REJECT_REASON_UNAVAILABLE = 7;
 }
 
 // HandshakeResponse is the payload of Noise message 2 (controller -> agent).
@@ -258,6 +261,9 @@ message InstanceStatus {
   uint32 rules_loaded = 8;
   uint32 rules_failed = 9;
   string last_error = 10;
+  // Interface addresses added to the instance's HOME_NET
+  // (suricata.home_net_interface_addresses).
+  repeated string home_net_addresses = 11;
 }
 
 // ---------------------------------------------------------------------------

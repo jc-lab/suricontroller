@@ -56,8 +56,10 @@ type Deps struct {
 	Engine     engine.Runtime
 	EngineInfo engine.Info
 	Firewall   firewall.Backend
-	// HostKey verifies bundle signatures (controller host key).
-	HostKey ed25519.PublicKey
+	// HostKey returns the key that verifies bundle signatures: the host key
+	// of the controller the agent is connected to (nil before the first
+	// connection when the endpoint is learned at run time).
+	HostKey func() ed25519.PublicKey
 	Logger  *slog.Logger
 	// Report sends an apply report to the controller, if connected.
 	Report func(*agentv1.ApplyReport)
@@ -89,6 +91,13 @@ type Reconciler struct {
 	retry        *agentv1.DesiredState
 	retryAt      time.Time
 	retryBackoff time.Duration
+
+	// HOME_NET interface addresses (homenet.go).
+	homeMu           sync.Mutex
+	home             homeAddrs
+	homePending      homeAddrs
+	homePendingSince time.Time
+	homeReloadAt     time.Time
 }
 
 // current is what is applied and running.
@@ -164,10 +173,14 @@ func (r *Reconciler) Restore(ctx context.Context) { r.restore(ctx) }
 func (r *Reconciler) Run(ctx context.Context) error {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
+	home := time.NewTicker(homeNetPoll)
+	defer home.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case now := <-home.C:
+			r.checkHomeNet(ctx, now)
 		case <-r.wake:
 			r.mu.Lock()
 			ds := r.pending
@@ -305,13 +318,13 @@ func (r *Reconciler) render(p plan, staging bool) (*renderedPlan, error) {
 		}
 	}
 	out := &renderedPlan{files: map[string][]byte{}}
-	add := func(name string, capture engine.CaptureMode, ifaces []string, queues []uint16) error {
+	add := func(name string, capture engine.CaptureMode, ifaces []string, queues []uint16, homeIfaces []string) error {
 		runDir := filepath.Join(cfg.RunDir, name)
 		in := engine.RenderInput{
 			Instance: name, Capture: capture, Interfaces: ifaces, BaseConfig: cfg.Suricata.BaseConfig, Base: base,
 			Managed: managed, RulesDir: rulesDir, LocalRulesDir: cfg.Suricata.LocalRulesDir, LogDir: cfg.LogDir(name),
 			SocketPath: filepath.Join(runDir, "suricata.sock"), PidFile: filepath.Join(runDir, "suricata.pid"),
-			AllowLua: cfg.Suricata.AllowLua, FailOpen: cfg.FailOpen(),
+			AllowLua: cfg.Suricata.AllowLua, FailOpen: cfg.FailOpen(), HomeNetAddrs: r.homeNetFor(homeIfaces),
 		}
 		res, err := engine.Render(in)
 		if err != nil {
@@ -323,7 +336,8 @@ func (r *Reconciler) render(p plan, staging bool) (*renderedPlan, error) {
 		}
 		path := filepath.Join(runDir, file)
 		h := sha256.New()
-		h.Write(res.YAML)
+		// HOME_NET addresses only need a rule reload (reloadHomeNet).
+		h.Write(res.Static)
 		fmt.Fprintf(h, "\x00%s\x00%v\x00%v", capture, ifaces, queues)
 		out.specs = append(out.specs, engine.InstanceSpec{
 			Name: name, Capture: capture, Interfaces: ifaces, Queues: queues, ConfigPath: path,
@@ -343,7 +357,7 @@ func (r *Reconciler) render(p plan, staging bool) (*renderedPlan, error) {
 		return nil
 	}
 	if ids := p.interfaces(agentv1.InterfaceMode_INTERFACE_MODE_IDS); len(ids) > 0 {
-		if err := add(config.InstanceIDS, engine.CaptureAFPacket, ids, nil); err != nil {
+		if err := add(config.InstanceIDS, engine.CaptureAFPacket, ids, nil, ids); err != nil {
 			return nil, err
 		}
 	}
@@ -356,7 +370,7 @@ func (r *Reconciler) render(p plan, staging bool) (*renderedPlan, error) {
 				break
 			}
 		}
-		if err := add(config.InstanceIPS, engine.CaptureNFQ, nil, queues); err != nil {
+		if err := add(config.InstanceIPS, engine.CaptureNFQ, nil, queues, ips); err != nil {
 			return nil, err
 		}
 	}
@@ -780,7 +794,11 @@ func (r *Reconciler) extract(id string) error {
 		return err
 	}
 	defer f.Close()
-	b, err := bundle.Read(f, id, r.d.HostKey, bundle.DefaultLimits)
+	key := r.d.HostKey()
+	if key == nil {
+		return errors.New("controller host key unknown")
+	}
+	b, err := bundle.Read(f, id, key, bundle.DefaultLimits)
 	if err != nil {
 		return err
 	}

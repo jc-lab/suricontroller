@@ -130,6 +130,11 @@ type Config struct {
 		LocalRulesDir string              `yaml:"local_rules_dir"`
 		AllowLua      bool                `yaml:"allow_lua"`
 		Instances     map[string]Instance `yaml:"instances"`
+		// HomeNetInterfaceAddresses adds the addresses of the interfaces an
+		// instance captures on to its HOME_NET (default true): a WAN-facing
+		// instance then sees the node's public addresses as home. They
+		// follow DHCP/PPPoE changes with a rule reload, not a restart.
+		HomeNetInterfaceAddresses bool `yaml:"home_net_interface_addresses"`
 		// ValidateTimeout bounds `suricata -T`.
 		ValidateTimeout time.Duration `yaml:"validate_timeout"`
 		ExtraArgs       []string      `yaml:"extra_args"`
@@ -149,6 +154,11 @@ type Config struct {
 	StateDir string `yaml:"state_dir"`
 	RunDir   string `yaml:"run_dir"`
 	LogLevel string `yaml:"log_level"`
+
+	// ExternalController: the program embedding the agent supplies the
+	// controller endpoint (agent.Options.Controller), so the controller
+	// url and host_key may be left out. Set by ParseWith.
+	ExternalController bool `yaml:"-"`
 }
 
 // Default returns the configuration defaults.
@@ -162,6 +172,7 @@ func Default() *Config {
 	c.Suricata.BaseConfig = "/etc/suricata/suricata.yaml"
 	c.Suricata.LocalRulesDir = "/etc/suricata/rules.local"
 	c.Suricata.ValidateTimeout = 5 * time.Minute
+	c.Suricata.HomeNetInterfaceAddresses = true
 	c.Suricata.Instances = map[string]Instance{
 		InstanceIDS: {LogDir: "/var/log/suricata/ids"},
 		InstanceIPS: {LogDir: "/var/log/suricata/ips"},
@@ -184,8 +195,18 @@ func Load(path string) (*Config, error) {
 }
 
 // Parse decodes and validates configuration data.
-func Parse(b []byte) (*Config, error) {
+func Parse(b []byte) (*Config, error) { return ParseWith(b, ParseOptions{}) }
+
+// ParseOptions changes what Parse accepts.
+type ParseOptions struct {
+	// ExternalController sets Config.ExternalController.
+	ExternalController bool
+}
+
+// ParseWith is Parse with options.
+func ParseWith(b []byte, o ParseOptions) (*Config, error) {
 	c := Default()
+	c.ExternalController = o.ExternalController
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if err := dec.Decode(c); err != nil && !errors.Is(err, io.EOF) {
@@ -214,13 +235,15 @@ func (c *Config) Validate() error {
 	if err := nodeid.Validate(c.NodeID); err != nil {
 		errs = append(errs, fmt.Errorf("node_id: %w", err))
 	}
-	if c.Controller.URL == "" {
-		errs = append(errs, errors.New("controller.url is required"))
-	} else if !strings.HasPrefix(c.Controller.URL, "ws://") && !strings.HasPrefix(c.Controller.URL, "wss://") {
-		errs = append(errs, errors.New("controller.url must start with ws:// or wss://"))
-	}
-	if _, err := sshkey.ParsePublicKey(c.Controller.HostKey); err != nil {
-		errs = append(errs, fmt.Errorf("controller.host_key: %w", err))
+	if !c.ExternalController || c.Controller.URL != "" || c.Controller.HostKey != "" {
+		if c.Controller.URL == "" {
+			errs = append(errs, errors.New("controller.url is required"))
+		} else if !strings.HasPrefix(c.Controller.URL, "ws://") && !strings.HasPrefix(c.Controller.URL, "wss://") {
+			errs = append(errs, errors.New("controller.url must start with ws:// or wss://"))
+		}
+		if _, err := sshkey.ParsePublicKey(c.Controller.HostKey); err != nil {
+			errs = append(errs, fmt.Errorf("controller.host_key: %w", err))
+		}
 	}
 	switch c.Platform.Profile {
 	case ProfileDocker, ProfileOpenWrtNative, ProfileSystemdNative:

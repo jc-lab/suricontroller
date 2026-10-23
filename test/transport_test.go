@@ -18,6 +18,7 @@ import (
 
 	"github.com/jc-lab/suricontroller/agent/conn"
 	"github.com/jc-lab/suricontroller/controller/agentgw"
+	"github.com/jc-lab/suricontroller/controller/store"
 	agentv1 "github.com/jc-lab/suricontroller/gen/suricontroller/agent/v1"
 	"github.com/jc-lab/suricontroller/pkg/noiseconn"
 	"github.com/jc-lab/suricontroller/pkg/sshkey"
@@ -25,6 +26,7 @@ import (
 
 type memNodes struct {
 	mu    sync.Mutex
+	err   error
 	nodes map[string]struct {
 		id      string
 		enabled bool
@@ -50,11 +52,34 @@ func (m *memNodes) add(t *testing.T, k *sshkey.PrivateKey, id string, enabled bo
 	}{id, enabled}
 }
 
-func (m *memNodes) LookupNodeByX25519(key []byte) (string, bool, bool) {
+// fail makes lookups return err (a store outage) until called with nil.
+func (m *memNodes) fail(err error) {
+	m.mu.Lock()
+	m.err = err
+	m.mu.Unlock()
+}
+
+func (m *memNodes) setEnabled(key *sshkey.PrivateKey, enabled bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	x, _ := key.Public("").X25519()
+	k := hex.EncodeToString(x)
+	n := m.nodes[k]
+	n.enabled = enabled
+	m.nodes[k] = n
+}
+
+func (m *memNodes) LookupNodeByX25519(_ context.Context, key []byte) (string, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.err != nil {
+		return "", false, m.err
+	}
 	n, ok := m.nodes[hex.EncodeToString(key)]
-	return n.id, n.enabled, ok
+	if !ok {
+		return "", false, store.ErrNotFound
+	}
+	return n.id, n.enabled, nil
 }
 
 type recorder struct {
@@ -112,7 +137,9 @@ type env struct {
 
 // newEnv starts the gateway behind a TLS-terminating reverse proxy, the way
 // it is deployed behind cloudflared or a load balancer.
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, nil) }
+
+func newEnvWith(t *testing.T, tweak func(*agentgw.Config)) *env {
 	t.Helper()
 	hk, _ := sshkey.Generate()
 	static, err := noiseconn.KeyPair(hk.X25519())
@@ -120,7 +147,11 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e := &env{hostKey: hk, nodes: &memNodes{}, rec: newRecorder()}
-	e.gw = agentgw.New(agentgw.Config{StaticKey: static, Nodes: e.nodes, Handler: e.rec, ControllerVersion: "test"})
+	cfg := agentgw.Config{StaticKey: static, Nodes: e.nodes, Handler: e.rec, ControllerVersion: "test"}
+	if tweak != nil {
+		tweak(&cfg)
+	}
+	e.gw = agentgw.New(cfg)
 	backend := httptest.NewServer(e.gw)
 	t.Cleanup(backend.Close)
 	bu, _ := url.Parse(backend.URL)
@@ -343,4 +374,44 @@ func TestClockSkewRejectionCarriesServerTime(t *testing.T) {
 		t.Fatalf("corrected clock: %v", err)
 	}
 	s.Close()
+}
+
+func TestRecheckClosesSessionOfDisabledNode(t *testing.T) {
+	e := newEnvWith(t, func(c *agentgw.Config) { c.SessionRecheckInterval = 50 * time.Millisecond })
+	nk, _ := sshkey.Generate()
+	e.nodes.add(t, nk, "router-01", true)
+	s, err := e.dial(t, nk, "router-01", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	go s.Run(context.Background())
+	waitFor(t, e.rec.connected)
+
+	// A store outage keeps the session.
+	e.nodes.fail(errors.New("database down"))
+	select {
+	case <-s.Done():
+		t.Fatal("session closed during a lookup outage")
+	case <-time.After(300 * time.Millisecond):
+	}
+	e.nodes.fail(nil)
+
+	e.nodes.setEnabled(nk, false)
+	select {
+	case <-s.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("session of a disabled node not closed")
+	}
+}
+
+func TestLookupOutageRejectsAsUnavailable(t *testing.T) {
+	e := newEnv(t)
+	nk, _ := sshkey.Generate()
+	e.nodes.add(t, nk, "router-01", true)
+	e.nodes.fail(errors.New("database down"))
+	var re *conn.RejectedError
+	if _, err := e.dial(t, nk, "router-01", nil, nil); !errors.As(err, &re) || re.Reason != agentv1.RejectReason_REJECT_REASON_UNAVAILABLE {
+		t.Fatalf("err = %v", err)
+	}
 }

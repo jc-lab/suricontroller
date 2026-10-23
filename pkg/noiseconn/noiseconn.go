@@ -22,7 +22,8 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
-// Prologue binds the handshake to this protocol and version.
+// Prologue binds the handshake to this protocol and version. Other
+// protocols built on this package set their own prologue in the config.
 const Prologue = "suricontroller/agent/1"
 
 const (
@@ -62,6 +63,8 @@ type ClientConfig struct {
 	// handshake was accepted. If nil, every response is accepted.
 	Accepted func(payload []byte) bool
 	Timeout  time.Duration
+	// Prologue overrides the default Prologue. Both peers must use the same.
+	Prologue string
 }
 
 // ServerConfig configures the responder side.
@@ -72,6 +75,15 @@ type ServerConfig struct {
 	// rejected peer still receives message 2 so it can learn the reason.
 	Accept  func(peerStatic, payload []byte) (response []byte, accept bool)
 	Timeout time.Duration
+	// Prologue overrides the default Prologue. Both peers must use the same.
+	Prologue string
+}
+
+func prologue(p string) []byte {
+	if p == "" {
+		p = Prologue
+	}
+	return []byte(p)
 }
 
 // Client performs the initiator side of the handshake.
@@ -81,7 +93,7 @@ func Client(ctx context.Context, c net.Conn, cfg ClientConfig) (*Conn, []byte, e
 		Random:        rand.Reader,
 		Pattern:       noise.HandshakeIK,
 		Initiator:     true,
-		Prologue:      []byte(Prologue),
+		Prologue:      prologue(cfg.Prologue),
 		StaticKeypair: cfg.StaticKey,
 		PeerStatic:    cfg.PeerStatic,
 	})
@@ -120,7 +132,7 @@ func Server(ctx context.Context, c net.Conn, cfg ServerConfig) (*Conn, []byte, e
 		Random:        rand.Reader,
 		Pattern:       noise.HandshakeIK,
 		Initiator:     false,
-		Prologue:      []byte(Prologue),
+		Prologue:      prologue(cfg.Prologue),
 		StaticKeypair: cfg.StaticKey,
 	})
 	if err != nil {
