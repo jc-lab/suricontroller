@@ -261,6 +261,9 @@ message InstanceStatus {
   uint32 rules_loaded = 8;
   uint32 rules_failed = 9;
   string last_error = 10;
+  // Interface addresses added to the instance's HOME_NET
+  // (suricata.home_net_interface_addresses).
+  repeated string home_net_addresses = 11;
 }
 
 // ---------------------------------------------------------------------------

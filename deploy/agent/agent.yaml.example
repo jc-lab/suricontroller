@@ -30,6 +30,7 @@ suricata:
   base_config: /etc/suricata/suricata.yaml   # yours: edit freely
   local_rules_dir: /etc/suricata/rules.local # *.rules here are always loaded
   allow_lua: false
+  home_net_interface_addresses: true     # HOME_NET += addresses of the captured interfaces (DHCP/PPPoE followed)
   instances:                             # log locations (default-log-dir per instance)
     ids: { log_dir: /var/log/suricata/ids }
     ips: { log_dir: /var/log/suricata/ips }

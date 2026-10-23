@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -35,11 +37,18 @@ type RenderInput struct {
 	PidFile       string
 	AllowLua      bool
 	FailOpen      bool
+	// HomeNetAddrs are added to HOME_NET (the instance's interface
+	// addresses). They are left out of Rendered.Static.
+	HomeNetAddrs []string
 }
 
 // Rendered is an effective instance configuration.
 type Rendered struct {
 	YAML []byte
+	// Static is YAML without HomeNetAddrs: a change of the addresses alone
+	// needs a rule reload (Suricata re-reads the address groups), not a
+	// restart, so the restart decision hashes this.
+	Static []byte
 	// Shadowed lists user settings overridden by the controller overlay.
 	Shadowed []string
 }
@@ -70,11 +79,35 @@ func Render(in RenderInput) (*Rendered, error) {
 	// Agent-owned settings go last so nothing earlier in the document (for
 	// example a dotted key in the user's file) can override them.
 	yamlmerge.MoveToEnd(eff, yamlmerge.TopKeys(rt)...)
-	out, err := yamlmerge.Encode(eff)
+	static, err := yamlmerge.Encode(eff)
 	if err != nil {
 		return nil, err
 	}
-	return &Rendered{YAML: out, Shadowed: shadowed}, nil
+	res := &Rendered{YAML: static, Static: static, Shadowed: shadowed}
+	if v, ok := HomeNetValue(yamlmerge.GetString(eff, "vars", "address-groups", "HOME_NET"), in.HomeNetAddrs); ok {
+		yamlmerge.Set(eff, yamlmerge.Scalar(v), "vars", "address-groups", "HOME_NET")
+		yamlmerge.MoveToEnd(eff, "vars")
+		if res.YAML, err = yamlmerge.Encode(eff); err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+// HomeNetValue adds addrs to a HOME_NET value: the user's value is kept as
+// a nested group ("[[192.168.0.0/16,!192.168.1.5],203.0.113.10]"), so its
+// negations keep their meaning. "any" already covers them. ok is false
+// when nothing changes.
+func HomeNetValue(base string, addrs []string) (string, bool) {
+	base = strings.TrimSpace(base)
+	if len(addrs) == 0 || base == "any" {
+		return base, false
+	}
+	items := slices.Clone(addrs)
+	if base != "" {
+		items = append([]string{base}, items...)
+	}
+	return "[" + strings.Join(items, ",") + "]", true
 }
 
 func seq(items ...*yaml.Node) *yaml.Node {

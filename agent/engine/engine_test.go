@@ -185,6 +185,45 @@ func TestRenderLayers(t *testing.T) {
 	}
 }
 
+func TestRenderHomeNetAddrs(t *testing.T) {
+	in := renderInput(t, "", "vars:\n  address-groups:\n    HOME_NET: '[192.168.0.0/16,!192.168.1.5]'\n")
+	in.HomeNetAddrs = []string{"125.131.127.16", "2001:db8::1"}
+	r, err := Render(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eff, _ := yamlmerge.Parse(r.YAML)
+	if got := yamlmerge.GetString(eff, "vars", "address-groups", "HOME_NET"); got != "[[192.168.0.0/16,!192.168.1.5],125.131.127.16,2001:db8::1]" {
+		t.Fatalf("HOME_NET = %q", got)
+	}
+	// The restart decision ignores the addresses.
+	in.HomeNetAddrs = []string{"203.0.113.9"}
+	r2, _ := Render(in)
+	if string(r2.Static) != string(r.Static) || string(r2.YAML) == string(r.YAML) {
+		t.Fatal("Static must not depend on the addresses")
+	}
+	static, _ := yamlmerge.Parse(r.Static)
+	if yamlmerge.GetString(static, "vars", "address-groups", "HOME_NET") != "[192.168.0.0/16,!192.168.1.5]" {
+		t.Fatal("Static holds the addresses")
+	}
+	for _, c := range []struct {
+		base  string
+		addrs []string
+		want  string
+		ok    bool
+	}{
+		{"[10.0.0.0/8]", []string{"1.2.3.4"}, "[[10.0.0.0/8],1.2.3.4]", true},
+		{"10.0.0.0/8", []string{"1.2.3.4"}, "[10.0.0.0/8,1.2.3.4]", true},
+		{"", []string{"1.2.3.4", "1.2.3.5"}, "[1.2.3.4,1.2.3.5]", true},
+		{"any", []string{"1.2.3.4"}, "any", false},
+		{"[10.0.0.0/8]", nil, "[10.0.0.0/8]", false},
+	} {
+		if got, ok := HomeNetValue(c.base, c.addrs); got != c.want || ok != c.ok {
+			t.Errorf("HomeNetValue(%q, %v) = %q %v", c.base, c.addrs, got, ok)
+		}
+	}
+}
+
 func TestRenderNFQ(t *testing.T) {
 	in := renderInput(t, "", "")
 	in.Capture, in.Interfaces, in.FailOpen, in.AllowLua = CaptureNFQ, nil, true, true

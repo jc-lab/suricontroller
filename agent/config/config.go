@@ -130,6 +130,11 @@ type Config struct {
 		LocalRulesDir string              `yaml:"local_rules_dir"`
 		AllowLua      bool                `yaml:"allow_lua"`
 		Instances     map[string]Instance `yaml:"instances"`
+		// HomeNetInterfaceAddresses adds the addresses of the interfaces an
+		// instance captures on to its HOME_NET (default true): a WAN-facing
+		// instance then sees the node's public addresses as home. They
+		// follow DHCP/PPPoE changes with a rule reload, not a restart.
+		HomeNetInterfaceAddresses bool `yaml:"home_net_interface_addresses"`
 		// ValidateTimeout bounds `suricata -T`.
 		ValidateTimeout time.Duration `yaml:"validate_timeout"`
 		ExtraArgs       []string      `yaml:"extra_args"`
@@ -167,6 +172,7 @@ func Default() *Config {
 	c.Suricata.BaseConfig = "/etc/suricata/suricata.yaml"
 	c.Suricata.LocalRulesDir = "/etc/suricata/rules.local"
 	c.Suricata.ValidateTimeout = 5 * time.Minute
+	c.Suricata.HomeNetInterfaceAddresses = true
 	c.Suricata.Instances = map[string]Instance{
 		InstanceIDS: {LogDir: "/var/log/suricata/ids"},
 		InstanceIPS: {LogDir: "/var/log/suricata/ips"},

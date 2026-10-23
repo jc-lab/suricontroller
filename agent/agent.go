@@ -591,6 +591,7 @@ func (a *Agent) status(ctx context.Context) *agentv1.StatusReport {
 			Name: in.Name, Capture: string(in.Capture), Running: in.Running, UptimeSeconds: int64(in.Uptime / time.Second),
 			RssBytes: in.RSSBytes, Interfaces: in.Interfaces, Counters: in.Counters,
 			RulesLoaded: uint32(in.RulesLoaded), RulesFailed: uint32(in.RulesFailed), LastError: in.LastError,
+			HomeNetAddresses: a.rec.HomeNetAddresses(in.Name),
 		})
 	}
 	return st
